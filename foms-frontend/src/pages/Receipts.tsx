@@ -194,6 +194,8 @@ export const Receipts: React.FC = () => {
     <tbody>
       <tr><td>Received From:</td><td>${or.clientName}</td></tr>
       <tr><td>Client Code:</td><td>${or.clientCode}</td></tr>
+      <tr><td>Client Address:</td><td>${client?.address || 'N/A'}</td></tr>
+      <tr><td>Client TIN:</td><td>${client?.tin || (client as any)?.TIN || 'N/A'}</td></tr>
       <tr><td>Invoice No.:</td><td>${or.invoiceNumber}</td></tr>
       <tr><td>Amount Received:</td><td>${amountFormatted}</td></tr>
       <tr><td>Amount in Words:</td><td>${amountWords}</td></tr>
@@ -353,6 +355,8 @@ export const Receipts: React.FC = () => {
                 <span style={{ color: '#64748B', display: 'block', marginBottom: '4px' }}>Received From:</span>
                 <strong style={{ fontSize: '1rem' }}>{or.clientName}</strong>
                 <p style={{ margin: '4px 0 0', color: '#475569' }}>Code: {or.clientCode}</p>
+                <p style={{ margin: '4px 0 0', color: '#475569' }}>TIN: {client?.tin || (client as any)?.TIN || 'N/A'}</p>
+                <p style={{ margin: '4px 0 0', color: '#475569' }}>Address: {client?.address || 'N/A'}</p>
                 <p style={{ margin: '4px 0 0', color: '#475569' }}>Invoice No: {or.invoiceNumber}</p>
               </div>
             </div>

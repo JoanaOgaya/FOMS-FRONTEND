@@ -84,27 +84,19 @@ export function computeFreightCost(waybill: any, clientRates: BillingRate[]): Fr
   // Find applicable rate config for the client
   let rateConfig = clientRates.find(r => r.region.toUpperCase() === area.toUpperCase() && r.status === 'Active');
   
-  // Fallback to standard rates if no specific rate is configured for the client
+  // If no rate configuration is found in database for this client/area, use empty zeroed rate (no mock/hardcoded fallback)
   if (!rateConfig) {
-    const standardRates: Record<string, Partial<BillingRate>> = {
-      'NCR': { minimumWeight: 5, minimumRate: 100, excessRate: 25 },
-      'LUZON': { minimumWeight: 5, minimumRate: 130, excessRate: 45 },
-      'VISAYAS': { minimumWeight: 5, minimumRate: 150, excessRate: 50 },
-      'MINDANAO': { minimumWeight: 5, minimumRate: 150, excessRate: 50 },
-      'ODA': { minimumWeight: 0, minimumRate: 500, excessRate: 0 },
-    };
-    const defaults = standardRates[area.toUpperCase()] || standardRates['LUZON'];
-    
-    rateConfig = {
-      id: 'DEFAULT',
-      clientId: 'ALL',
+    const allRate = clientRates.find(r => r.clientId === 'ALL' && r.status === 'Active');
+    rateConfig = allRate || {
+      id: 'NONE',
+      clientId: waybill.clientCode || 'UNKNOWN',
       region: area as any,
-      minimumWeight: defaults.minimumWeight!,
-      minimumRate: defaults.minimumRate!,
-      excessRate: defaults.excessRate!,
-      valuationRate: 0.01,
-      fuelSurchargeRate: 0.15,
-      vatRate: 0.12,
+      minimumWeight: 0,
+      minimumRate: 0,
+      excessRate: 0,
+      valuationRate: 0,
+      fuelSurchargeRate: 0,
+      vatRate: 0,
       effectiveDate: new Date().toISOString(),
       status: 'Active'
     };

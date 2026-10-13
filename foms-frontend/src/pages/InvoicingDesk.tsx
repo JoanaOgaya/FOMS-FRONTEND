@@ -226,13 +226,27 @@ export const InvoicingDesk: React.FC = () => {
                   label="From:"
                   placeholder="Start date..."
                   value={filterDateFrom}
-                  onChange={setFilterDateFrom}
+                  onChange={date => {
+                    if (filterDateTo && date > filterDateTo) {
+                      toast.error('Start date cannot be later than end date.');
+                      return;
+                    }
+                    setFilterDateFrom(date);
+                  }}
+                  maxDate={filterDateTo}
                 />
                 <CalendarPicker
                   label="To:"
                   placeholder="End date..."
                   value={filterDateTo}
-                  onChange={setFilterDateTo}
+                  onChange={date => {
+                    if (filterDateFrom && date < filterDateFrom) {
+                      toast.error('End date cannot be earlier than start date.');
+                      return;
+                    }
+                    setFilterDateTo(date);
+                  }}
+                  minDate={filterDateFrom}
                 />
               </div>
             }

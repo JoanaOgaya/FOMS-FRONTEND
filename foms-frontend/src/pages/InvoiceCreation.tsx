@@ -10,6 +10,7 @@ import { useQuery } from '../hooks/useQuery';
 import { waybillsService } from '../services/waybillsService';
 import { invoicesService } from '../services/invoicesService';
 import { clientsService } from '../services/clientsService';
+import { ratesService } from '../services/ratesService';
 import { auditLogsService } from '../services/auditLogsService';
 import type { Waybill, Invoice, BillingRate, Client } from '../types/entities';
 import { TableContainer } from '../components/TableContainer';
@@ -29,10 +30,12 @@ export const InvoiceCreation: React.FC = () => {
   const { data: waybillsData, refetch: refetchWaybills } = useQuery('invcreate:waybills', () => waybillsService.list({ pageSize: 200 }));
   const { data: invoicesData, refetch: refetchInvoices } = useQuery('invcreate:invoices', () => invoicesService.list({ pageSize: 200 }));
   const { data: clientsData } = useQuery('invcreate:clients', () => clientsService.list({ pageSize: 100 }));
+  const { data: ratesData } = useQuery('invcreate:rates', () => ratesService.list({ pageSize: 200 }));
 
   const waybills: Waybill[] = useMemo(() => waybillsData?.items || [], [waybillsData?.items]);
   const invoices: Invoice[] = useMemo(() => invoicesData?.items || [], [invoicesData?.items]);
   const clients: Client[] = useMemo(() => clientsData?.items || [], [clientsData?.items]);
+  const billingRates: BillingRate[] = useMemo(() => ratesData?.items || [], [ratesData?.items]);
 
   const [searchParams] = useSearchParams();
   const editInvoiceId = searchParams.get('edit');
@@ -54,18 +57,47 @@ export const InvoiceCreation: React.FC = () => {
 
   // To handle the details view on click
   const [selectedWaybillForDetails, setSelectedWaybillForDetails] = useState<string | null>(null);
+  const [showBillingRatesModal, setShowBillingRatesModal] = useState(false);
 
-  // Rate Config State (defaults from the user's example)
-  const [rateConfig, setRateConfig] = useState({
-    minWeight: 5,
-    ncrBase: 100, ncrExcess: 25,
-    luzonBase: 130, luzonExcess: 45,
-    visayasBase: 150, visayasExcess: 50,
-    mindanaoBase: 150, mindanaoExcess: 50,
-    valuationRate: 1, // percentage
-    fuelSurchargeRate: 15, // percentage
-    vatRate: 12 // percentage
-  });
+  const invoiceClient = useMemo(() => clients.find((c: Client) => c.id === selectedClientId), [clients, selectedClientId]);
+
+  // Client billing rates directly fetched from database via ratesService
+  const clientRates = useMemo<BillingRate[]>(() => {
+    if (!selectedClientId) return [];
+    return billingRates.filter((r: BillingRate) => {
+      const matchesClient = r.clientId === selectedClientId ||
+        (invoiceClient && (r.clientId === invoiceClient.id || (r as any).clientName === invoiceClient.name)) ||
+        r.clientId === 'ALL';
+      return matchesClient && (r.status === 'Active' || (r as any).isActive);
+    });
+  }, [billingRates, selectedClientId, invoiceClient]);
+
+  const ncrRate = useMemo(() => clientRates.find(r => r.region?.toUpperCase() === 'NCR'), [clientRates]);
+  const luzonRate = useMemo(() => clientRates.find(r => r.region?.toUpperCase() === 'LUZON'), [clientRates]);
+  const visayasRate = useMemo(() => clientRates.find(r => r.region?.toUpperCase() === 'VISAYAS'), [clientRates]);
+  const mindanaoRate = useMemo(() => clientRates.find(r => r.region?.toUpperCase() === 'MINDANAO'), [clientRates]);
+  const odaRate = useMemo(() => clientRates.find(r => r.region?.toUpperCase() === 'ODA'), [clientRates]);
+
+  const primaryRate = ncrRate || luzonRate || visayasRate || mindanaoRate || clientRates[0];
+  const rateConfig = useMemo(() => {
+    return {
+      minWeight: primaryRate?.minimumWeight ?? 0,
+      ncrBase: ncrRate?.minimumRate ?? 0,
+      ncrExcess: ncrRate?.excessRate ?? 0,
+      luzonBase: luzonRate?.minimumRate ?? 0,
+      luzonExcess: luzonRate?.excessRate ?? 0,
+      visayasBase: visayasRate?.minimumRate ?? 0,
+      visayasExcess: visayasRate?.excessRate ?? 0,
+      mindanaoBase: mindanaoRate?.minimumRate ?? 0,
+      mindanaoExcess: mindanaoRate?.excessRate ?? 0,
+      odaFee: odaRate?.minimumRate ?? (clientRates.length > 0 ? 500 : 0),
+      valuationRate: primaryRate?.valuationRate !== undefined ? Number(primaryRate.valuationRate) * 100 : 0,
+      fuelSurchargeRate: primaryRate?.fuelSurchargeRate !== undefined ? Number(primaryRate.fuelSurchargeRate) * 100 : 0,
+      vatRate: invoiceClient?.vatRate !== undefined && invoiceClient?.vatRate !== null
+        ? Number(invoiceClient.vatRate) * 100
+        : (primaryRate?.vatRate !== undefined ? Number(primaryRate.vatRate) * 100 : 12)
+    };
+  }, [primaryRate, ncrRate, luzonRate, visayasRate, mindanaoRate, odaRate, invoiceClient, clientRates.length]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const defaultDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -83,17 +115,6 @@ export const InvoiceCreation: React.FC = () => {
       setDueDate(prev => (prev === nextDue ? prev : nextDue));
     }
   }, [issueDate]);
-
-  // Derived override rates
-  const overrideRates = useMemo<BillingRate[]>(() => {
-    return [
-      { id: 'R1', clientId: 'ALL', region: 'NCR', minimumWeight: rateConfig.minWeight, minimumRate: rateConfig.ncrBase, excessRate: rateConfig.ncrExcess, valuationRate: rateConfig.valuationRate / 100, vatRate: rateConfig.vatRate / 100, fuelSurchargeRate: rateConfig.fuelSurchargeRate / 100, status: 'Active', effectiveDate: '' },
-      { id: 'R2', clientId: 'ALL', region: 'Luzon', minimumWeight: rateConfig.minWeight, minimumRate: rateConfig.luzonBase, excessRate: rateConfig.luzonExcess, valuationRate: rateConfig.valuationRate / 100, vatRate: rateConfig.vatRate / 100, fuelSurchargeRate: rateConfig.fuelSurchargeRate / 100, status: 'Active', effectiveDate: '' },
-      { id: 'R3', clientId: 'ALL', region: 'Visayas', minimumWeight: rateConfig.minWeight, minimumRate: rateConfig.visayasBase, excessRate: rateConfig.visayasExcess, valuationRate: rateConfig.valuationRate / 100, vatRate: rateConfig.vatRate / 100, fuelSurchargeRate: rateConfig.fuelSurchargeRate / 100, status: 'Active', effectiveDate: '' },
-      { id: 'R4', clientId: 'ALL', region: 'Mindanao', minimumWeight: rateConfig.minWeight, minimumRate: rateConfig.mindanaoBase, excessRate: rateConfig.mindanaoExcess, valuationRate: rateConfig.valuationRate / 100, vatRate: rateConfig.vatRate / 100, fuelSurchargeRate: rateConfig.fuelSurchargeRate / 100, status: 'Active', effectiveDate: '' },
-      { id: 'R5', clientId: 'ALL', region: 'ODA', minimumWeight: 0, minimumRate: 500, excessRate: 0, valuationRate: rateConfig.valuationRate / 100, vatRate: rateConfig.vatRate / 100, fuelSurchargeRate: rateConfig.fuelSurchargeRate / 100, status: 'Active', effectiveDate: '' }
-    ];
-  }, [rateConfig]);
 
   // Pre-load logic for Edit
   useEffect(() => {
@@ -144,7 +165,7 @@ export const InvoiceCreation: React.FC = () => {
     return availableWaybills.filter((w: Waybill) => w.clientCode === selectedClientId).map((wb: Waybill) => {
       let breakdown: any = null;
       try {
-        breakdown = computeFreightCost(wb, overrideRates);
+        breakdown = computeFreightCost(wb, clientRates);
       } catch (e) {
       }
       return {
@@ -156,14 +177,13 @@ export const InvoiceCreation: React.FC = () => {
         breakdown
       };
     });
-  }, [availableWaybills, selectedClientId, overrideRates]);
+  }, [availableWaybills, selectedClientId, clientRates]);
 
   const filteredWaybills = useMemo(() => {
     if (!searchQuery) return clientWaybills;
     return clientWaybills.filter((w: any) => w.waybillNumber.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [clientWaybills, searchQuery]);
 
-  const invoiceClient = clients.find((c: Client) => c.id === selectedClientId);
   const derivedBillingSchedule = invoiceClient?.billingSchedule ?? 'Monthly';
 
   // Derived periods for Step 2
@@ -253,7 +273,7 @@ export const InvoiceCreation: React.FC = () => {
 
         validIds.push(wbId);
         try {
-          const breakdown = computeFreightCost(wb, overrideRates);
+          const breakdown = computeFreightCost(wb, clientRates);
           
           totalFreightCost   += breakdown.freightCost;
           totalValuation     += breakdown.valuation;
@@ -432,6 +452,43 @@ export const InvoiceCreation: React.FC = () => {
                 onSelectionChange={(keys) => setSelectedWaybills(keys as string[])}
                 isRowSelectable={(w: any) => w.status === 'Validated'}
                 onRowClick={(w: any) => setSelectedWaybillForDetails(selectedWbDetail?.id === w.id ? null : w.id)}
+                customFilters={
+                  <button
+                    type="button"
+                    onClick={() => setShowBillingRatesModal(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      height: 38,
+                      padding: '0 14px',
+                      background: '#fff',
+                      color: '#0F172A',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#94A3B8';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#fff';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }}
+                    title="View agreed billing rates"
+                  >
+                    <i className="ti ti-receipt-tax" style={{ fontSize: '1.05rem', color: '#4F46E5' }} />
+                    <span>Billing Rates</span>
+                    <span style={{ fontSize: '0.65rem', border: '1px solid #E2E8F0', color: '#64748B', padding: '1px 6px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <i className="ti ti-lock" style={{ fontSize: '0.65rem' }} /> READ-ONLY
+                    </span>
+                  </button>
+                }
                 columns={[
                   { key: 'waybillNumber', label: 'WAYBILL NO.', sortable: true, render: (row: any) => <span style={{ borderBottom: '1px dotted #CBD5E1', cursor: 'pointer', color: '#0F172A', fontWeight: 600 }}>{row.waybillNumber}</span> },
                   { key: 'deliveryDate', label: 'DELIVERY DATE', sortable: true, render: (row: any) => new Date(row.deliveryDate).toLocaleDateString('en-US') },
@@ -457,96 +514,108 @@ export const InvoiceCreation: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Panel: Rate Config */}
-            <div style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+            {/* Right Panel: PATAYO Billing Summary */}
+            <div style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
               
-              <div style={{ padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0F172A' }}>Billing Rates</h4>
-                  <span style={{ fontSize: '0.65rem', border: '1px solid #E2E8F0', color: '#64748B', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <i className="ti ti-lock" /> READ-ONLY
+              {/* QA-004: Billing Summary Card (PATAYO - Vertically stacked itemized breakdown) */}
+              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="ti ti-calculator" style={{ fontSize: 18, color: '#059669' }} />
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>Billing Summary</h4>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A', background: '#F1F5F9', padding: '3px 8px', borderRadius: 12 }}>
+                    {selectedWaybills.length} Selected
                   </span>
                 </div>
-                <p style={{ margin: '0 0 24px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5 }}>
-                  Agreed rates for {invoiceClient?.name}, applied automatically. To change them, update the client's rate matrix in Client Accounts.
-                </p>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 12 }}>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Base Freight Charges</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalFreightCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Valuation Fee ({rateConfig.valuationRate}%)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalValuation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Out of Delivery Area (ODA)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalODA.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Subtotal row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '8px 12px', borderRadius: 6, margin: '2px 0' }}>
+                    <span style={{ color: '#0F172A', fontSize: '0.88rem', fontWeight: 700 }}>Subtotal (Net Amount)</span>
+                    <span style={{ color: '#0F172A', fontSize: '0.92rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Value-Added Tax (12% VAT)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalVAT.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Fuel Surcharge ({rateConfig.fuelSurchargeRate}%)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalFuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Grand Total prominent banner */}
+                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                     <div>
-                      <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Minimum weight</span>
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: '#94A3B8' }}>Minimum chargeable</span>
+                      <span style={{ display: 'block', fontWeight: 800, fontSize: '0.8rem', color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</span>
+                      <span style={{ fontSize: '0.7rem', color: '#059669' }}>Total Amount Due</span>
                     </div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>{rateConfig.minWeight} kg</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>NCR / Metro Manila</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Base rate (up to 5 kg)</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.ncrBase.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Excess per kg</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.ncrExcess.toFixed(2)}</span></div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Luzon</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Base rate (up to 5 kg)</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.luzonBase.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Excess per kg</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.luzonExcess.toFixed(2)}</span></div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Visayas</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Base rate (up to 5 kg)</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.visayasBase.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Excess per kg</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.visayasExcess.toFixed(2)}</span></div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Mindanao</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Base rate (up to 5 kg)</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.mindanaoBase.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Excess per kg</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.mindanaoExcess.toFixed(2)}</span></div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Other charges</span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>ODA fee</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>₱500.00</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Valuation</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>{rateConfig.valuationRate}% of declared value</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>VAT</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>{rateConfig.vatRate}%</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: '0.8rem', color: '#64748B' }}>Fuel surcharge</span><span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>{rateConfig.fuelSurchargeRate}% of freight</span></div>
+                    <span style={{ fontWeight: 800, fontSize: '1.35rem', color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalGrand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Sticky Footer */}
-          <div style={{ position: 'sticky', bottom: 0, zIndex: 100, background: '#fff', borderTop: '1px solid #E2E8F0', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, marginTop: 24, marginLeft: -32, marginRight: -32, boxShadow: '0 -4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', gap: 32 }}>
-              <div>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Selected</span>
-                <span style={{ display: 'block', fontSize: '1.1rem', color: '#0F172A', fontWeight: 800 }}>{selectedWaybills.length || '-'}</span>
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Subtotal</span>
-                <span style={{ display: 'block', fontSize: '1rem', color: '#334155', fontWeight: 700 }}>{calc.totalSubtotal ? `₱${calc.totalSubtotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}` : '-'}</span>
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>VAT 12%</span>
-                <span style={{ display: 'block', fontSize: '1rem', color: '#334155', fontWeight: 700 }}>{calc.totalVAT ? `₱${calc.totalVAT.toLocaleString('en-PH', {minimumFractionDigits: 2})}` : '-'}</span>
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Fuel surcharge</span>
-                <span style={{ display: 'block', fontSize: '1rem', color: '#334155', fontWeight: 700 }}>{calc.totalFuelSurcharge ? `₱${calc.totalFuelSurcharge.toLocaleString('en-PH', {minimumFractionDigits: 2})}` : '-'}</span>
-              </div>
-              <div>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Grand total</span>
-                <span style={{ display: 'block', fontSize: '1.1rem', color: '#059669', fontWeight: 800 }}>{calc.totalGrand ? `₱${calc.totalGrand.toLocaleString('en-PH', {minimumFractionDigits: 2})}` : '-'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedWaybills.length === 0) {
+                      toast.error('Please select at least one waybill.', 'Validation Error');
+                      return;
+                    }
+                    setStep(3);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: selectedWaybills.length === 0 ? '#94A3B8' : '#059669',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    cursor: selectedWaybills.length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: selectedWaybills.length === 0 ? 'none' : '0 2px 4px rgba(5, 150, 105, 0.2)'
+                  }}
+                >
+                  <span>Next: Confirm & Submit</span>
+                  <i className="ti ti-arrow-right" style={{ fontSize: '1rem' }} />
+                </button>
               </div>
             </div>
-            <Button title="Next: Confirm & Submit" variant="success" onClick={() => {
-              if (selectedWaybills.length === 0) {
-                toast.error('Please select at least one waybill.', 'Validation Error');
-                return;
-              }
-              setStep(3);
-            }} style={{ padding: '12px 24px', fontSize: '0.95rem' }} />
           </div>
         </div>
       )}
@@ -634,31 +703,89 @@ export const InvoiceCreation: React.FC = () => {
               </table>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ width: '50%' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', display: 'block', marginBottom: 8 }}>Remarks (optional)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', gap: 32, alignItems: 'flex-start', marginTop: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', display: 'block' }}>Remarks (optional)</label>
                 <textarea 
                   value={notes} 
                   onChange={e => setNotes(e.target.value)} 
-                  placeholder="Notes for this invoice..."
-                  style={{ width: '100%', padding: '12px', borderRadius: 8, border: '1px solid #E2E8F0', minHeight: '100px', fontFamily: 'inherit', outline: 'none' }}
+                  placeholder="Notes, references, or special instructions for this invoice..."
+                  style={{ width: '100%', padding: '14px', borderRadius: 8, border: '1px solid #E2E8F0', minHeight: '140px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', fontSize: '0.9rem', color: '#1E293B' }}
                 />
               </div>
 
-              <div style={{ width: '350px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Selected</span><span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>{selectedWaybills.length}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Subtotal</span><span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>₱{calc.totalSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>VAT 12%</span><span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>₱{calc.totalVAT.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Fuel surcharge</span><span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>₱{calc.totalFuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></div>
-                
-                <div style={{ height: 1, background: '#E2E8F0', margin: '8px 0' }} />
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#059669' }}>Grand total</span>
-                  <span style={{ fontWeight: 800, fontSize: '1.4rem', color: '#059669' }}>₱{calc.totalGrand.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+              {/* QA-004: Billing Summary with Section Title, clear headings, proper spacing, and traceable peso values */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <i className="ti ti-calculator" style={{ fontSize: 18, color: '#059669' }} />
+                      Billing Summary
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Traceable computation breakdown</span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A', background: '#E2E8F0', padding: '3px 10px', borderRadius: 12 }}>
+                    {calc.validIds.length} Waybill(s)
+                  </span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Base Freight Charges</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalFreightCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Valuation Fee ({rateConfig.valuationRate}%)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalValuation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Out of Delivery Area (ODA)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalODA.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Subtotal row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '10px 14px', borderRadius: 6, margin: '2px 0' }}>
+                    <span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>Subtotal (Net Amount)</span>
+                    <span style={{ color: '#0F172A', fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Value-Added Tax (12% VAT)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalVAT.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>Fuel Surcharge ({rateConfig.fuelSurchargeRate}%)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalFuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* Grand total prominent banner */}
+                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <div>
+                      <span style={{ display: 'block', fontWeight: 800, fontSize: '0.85rem', color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</span>
+                      <span style={{ fontSize: '0.75rem', color: '#059669' }}>Total Amount Due</span>
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '1.45rem', color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
+                      ₱{calc.totalGrand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
                   <Button title="Back" variant="secondary" onClick={() => setStep(2)} />
                   <button
                     disabled={isBillingPeriodInvalid || isDateInvalid}
@@ -678,7 +805,7 @@ export const InvoiceCreation: React.FC = () => {
                             createdAt: new Date(issueDate).toISOString(),
                             dueDate: new Date(dueDate).toISOString(),
                             notes,
-                            appliedRates: overrideRates,
+                            appliedRates: clientRates,
                           });
                           await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed' })));
                           refetchInvoices();
@@ -713,7 +840,7 @@ export const InvoiceCreation: React.FC = () => {
                         createdAt: new Date(issueDate).toISOString(),
                         dueDate: new Date(dueDate).toISOString(),
                         notes,
-                        appliedRates: overrideRates,
+                        appliedRates: clientRates,
                       });
                       await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed' })));
                       refetchInvoices();
@@ -722,12 +849,12 @@ export const InvoiceCreation: React.FC = () => {
                       toast.success(`Invoice ${invNum} submitted for approval.`, 'Success');
                     }}
                     style={{
-                      background: (isBillingPeriodInvalid || isDateInvalid) ? '#94A3B8' : '#6EE7B7',
-                      color: (isBillingPeriodInvalid || isDateInvalid) ? '#fff' : '#064E3B',
-                      border: '1px solid #34D399',
+                      background: (isBillingPeriodInvalid || isDateInvalid) ? '#94A3B8' : '#059669',
+                      color: '#fff',
+                      border: 'none',
                       padding: '12px 24px',
                       borderRadius: 8,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       cursor: (isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
                       flex: 1
                     }}
@@ -812,6 +939,168 @@ export const InvoiceCreation: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Billing Rates Popup Modal */}
+      {showBillingRatesModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20
+          }}
+          onClick={() => setShowBillingRatesModal(false)}
+        >
+          <div
+            style={{
+              width: 380,
+              maxWidth: '95%',
+              background: '#fff',
+              borderRadius: 14,
+              boxShadow: '0 20px 40px -8px rgba(0,0,0,0.2), 0 8px 16px -4px rgba(0,0,0,0.1)',
+              border: '1px solid #E2E8F0',
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>Billing Rates</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.65rem', border: '1px solid #E2E8F0', color: '#64748B', padding: '3px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ti ti-lock" /> READ-ONLY
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowBillingRatesModal(false)}
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 6,
+                    color: '#64748B',
+                    cursor: 'pointer',
+                    width: 28,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0
+                  }}
+                  title="Close"
+                >
+                  <i className="ti ti-x" style={{ fontSize: '1rem' }} />
+                </button>
+              </div>
+            </div>
+
+            <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.4 }}>
+              Agreed rates for <strong style={{ color: '#0F172A' }}>{invoiceClient?.name || 'Client'}</strong>, applied automatically.
+            </p>
+
+            {clientRates.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', margin: '16px 0' }}>
+                <i className="ti ti-database-off" style={{ fontSize: 32, color: '#94A3B8', display: 'block', marginBottom: 8 }} />
+                <span style={{ fontSize: '0.88rem', color: '#64748B', fontWeight: 600 }}>No agreed billing rates found in the database for {invoiceClient?.name || 'this client'}.</span>
+                <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#94A3B8' }}>Please configure rates in Rate Configuration first.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Minimum weight</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>{rateConfig.minWeight} kg</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>NCR / Metro Manila</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Base (≤ {rateConfig.minWeight}kg)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.ncrBase.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Excess / kg</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.ncrExcess.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Luzon</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Base (≤ {rateConfig.minWeight}kg)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.luzonBase.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Excess / kg</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.luzonExcess.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Visayas / Mindanao</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Base (≤ {rateConfig.minWeight}kg)</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.visayasBase.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Excess / kg</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.visayasExcess.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>ODA fee</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{rateConfig.odaFee.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Valuation</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>{rateConfig.valuationRate}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>VAT</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>{rateConfig.vatRate}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Fuel surcharge</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>{rateConfig.fuelSurchargeRate}%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 20 }}>
+              <button
+                type="button"
+                onClick={() => setShowBillingRatesModal(false)}
+                style={{
+                  width: '100%',
+                  padding: '9px',
+                  background: '#0F172A',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Duplicate Pre-Check Modal */}
       <DuplicatePreCheckModal
         state={dupModalState}

@@ -20,6 +20,7 @@ export interface Client {
   serviceArea?: string;
   billingSchedule: 'Monthly' | 'Semi-monthly' | 'Weekly';
   status: 'Active' | 'Inactive';
+  tin?: string;
   vatStatus: 'VATable' | 'Non-VATable';
   vatRate: number | null;
   createdAt: string;

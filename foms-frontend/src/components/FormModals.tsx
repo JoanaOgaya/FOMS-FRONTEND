@@ -375,12 +375,13 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
                   outline: 'none'
                 }}
               >
-                {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i)
-                  .filter(y => y >= 2024 && y <= new Date().getFullYear())
+                {Array.from({ length: 25 }, (_, i) => new Date().getFullYear() - 10 + i)
                   .filter(y => {
-                    if (minDate && y < parseInt(minDate.split('-')[0], 10)) return false;
-                    if (maxDate && y > parseInt(maxDate.split('-')[0], 10)) return false;
-                    return true;
+                    const currentYear = new Date().getFullYear();
+                    const retentionMinYear = currentYear - 5;
+                    const effectiveMinYear = minDate ? parseInt(minDate.split('-')[0], 10) : retentionMinYear;
+                    const effectiveMaxYear = maxDate ? parseInt(maxDate.split('-')[0], 10) : (currentYear + 1);
+                    return y >= effectiveMinYear && y <= effectiveMaxYear;
                   })
                   .map(y => (
                   <option key={y} value={y}>{y}</option>

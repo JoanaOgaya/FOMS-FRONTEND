@@ -59,6 +59,7 @@ export const ClientManagement: React.FC = () => {
   const [selectedReceiptForModal, setSelectedReceiptForModal] = useState<any | null>(null);
   const [billingDateFrom, setBillingDateFrom] = useState('');
   const [billingDateTo, setBillingDateTo] = useState('');
+  const [billingYearFilter, setBillingYearFilter] = useState('');
   const [paymentDateFrom, setPaymentDateFrom] = useState('');
   const [paymentDateTo, setPaymentDateTo] = useState('');
 
@@ -127,6 +128,7 @@ export const ClientManagement: React.FC = () => {
               <div>
                 <p class="info-p"><strong>Received From:</strong> ${selectedReceiptForModal.clientName || editingClient?.name}</p>
                 <p class="info-p"><strong>Address:</strong> ${editingClient?.address || 'N/A'}</p>
+                <p class="info-p"><strong>Client TIN:</strong> ${editingClient?.tin || (editingClient as any)?.TIN || selectedReceiptForModal.clientTin || 'N/A'}</p>
               </div>
               <div class="text-right">
                 <p class="info-p"><strong>Date:</strong> ${new Date(selectedReceiptForModal.recordedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
@@ -237,7 +239,12 @@ export const ClientManagement: React.FC = () => {
     const editingClient = clients.find(c => c.id === id);
     if (!editingClient) return <div>Client not found</div>;
 
-    const billedInvoices = invoices.filter(inv => inv.clientId === editingClient.id);
+    // QA-003: Draft invoices belong only in the invoice list/workspace.
+    // Client Accounts billing history displays only Pending, Approved, Rejected, and Paid invoices.
+    const billedInvoices = invoices.filter(inv => 
+      inv.clientId === editingClient.id && 
+      inv.status?.toLowerCase() !== 'draft'
+    );
 
     const totalBilled = billedInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
     const totalPaid = billedInvoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -245,8 +252,15 @@ export const ClientManagement: React.FC = () => {
     const overdue = billedInvoices.filter(inv => inv.status === 'Overdue' || inv.status === 'Outstanding').reduce((sum, inv) => sum + inv.totalAmount, 0);
     const clientPayments = payments.filter(p => p.clientId === editingClient.id);
 
+    // QA-001: 5-year record retention and date filters
+    const currentYear = new Date().getFullYear();
+    const minRetentionDate = `${currentYear - 5}-01-01`;
+    const maxAllowedDate = `${currentYear}-12-31`;
+    const retentionYears = Array.from({ length: 6 }, (_, i) => currentYear - i);
+
     const filteredBilledInvoices = billedInvoices.filter(inv => {
       const invDate = new Date(inv.createdAt);
+      if (billingYearFilter && invDate.getFullYear().toString() !== billingYearFilter) return false;
       if (billingDateFrom && invDate < new Date(billingDateFrom)) return false;
       if (billingDateTo) {
         const to = new Date(billingDateTo);
@@ -314,7 +328,15 @@ export const ClientManagement: React.FC = () => {
                     <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', fontWeight: 500 }}>{editingClient.email}</p>
                   </div>
                 </div>
-
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase' }}>TIN (Tax Identification No.)</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Hash size={14} color="#94A3B8" />
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', fontWeight: 500 }}>
+                      {editingClient.tin || (editingClient as any).TIN || 'N/A'}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Row 3 */}
                 <div style={{ gridColumn: '1 / -1' }}>
@@ -342,22 +364,68 @@ export const ClientManagement: React.FC = () => {
                   <FileText size={18} color="#F59E0B" />
                   <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>Billing History</h3>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748B' }}>Year:</label>
+                    <select
+                      value={billingYearFilter}
+                      onChange={(e) => {
+                        const yr = e.target.value;
+                        setBillingYearFilter(yr);
+                        if (yr) {
+                          setBillingDateFrom(`${yr}-01-01`);
+                          setBillingDateTo(`${yr}-12-31`);
+                        } else {
+                          setBillingDateFrom('');
+                          setBillingDateTo('');
+                        }
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #E2E8F0',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        background: '#F8FAFC',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">All Retained Years (5 Yrs)</option>
+                      {retentionYears.map(yr => (
+                        <option key={yr} value={yr.toString()}>{yr}</option>
+                      ))}
+                    </select>
+                  </div>
                   <CalendarPicker
                     label="From:"
                     placeholder="Start date..."
                     value={billingDateFrom}
-                    onChange={date => setBillingDateFrom(date)}
-                    maxDate={billingDateTo || "2026-12-31"}
+                    onChange={date => {
+                      if (billingDateTo && date > billingDateTo) {
+                        toast.error('Start date cannot be later than end date.');
+                        return;
+                      }
+                      setBillingDateFrom(date);
+                    }}
+                    minDate={minRetentionDate}
+                    maxDate={billingDateTo || maxAllowedDate}
                     variant="toolbar"
                   />
                   <CalendarPicker
                     label="To:"
                     placeholder="End date..."
                     value={billingDateTo}
-                    onChange={date => setBillingDateTo(date)}
-                    minDate={billingDateFrom}
-                    maxDate="2026-12-31"
+                    onChange={date => {
+                      if (billingDateFrom && date < billingDateFrom) {
+                        toast.error('End date cannot be earlier than start date.');
+                        return;
+                      }
+                      setBillingDateTo(date);
+                    }}
+                    minDate={billingDateFrom || minRetentionDate}
+                    maxDate={maxAllowedDate}
                     variant="toolbar"
                   />
                 </div>
@@ -430,17 +498,30 @@ export const ClientManagement: React.FC = () => {
                       label="From:"
                       placeholder="Start date..."
                       value={paymentDateFrom}
-                      onChange={date => setPaymentDateFrom(date)}
-                      maxDate={paymentDateTo || "2026-12-31"}
+                      onChange={date => {
+                        if (paymentDateTo && date > paymentDateTo) {
+                          toast.error('Start date cannot be later than end date.');
+                          return;
+                        }
+                        setPaymentDateFrom(date);
+                      }}
+                      minDate={minRetentionDate}
+                      maxDate={paymentDateTo || maxAllowedDate}
                       variant="toolbar"
                     />
                     <CalendarPicker
                       label="To:"
                       placeholder="End date..."
                       value={paymentDateTo}
-                      onChange={date => setPaymentDateTo(date)}
-                      minDate={paymentDateFrom}
-                      maxDate="2026-12-31"
+                      onChange={date => {
+                        if (paymentDateFrom && date < paymentDateFrom) {
+                          toast.error('End date cannot be earlier than start date.');
+                          return;
+                        }
+                        setPaymentDateTo(date);
+                      }}
+                      minDate={paymentDateFrom || minRetentionDate}
+                      maxDate={maxAllowedDate}
                       variant="toolbar"
                     />
                   </div>
