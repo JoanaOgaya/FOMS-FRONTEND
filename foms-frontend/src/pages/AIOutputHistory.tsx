@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PageHeader } from '../components/shared/PageHeader';
 import { DataTable, type Column } from '../components/shared/DataTable';
 import FilterBar from '../components/shared/FilterBar';
 import Button from '../components/Buttons';
-import { AiDisclaimer } from '../components/ai/AiDisclaimer';
 import { AiErrorBoundary } from '../components/ai/ErrorBoundary';
 import { aiOutputsService } from '../services/ai/aiOutputs.service';
 import { getDuplicateScope, canDo } from '../utils/roleAccess';
@@ -193,25 +191,18 @@ export const AIOutputHistory: React.FC = () => {
   return (
     <AiErrorBoundary>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-          <PageHeader
-            title="AI Output History &amp; Audit Trail"
-          />
-
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <AiDisclaimer />
-            {canExport && (
-              <Button
-                title="Export CSV"
-                icon="ti ti-download"
-                variant="secondary"
-                size="sm"
-                onClick={handleExport}
-                disabled={items.length === 0}
-              />
-            )}
+        {canExport && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              title="Export CSV"
+              icon="ti ti-download"
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={items.length === 0}
+            />
           </div>
-        </div>
+        )}
 
         <FilterBar
           searchValue={search}

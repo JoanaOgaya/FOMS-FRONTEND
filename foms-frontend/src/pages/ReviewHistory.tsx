@@ -5,7 +5,6 @@ import { canDo } from '../utils/roleAccess';
 import { DataTable, type Column } from '../components/shared/DataTable';
 import FilterBar from '../components/shared/FilterBar';
 import StatusBadge from '../components/shared/StatusBadge';
-import { PageHeader } from '../components/shared/PageHeader';
 import Button from '../components/Buttons';
 import type { ReviewHistoryItem } from '../services/duplicates.service';
 
@@ -149,22 +148,6 @@ const ReviewHistory: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
-
-
-
-        {canExport && (
-          <Button
-            title={`Export ${scope === 'all' ? 'All' : scope === 'liquidation' ? 'Liquidation' : 'My Scope'} CSV`}
-            icon="ti ti-download"
-            variant="secondary"
-            size="sm"
-            onClick={handleExport}
-            disabled={items.length === 0}
-          />
-        )}
-      </div>
-
       {/* Decision Filter Tabs */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginRight: 4 }}>DECISION:</span>
