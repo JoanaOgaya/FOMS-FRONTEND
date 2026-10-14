@@ -17,6 +17,7 @@ FOMS provides end-to-end financial operations workflows backed by strict databas
 
 The FOMS backend engine enforces strict database persistence and enterprise security standards:
 - **Authentication & RBAC**: Secure JWT-based authentication enforcing granular role-based access for Head Accountant, Accountant, Assistant of Financial Manager, and Financial Manager.
+- **EMP-001 Financial Manager Flow**: Executive dashboard oversight, rate configuration and client accounts governance, invoice review and creation, accounts receivable and cash flow management, payment tracking, settlement validation, financial adjustment approval, liquidation oversight, and system-wide reporting.
 - **EMP-002 Head Accountant Flow**: Invoice review, billing computation validation, accounts receivable monitoring, payment and SpeedPay verification, settlement validation, financial adjustments, and audit trail examination.
 - **EMP-003 Accountant Flow**: Client accounts management, automated invoice generation from validated unbilled waybills, billing document preparation, payment recording, official receipt tracking, and SpeedPay status monitoring.
 - **EMP-004 Assistant of Financial Manager Flow**: Liquidation report submission, supporting document inspection, expense verification against receipts, revision handling, and managerial endorsement.
@@ -85,6 +86,24 @@ The local backend authenticates these verified accounts against `dbo.Users` and 
 
 ## 7. Role-Based Backend Flows
 
+### EMP-001 Financial Manager
+- **Dashboard**: High-level executive metrics (total invoices billed, total invoice amount, outstanding AR, collection rate, cash inflow, duplicate alerts, due date alerts, cash flow analytics, top paying clients, needs attention queue).
+- **Client Accounts**: Active client profiles and finance settings directly from `dbo.Clients` and `dbo.ClientFinanceSettings`.
+- **Rate Configuration**: Delivery area rate cards (`dbo.ClientRates`), tax types (VATable/Zero-rated), VAT rate calculation, and agreed billing terms.
+- **Waybills & POD Tracking**: Ingest and track delivery waybills (`dbo.Waybills`) with proof-of-delivery validation statuses.
+- **Create Invoice**: Automated calculation from validated unbilled waybills and rate cards with tax calculations.
+- **Invoice List & Invoice Review**: Real-time invoice statuses, managerial review queue, and settlement tracking.
+- **Billing Validation**: Oversight of computed line items against waybills and rates.
+- **Accounts Receivable**: Real-time balances, aging buckets (0-30, 31-60, 61-90, 90+ days), and manager approval queue.
+- **Payments & Cash Flow**: Live cash inflow/outflow ledger, net cash flow tracking, and payment verification.
+- **Official Receipts**: Chronological list of issued official receipts generated upon full payment settlement.
+- **Settlement Validation & Record Settlement**: Courier trip settlement validation and recording of new settlement entries.
+- **Adjustment Approval**: Review, approve, or reject financial adjustments and debit/credit memos with automatic AR updates.
+- **Liquidation Reports**: Review endorsed employee expense liquidations and leftover cash/reimbursement balances.
+- **Unique Documents & Review History**: Audit unique documents and investigate duplicate alert histories.
+- **Reports & AI Output History**: Executive reporting across accounts aging, collections, cash flow, adjustments, liquidations, and invoices.
+- **Audit Logs**: Tamper-evident, chronological audit logging from `dbo.AuditLogs`.
+
 ### EMP-002 Head Accountant
 - **Dashboard**: Metrics for pending invoices, payment validation queue, SpeedPay queue, AR balance, and recent audit trails.
 - **Invoice List & Invoice Review**: Review invoices submitted by accountants; approve, reject, or return with remarks.
@@ -125,10 +144,39 @@ The local backend authenticates these verified accounts against `dbo.Users` and 
 
 ### Health & Diagnostics
 - `GET /api/health/database` - Verify MSSQL connection to `localhost\SQLEXPRESS` and `FOMS_DB`.
+- `GET /api/health/financial-manager` - Verify EMP-001 Financial Manager status.
 - `GET /api/health/head-accountant` - Verify EMP-002 Head Accountant status.
 - `GET /api/health/accountant` - Verify EMP-003 Accountant status.
 - `GET /api/health/assistant-finance-manager` - Verify EMP-004 Assistant FM status.
 - `GET /api/health/no-mock-data` - Confirm mock data and seed fallbacks are disabled.
+
+### EMP-001 Financial Manager (`/api/financial-manager/*`)
+- `GET /api/financial-manager/dashboard`
+- `GET /api/financial-manager/clients`
+- `GET /api/financial-manager/rate-configurations`
+- `GET /api/financial-manager/waybills`
+- `POST /api/financial-manager/waybills`
+- `GET /api/financial-manager/invoices/eligible-clients`
+- `POST /api/financial-manager/invoices/create`
+- `GET /api/financial-manager/invoices`
+- `GET /api/financial-manager/billing-validation`
+- `GET /api/financial-manager/invoice-review`
+- `GET /api/financial-manager/accounts-receivable`
+- `GET /api/financial-manager/payments`
+- `GET /api/financial-manager/official-receipts`
+- `GET /api/financial-manager/settlements/pending`
+- `GET /api/financial-manager/settlements`
+- `POST /api/financial-manager/settlements`
+- `GET /api/financial-manager/adjustments`
+- `POST /api/financial-manager/adjustments/{id}/approve`
+- `POST /api/financial-manager/adjustments/{id}/reject`
+- `GET /api/financial-manager/liquidations`
+- `GET /api/financial-manager/cash-flow`
+- `GET /api/financial-manager/ai/unique-documents`
+- `GET /api/financial-manager/ai/review-history`
+- `POST /api/financial-manager/reports/generate`
+- `GET /api/financial-manager/audit-logs`
+- `GET /api/financial-manager/ai/output-history`
 
 ### EMP-002 Head Accountant (`/api/head-accountant/*`)
 - `GET /api/head-accountant/dashboard`
@@ -284,6 +332,7 @@ Expected response:
 
 Verify role accessibility:
 ```bash
+curl http://localhost:5007/api/health/financial-manager
 curl http://localhost:5007/api/health/head-accountant
 curl http://localhost:5007/api/health/accountant
 curl http://localhost:5007/api/health/assistant-finance-manager
