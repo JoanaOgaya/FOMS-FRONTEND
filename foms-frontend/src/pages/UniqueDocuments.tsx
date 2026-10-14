@@ -108,16 +108,26 @@ const UniqueDocuments: React.FC = () => {
     },
   ];
 
+  const docTypeOptions =
+    scope === 'liquidation'
+      ? [{ label: 'Liquidation Voucher', value: 'Liquidation' }]
+      : scope === 'own'
+      ? [
+          { label: 'Invoice', value: 'Invoice' },
+          { label: 'Official Receipt', value: 'Receipt' },
+        ]
+      : [
+          { label: 'Invoice', value: 'Invoice' },
+          { label: 'Official Receipt', value: 'Receipt' },
+          { label: 'Liquidation Voucher', value: 'Liquidation' },
+        ];
+
   const filterFields = [
     {
       key: 'docType',
       label: 'DOCUMENT TYPE',
       type: 'select' as const,
-      options: [
-        { label: 'Invoice', value: 'Invoice' },
-        { label: 'Official Receipt', value: 'Receipt' },
-        { label: 'Liquidation Voucher', value: 'Liquidation' },
-      ],
+      options: docTypeOptions,
     },
     {
       key: 'dateFrom',
@@ -146,25 +156,13 @@ const UniqueDocuments: React.FC = () => {
     return t.includes(f);
   });
 
+  const effectiveTotal = docTypeFilter && docTypeFilter !== 'All' ? displayedItems.length : (total || displayedItems.length);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title="Unique Documents"
-        subtitle={
-          scope === 'liquidation'
-            ? 'Verified unique documents for liquidation expenses and driver reimbursements.'
-            : scope === 'own'
-            ? 'Verified unique documents within your accounting portfolio scope.'
-            : 'All system-verified unique financial and billing documents.'
-        }
       />
-
-      {scope === 'liquidation' && (
-        <div style={{ padding: '8px 14px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', fontSize: '0.8rem', color: '#0369A1', fontWeight: 600 }}>
-          <i className="ti ti-filter" style={{ marginRight: 6 }} />
-          Showing Liquidation &amp; Expense Documents Scope for Assistant FM
-        </div>
-      )}
 
       <FilterBar
         searchValue={search}
@@ -181,7 +179,7 @@ const UniqueDocuments: React.FC = () => {
         rows={displayedItems}
         columns={columns}
         rowKey={(r) => r.id}
-        total={displayedItems.length}
+        total={effectiveTotal}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}

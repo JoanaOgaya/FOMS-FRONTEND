@@ -95,7 +95,7 @@ export default function CashFlowManagement() {
         const liquidation = liquidations.find(l => l.id === c.sourceReference);
         if (liquidation) {
           involvedParty = liquidation.submittedBy || 'Unknown Employee';
-          methodOrCategory = liquidation.expenses.map(e => e.type).join(', ') || 'Operating Expense';
+          methodOrCategory = liquidation.expenses?.map(e => e.type).join(', ') || 'Operating Expense';
           paymentDate = liquidation.submittedAt || c.date;
           referenceNumber = liquidation.reference || c.sourceReference;
         } else {
@@ -143,7 +143,7 @@ export default function CashFlowManagement() {
     try {
       const newRecord: Omit<CashFlowRecord, 'id'> = {
         type: 'Outflow',
-        amount: liquidation.amount,
+        amount: liquidation.amount ?? liquidation.totalAmount ?? 0,
         sourceReference: liquidation.id,
         date: new Date().toISOString(),
         recordedBy: user?.fullName || 'User',
@@ -154,7 +154,7 @@ export default function CashFlowManagement() {
         module: 'Cash Flow Management',
         recordId: liquidation.id,
         recordType: 'Cash Flow',
-        details: `Recorded cash outflow of ${formatCurrency(liquidation.amount)} from liquidation ${liquidation.id}`,
+        details: `Recorded cash outflow of ${formatCurrency(liquidation.amount ?? liquidation.totalAmount ?? 0)} from liquidation ${liquidation.id}`,
         ipAddress: '127.0.0.1',
       });
       refetchCash();

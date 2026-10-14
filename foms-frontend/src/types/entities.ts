@@ -353,14 +353,24 @@ export interface LiquidationExpense {
 
 export interface Liquidation {
   id: string;
-  reference: string;
-  amount: number;
-  submittedBy: string;
-  submittedAt: string;
-  status: 'Pending Validation' | 'Validated' | 'Returned';
-  documents: { name: string; url: string; size: string }[];
+  // Primary fields (as returned by backend, both alias forms)
+  reference?: string;
+  referenceNumber?: string;
+  amount?: number;
+  totalAmount?: number;
+  submittedBy?: string;
+  submittedByName?: string;
+  submittedAt?: string;
+  dateSubmitted?: string;
+  createdAt?: string;
+  reimbursementAmount?: number;
+  leftoverCash?: number;
+  status: string;
+  purpose?: string;
+  notes?: string;
   remarks?: string;
-  expenses: LiquidationExpense[];
+  documents?: { name: string; url: string; size: string }[];
+  expenses?: LiquidationExpense[];
 }
 
 

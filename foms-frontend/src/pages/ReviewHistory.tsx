@@ -152,13 +152,6 @@ const ReviewHistory: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <PageHeader
           title="Review History"
-          subtitle={
-            scope === 'liquidation'
-              ? 'Audit log of reviewed liquidation duplicates and reimbursable claims.'
-              : scope === 'own'
-              ? 'Audit log of duplicate resolutions for your assigned accounts.'
-              : 'Complete organizational audit trail of duplicate detection decisions.'
-          }
         />
 
         {canExport && (
@@ -172,13 +165,6 @@ const ReviewHistory: React.FC = () => {
           />
         )}
       </div>
-
-      {scope === 'liquidation' && (
-        <div style={{ padding: '8px 14px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', fontSize: '0.8rem', color: '#0369A1', fontWeight: 600 }}>
-          <i className="ti ti-filter" style={{ marginRight: 6 }} />
-          Assistant FM Scope: Audit records restricted to liquidation &amp; expense documents
-        </div>
-      )}
 
       {/* Decision Filter Tabs */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

@@ -32,11 +32,12 @@ export default function LiquidationValidation() {
   const [toDate, setToDate] = useState('');
 
   const filteredLiquidations = liquidations.filter((row: Liquidation) => {
-    if (fromDate && new Date(row.submittedAt) < new Date(fromDate)) return false;
+    const submittedDate = row.submittedAt || row.dateSubmitted || '';
+    if (fromDate && new Date(submittedDate) < new Date(fromDate)) return false;
     if (toDate) {
       const t = new Date(toDate);
       t.setHours(23, 59, 59, 999);
-      if (new Date(row.submittedAt) > t) return false;
+      if (new Date(submittedDate) > t) return false;
     }
     return true;
   });

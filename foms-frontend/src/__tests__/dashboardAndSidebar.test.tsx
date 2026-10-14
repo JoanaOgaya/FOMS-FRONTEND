@@ -61,7 +61,7 @@ const mockAlerts: DashboardAiAlert[] = [
     title: 'Low OCR Confidence Field',
     message: 'Tax identification number requires verification.',
     severity: 'low',
-    targetRoute: '/document-extraction',
+    targetRoute: '/duplicate-scan',
     createdAt: new Date().toISOString(),
   },
 ];

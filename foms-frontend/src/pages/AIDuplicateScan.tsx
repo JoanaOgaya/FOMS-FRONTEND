@@ -377,12 +377,9 @@ const AIDuplicateScan: React.FC = () => {
           {/* Section Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h2 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>
                 Document Checking &amp; AI Scan Console
               </h2>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748B' }}>
-                Upload or scan invoice/receipt files to identify duplicate payments.
-              </p>
             </div>
             {isAssistantFM && (
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369A1', background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '4px 10px', borderRadius: '6px' }}>
@@ -662,7 +659,10 @@ const AIDuplicateScan: React.FC = () => {
                       {previewDocUrl ? (
                         <img src={previewDocUrl} alt="Uploaded candidate preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', transform: `scale(${zoomLevel})`, transition: 'transform 0.2s' }} />
                       ) : (
-                        <img src="/mock-receipt.png" alt="Candidate preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', transform: `scale(${zoomLevel})` }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#64748B' }}>
+                          <i className="ti ti-file-text" style={{ fontSize: '32px' }} />
+                          <span style={{ fontSize: '12px' }}>{uploadedFile?.name || 'Uploaded File'}</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -672,7 +672,18 @@ const AIDuplicateScan: React.FC = () => {
                       Existing Matching FOMS Record
                     </h4>
                     <div style={{ overflow: 'hidden', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                      <img src={scanResult.matchedRecord?.proofUrl || '/mock-receipt.png'} alt="Existing database match preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', opacity: 0.9, transform: `scale(${zoomLevel})`, transition: 'transform 0.2s' }} />
+                      {scanResult.matchedRecord?.proofUrl ? (
+                        <img src={scanResult.matchedRecord.proofUrl} alt="Existing database match preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', opacity: 0.9, transform: `scale(${zoomLevel})`, transition: 'transform 0.2s' }} />
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '12px', color: '#1E293B' }}>
+                          <i className="ti ti-file-check" style={{ fontSize: '36px', color: '#0D9488' }} />
+                          <div style={{ fontWeight: 700, fontSize: '14px' }}>{scanResult.matchedRecord?.number || scanResult.matchedRecord?.orNumber || 'Matched Record'}</div>
+                          <div style={{ fontSize: '12px', color: '#64748B' }}>{scanResult.matchedRecord?.clientName || scanResult.matchedRecord?.client_name || 'Verified Record'}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>
+                            {scanResult.matchedRecord?.amount ? `₱${Number(scanResult.matchedRecord.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : ''}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

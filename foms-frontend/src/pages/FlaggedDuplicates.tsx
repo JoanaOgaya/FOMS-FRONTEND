@@ -245,33 +245,7 @@ export const FlaggedDuplicates: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title={isHeadAccountant ? 'Duplicate Review Queue' : 'Flagged Duplicates'}
-        subtitle={
-          isHeadAccountant
-            ? 'Level 2 Review Queue: Verify and approve or return duplicate decisions made by Accountants.'
-            : scope === 'liquidation'
-            ? 'Level 1: Decide on flagged duplicate liquidation expenses and vouchers.'
-            : scope === 'own'
-            ? 'Level 1: Review AI-flagged duplicate documents and mark as Duplicate or Not Duplicate.'
-            : 'Review, decide, and approve AI-flagged duplicate documents across accounts.'
-        }
       />
-
-      {scope === 'liquidation' && (
-        <div
-          style={{
-            padding: '8px 14px',
-            background: '#F0F9FF',
-            border: '1px solid #BAE6FD',
-            borderRadius: '8px',
-            fontSize: '0.8rem',
-            color: '#0369A1',
-            fontWeight: 600,
-          }}
-        >
-          <i className="ti ti-filter" style={{ marginRight: 6 }} />
-          Assistant FM Scope: Liquidation &amp; Expense Documents Only
-        </div>
-      )}
 
       <FilterBar
         searchValue={search}

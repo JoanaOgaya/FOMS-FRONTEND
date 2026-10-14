@@ -13,7 +13,7 @@ export type ModuleKey =
   | 'settlements' | 'recordSettlement' | 'speedpayValidation' | 'adjustments' | 'liquidations'
   | 'cashFlow' | 'duplicateScan' | 'uniqueDocuments' | 'flaggedDuplicates' | 'reviewHistory'
   | 'forReview' | 'reports' | 'auditLogs' | 'profile' | 'notifications'
-  | 'documentExtraction' | 'aiHistory';
+  | 'aiHistory';
 
 export interface ModuleDef {
   key: ModuleKey;
@@ -68,7 +68,6 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'uniqueDocuments', label: 'Unique Documents', group: 'Duplicate Detection', icon: 'ti ti-file-check', path: '/unique-documents', nav: true, roles: { [FM]: ['view'], [HA]: ['view'], [ACC]: ['view'], [AFM]: ['view'] } },
   { key: 'flaggedDuplicates', label: 'Flagged Duplicates', labelByRole: { [HA]: 'For Review', [ACC]: 'Flagged' }, group: 'Duplicate Detection', icon: 'ti ti-alert-triangle', path: '/flagged-duplicates', nav: true, roles: { [HA]: ['view', 'approve', 'return'], [ACC]: ['view', 'submit'], [AFM]: ['view', 'submit'] } },
   { key: 'reviewHistory', label: 'Review History', group: 'Duplicate Detection', icon: 'ti ti-history', path: '/review-history', nav: true, roles: { [FM]: ['view', 'export'], [HA]: ['view', 'export'], [ACC]: ['view', 'export'], [AFM]: ['view', 'export'] } },
-  { key: 'documentExtraction', label: 'Document Extraction', group: 'Document Intelligence', icon: 'ti ti-file-analytics', path: '/document-extraction', nav: true, roles: { [ACC]: ['view', 'create', 'edit'], [AFM]: ['view', 'create', 'verify'] } },
   { key: 'forReview', label: 'For Review', group: 'Duplicate Detection', icon: 'ti ti-eye-check', path: '/for-review', nav: false, roles: { [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
 
   { key: 'reports', label: 'Reports', group: 'Analytics & Control', icon: 'ti ti-chart-bar', path: '/reports', detailPath: '/reports/:id', nav: true, roles: { [ACC]: ['view', 'export'], [HA]: ['view', 'export'], [FM]: ['view', 'export'], [AFM]: ['view', 'export'] } },

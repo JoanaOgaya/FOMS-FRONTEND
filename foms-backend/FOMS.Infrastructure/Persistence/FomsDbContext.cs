@@ -39,6 +39,7 @@ public class FomsDbContext : DbContext
     public DbSet<Settlement> Settlements { get; set; } = null!;
     public DbSet<AIReviewHistory> AIReviewHistories { get; set; } = null!;
     public DbSet<AIOutputHistory> AIOutputHistories { get; set; } = null!;
+    public DbSet<AIScanLog> AIScanLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,5 +74,6 @@ public class FomsDbContext : DbContext
         modelBuilder.Entity<Settlement>().ToTable("Settlements", "dbo");
         modelBuilder.Entity<AIReviewHistory>().ToTable("AIReviewHistory", "dbo");
         modelBuilder.Entity<AIOutputHistory>().ToTable("AIOutputHistory", "dbo");
+        modelBuilder.Entity<AIScanLog>().ToTable("ai_scan_logs", "dbo");
     }
 }

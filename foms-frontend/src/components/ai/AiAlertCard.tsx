@@ -40,7 +40,7 @@ export const AiAlertCard: React.FC<AiAlertCardProps> = (props) => {
     } else if (alertType === 'risk' || alertType === 'collection') {
       rawRoute = props.alert?.entityId ? `/accounts-receivable?invoice=${encodeURIComponent(props.alert.entityId)}` : '/accounts-receivable';
     } else if (alertType === 'ocr' || alertType === 'document') {
-      rawRoute = props.alert?.entityId ? `/document-extraction?file=${encodeURIComponent(props.alert.entityId)}` : '/document-extraction';
+      rawRoute = '/duplicate-scan';
     }
   } else {
     // If route was duplicate-scan or not accessible, adapt or verify

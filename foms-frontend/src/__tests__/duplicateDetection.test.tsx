@@ -196,7 +196,7 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
       expect(moduleLabel(flaggedItem!, ROLES.HEAD_ACCOUNTANT)).toBe('For Review');
     });
 
-    it('Typing /duplicate-scan or /document-extraction renders 403 ForbiddenPage', () => {
+    it('Typing /duplicate-scan renders 403 ForbiddenPage', () => {
       mockAuthUser({ role: ROLES.HEAD_ACCOUNTANT, email: 'ha@example.com', fullName: 'Head Accountant' });
 
       // Duplicate Scan -> 403
@@ -210,18 +210,6 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
       expect(screen.queryByText('Protected Duplicate Scan Page')).toBeNull();
       expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
       unmountScan();
-
-      // Document Extraction -> 403
-      const { unmount: unmountExtract } = render(
-        <MemoryRouter initialEntries={['/document-extraction']}>
-          <RoleGuard module="documentExtraction">
-            <div>Protected Document Extraction Page</div>
-          </RoleGuard>
-        </MemoryRouter>
-      );
-      expect(screen.queryByText('Protected Document Extraction Page')).toBeNull();
-      expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
-      unmountExtract();
     });
 
     it('Default landing / redirect lands on Dashboard (/dashboard), NOT Duplicate Scan', () => {
@@ -438,17 +426,9 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
       );
       expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
       u2();
-
-      const { unmount: u3 } = render(
-        <MemoryRouter initialEntries={['/document-extraction']}>
-          <RoleGuard module="documentExtraction"><div>FM Extraction</div></RoleGuard>
-        </MemoryRouter>
-      );
-      expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
-      u3();
     });
 
-    it('Assistant FM: Duplicate Scan visible (liquidation), Unique Docs visible, Flagged visible, Review History visible, Doc Extraction visible', () => {
+    it('Assistant FM: Duplicate Scan visible (liquidation), Unique Docs visible, Flagged visible, Review History visible', () => {
       const groups = getNavGroups(ROLES.ASSISTANT_FM);
       const allKeys = groups.flatMap((g) => g.items).map((i) => i.key);
 
@@ -456,7 +436,7 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
       expect(allKeys).toContain('uniqueDocuments');
       expect(allKeys).toContain('flaggedDuplicates');
       expect(allKeys).toContain('reviewHistory');
-      expect(allKeys).toContain('documentExtraction');
+      expect(allKeys).not.toContain('documentExtraction');
 
       expect(getDuplicateScope(ROLES.ASSISTANT_FM)).toBe('liquidation');
       expect(canDo(ROLES.ASSISTANT_FM, 'duplicateScan', 'scan')).toBe(true);

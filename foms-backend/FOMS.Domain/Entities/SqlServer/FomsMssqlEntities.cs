@@ -215,6 +215,12 @@ public class Invoice
 
     [Column("updated_at")]
     public DateTime? UpdatedAt { get; set; }
+
+    [Column("EncodedBy")]
+    public string? EncodedBy { get; set; }
+
+    [Column("UpdatedBy")]
+    public string? UpdatedBy { get; set; }
 }
 
 [Table("AccountsReceivable")]
@@ -734,6 +740,9 @@ public class Liquidation
     [Column("date_submitted")]
     public DateTime? DateSubmitted { get; set; }
 
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; } = false;
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
 }
@@ -937,6 +946,9 @@ public class AIReviewHistory
     [Column("reviewed_date")]
     public DateTime? ReviewedDate { get; set; }
 
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; } = false;
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
 }
@@ -965,6 +977,41 @@ public class AIOutputHistory
 
     [Column("message")]
     public string? Message { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; } = false;
+
+    [Column("created_at")]
+    public DateTime? CreatedAt { get; set; }
+}
+
+[Table("ai_scan_logs")]
+public class AIScanLog
+{
+    [Key]
+    [Column("id")]
+    public int Id { get; set; }
+
+    [Column("user_id")]
+    public string? UserId { get; set; }
+
+    [Column("uploaded_file_name")]
+    public string UploadedFileName { get; set; } = string.Empty;
+
+    [Column("detected_document_type")]
+    public string? DetectedDocumentType { get; set; }
+
+    [Column("is_allowed")]
+    public bool IsAllowed { get; set; }
+
+    [Column("validation_status")]
+    public string? ValidationStatus { get; set; }
+
+    [Column("reason")]
+    public string? Reason { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; } = false;
 
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }

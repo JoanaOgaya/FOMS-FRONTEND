@@ -878,12 +878,9 @@ const ReportsContent: React.FC = () => {
         {/* Dynamic Report Header */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.75rem', fontWeight: 800, color: '#0D9488', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OFFICIAL FOMS REPORT</p>
-          <h2 style={{ margin: '0 0 8px', fontSize: '1.5rem', fontWeight: 800, color: '#0F172A' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0F172A' }}>
             {compileLedgerType}
           </h2>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B', fontWeight: 500 }}>
-            Generated {new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })} &bull; Snapshot: {compileDateRange} &bull; Filter: {compileStatus} &bull; Prepared by: {user?.fullName || 'Crystalyn Joyce C. Fajardo'} ({user?.role || 'Financial Manager'})
-          </p>
         </div>
 
         {/* ── Tab 1: Aging of Accounts ── */}
