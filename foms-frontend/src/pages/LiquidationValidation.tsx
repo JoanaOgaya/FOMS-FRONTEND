@@ -324,7 +324,7 @@ export default function LiquidationValidation() {
       />
       <TableContainer>
         <DataTable
-          title="Liquidation Validation Queue"
+          title=""
           data={filteredLiquidations}
           columns={columns}
           actions={actions}

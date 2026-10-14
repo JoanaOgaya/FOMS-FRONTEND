@@ -372,21 +372,15 @@ const AIDuplicateScan: React.FC = () => {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* Main Content */}
+          {/* Main Content */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Section Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>
-                Document Checking &amp; AI Scan Console
-              </h2>
-            </div>
-            {isAssistantFM && (
+          {isAssistantFM && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369A1', background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '4px 10px', borderRadius: '6px' }}>
                 Liquidation Documents Scope Only
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Decision Support Notice */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', borderRadius: '10px', border: '1.5px solid #0D9488', background: '#F0FDFA' }}>
