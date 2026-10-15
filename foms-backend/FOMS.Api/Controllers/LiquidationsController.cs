@@ -76,30 +76,51 @@ public class LiquidationsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
-        await EnsureSeededAsync();
-        var query = _fomsDb.Liquidations.AsNoTracking();
+        var query = _fomsDb.Liquidations.AsNoTracking().Where(l => l.IsDeleted != true && l.Status != "Deleted");
         var total = await query.CountAsync();
-        var items = await query
+        var liquidations = await query
             .OrderByDescending(l => l.DateSubmitted ?? l.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(l => new
-            {
-                id = l.LiquidationId.ToString(),
-                liquidationId = l.LiquidationId,
-                reference = l.ReferenceNumber ?? $"LIQ-{l.LiquidationId:D4}",
-                referenceNumber = l.ReferenceNumber ?? $"LIQ-{l.LiquidationId:D4}",
-                submittedBy = l.SubmittedByName ?? $"Employee {l.SubmittedBy}",
-                submittedByName = l.SubmittedByName ?? $"Employee {l.SubmittedBy}",
-                submittedAt = (l.DateSubmitted ?? l.CreatedAt ?? DateTime.UtcNow).ToString("o"),
-                dateSubmitted = (l.DateSubmitted ?? l.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
-                amount = l.TotalAmount,
-                totalAmount = l.TotalAmount,
-                status = l.Status ?? "Pending Validation",
-                leftoverCash = l.LeftoverCash ?? 0m,
-                reimbursementAmount = l.ReimbursementAmount ?? 0m
-            })
             .ToListAsync();
+
+        var liqIds = liquidations.Select(l => l.LiquidationId).ToList();
+        var lineItems = await _fomsDb.LiquidationLineItems.AsNoTracking()
+            .Where(li => liqIds.Contains(li.LiquidationId))
+            .ToListAsync();
+        var docs = await _fomsDb.LiquidationDocuments.AsNoTracking()
+            .Where(d => liqIds.Contains(d.LiquidationId))
+            .ToListAsync();
+
+        var items = liquidations.Select(l => new
+        {
+            id = l.LiquidationId.ToString(),
+            liquidationId = l.LiquidationId,
+            reference = l.ReferenceNumber ?? $"LIQ-{l.LiquidationId:D4}",
+            referenceNumber = l.ReferenceNumber ?? $"LIQ-{l.LiquidationId:D4}",
+            submittedBy = l.SubmittedByName ?? $"Employee {l.SubmittedBy}",
+            submittedByName = l.SubmittedByName ?? $"Employee {l.SubmittedBy}",
+            submittedAt = (l.DateSubmitted ?? l.CreatedAt ?? DateTime.UtcNow).ToString("o"),
+            dateSubmitted = (l.DateSubmitted ?? l.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            amount = l.TotalAmount,
+            totalAmount = l.TotalAmount,
+            status = l.Status ?? "Pending Validation",
+            leftoverCash = l.LeftoverCash ?? 0m,
+            reimbursementAmount = l.ReimbursementAmount ?? 0m,
+            expenses = lineItems.Where(li => li.LiquidationId == l.LiquidationId).Select(li => new
+            {
+                id = li.LineItemId.ToString(),
+                type = "Expense",
+                description = li.Description,
+                amount = li.Amount
+            }).ToList(),
+            documents = docs.Where(d => d.LiquidationId == l.LiquidationId).Select(d => new
+            {
+                name = Path.GetFileName(d.FilePath ?? "receipt.pdf"),
+                url = d.FilePath ?? "#",
+                size = "1.2 MB"
+            }).ToList()
+        }).ToList();
 
         return Ok(new
         {
@@ -113,7 +134,7 @@ public class LiquidationsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var item = await _fomsDb.Liquidations.AsNoTracking().FirstOrDefaultAsync(l => l.LiquidationId == id);
+        var item = await _fomsDb.Liquidations.AsNoTracking().FirstOrDefaultAsync(l => l.LiquidationId == id && l.IsDeleted != true);
         if (item == null) return NotFound(new { message = "Liquidation not found" });
 
         var lineItems = await _fomsDb.LiquidationLineItems.Where(li => li.LiquidationId == id).AsNoTracking().ToListAsync();
@@ -123,6 +144,7 @@ public class LiquidationsController : ControllerBase
         {
             id = item.LiquidationId.ToString(),
             item.LiquidationId,
+            reference = item.ReferenceNumber ?? $"LIQ-{item.LiquidationId:D4}",
             referenceNumber = item.ReferenceNumber ?? $"LIQ-{item.LiquidationId:D4}",
             submittedBy = item.SubmittedByName ?? $"Employee {item.SubmittedBy}",
             submittedByName = item.SubmittedByName ?? $"Employee {item.SubmittedBy}",
@@ -133,7 +155,19 @@ public class LiquidationsController : ControllerBase
             status = item.Status ?? "Pending Validation",
             dateSubmitted = (item.DateSubmitted ?? item.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
             lineItems,
-            documents = docs
+            expenses = lineItems.Select(li => new
+            {
+                id = li.LineItemId.ToString(),
+                type = "Expense",
+                description = li.Description,
+                amount = li.Amount
+            }).ToList(),
+            documents = docs.Select(d => new
+            {
+                name = Path.GetFileName(d.FilePath ?? "receipt.pdf"),
+                url = d.FilePath ?? "#",
+                size = "1.2 MB"
+            }).ToList()
         });
     }
 
@@ -149,7 +183,8 @@ public class LiquidationsController : ControllerBase
             ReimbursementAmount = dto.ReimbursementAmount ?? 0m,
             Status = dto.Status ?? "Pending Validation",
             CreatedAt = DateTime.UtcNow,
-            DateSubmitted = DateTime.UtcNow
+            DateSubmitted = DateTime.UtcNow,
+            IsDeleted = false
         };
 
         _fomsDb.Liquidations.Add(item);
@@ -159,7 +194,7 @@ public class LiquidationsController : ControllerBase
         {
             action = "CREATE_LIQUIDATION",
             module = "Liquidations",
-            role = "Accountant",
+            role = "Assistant of Financial Manager",
             affected_record_id = item.LiquidationId,
             remarks = $"Submitted liquidation {item.ReferenceNumber} for {item.SubmittedByName}: ₱{item.TotalAmount:N2}",
             created_at = DateTime.UtcNow
@@ -172,7 +207,7 @@ public class LiquidationsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] LiquidationDto dto)
     {
-        var item = await _fomsDb.Liquidations.FindAsync(id);
+        var item = await _fomsDb.Liquidations.FirstOrDefaultAsync(l => l.LiquidationId == id && l.IsDeleted != true);
         if (item == null) return NotFound(new { message = "Liquidation not found" });
 
         if (!string.IsNullOrEmpty(dto.Status))
@@ -188,38 +223,75 @@ public class LiquidationsController : ControllerBase
             item.ReimbursementAmount = dto.ReimbursementAmount.Value;
 
         await _fomsDb.SaveChangesAsync();
+
+        _fomsDb.AuditLogs.Add(new AuditLog
+        {
+            action = "UPDATE_LIQUIDATION",
+            module = "Liquidations",
+            role = "Assistant of Financial Manager",
+            affected_record_id = item.LiquidationId,
+            remarks = $"Updated liquidation {item.ReferenceNumber} -> status: {item.Status}. Remarks: {dto.Notes ?? "Updated"}",
+            created_at = DateTime.UtcNow
+        });
+        await _fomsDb.SaveChangesAsync();
+
         return Ok(item);
     }
 
     [HttpPost("{id}/{actionName}")]
     public async Task<IActionResult> Act(int id, string actionName, [FromBody] LiquidationDto? dto)
     {
-        var item = await _fomsDb.Liquidations.FindAsync(id);
+        var item = await _fomsDb.Liquidations.FirstOrDefaultAsync(l => l.LiquidationId == id && l.IsDeleted != true);
         if (item == null) return NotFound(new { message = "Liquidation not found" });
 
         item.Status = actionName switch
         {
             "approve" or "validate" => "Validated",
+            "endorse" => "Endorsed",
             "reject" => "Rejected",
             "return" => "Returned",
             "submit" => "Pending Validation",
             _ => item.Status
         };
         item.ValidatedAt = DateTime.UtcNow;
-        item.ValidatedBy = 1;
+        item.ValidatedBy = 4;
         await _fomsDb.SaveChangesAsync();
 
         _fomsDb.AuditLogs.Add(new AuditLog
         {
             action = $"LIQUIDATION_{actionName.ToUpper()}",
             module = "Liquidations",
-            role = "Head Accountant",
+            role = "Assistant of Financial Manager",
             affected_record_id = item.LiquidationId,
-            remarks = $"Liquidation {item.ReferenceNumber} action {actionName} -> {item.Status}. Remarks: {dto?.Notes ?? "N/A"}",
+            remarks = $"Liquidation {item.ReferenceNumber} action {actionName} -> {item.Status}. Remarks: {dto?.Notes ?? "Processed"}",
             created_at = DateTime.UtcNow
         });
         await _fomsDb.SaveChangesAsync();
 
         return Ok(item);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var item = await _fomsDb.Liquidations.FirstOrDefaultAsync(l => l.LiquidationId == id && l.IsDeleted != true);
+        if (item == null) return NotFound(new { message = "Liquidation not found" });
+
+        item.IsDeleted = true;
+        item.Status = "Deleted";
+        await _fomsDb.SaveChangesAsync();
+
+        _fomsDb.AuditLogs.Add(new AuditLog
+        {
+            action = "DELETE_LIQUIDATION",
+            module = "Liquidations",
+            role = "Assistant of Financial Manager",
+            affected_record_id = item.LiquidationId,
+            remarks = $"Soft-deleted liquidation {item.ReferenceNumber}.",
+            created_at = DateTime.UtcNow
+        });
+        await _fomsDb.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "Liquidation soft-deleted successfully." });
     }
 }

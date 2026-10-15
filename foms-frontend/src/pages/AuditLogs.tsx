@@ -207,9 +207,8 @@ export const AuditLogs: React.FC = () => {
       {/* ── Audit Trail Card ── */}
       <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 
-        {/* ── Card Header: title + Export + Refresh ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Audit Trail</h2>
+        {/* ── Card Header: Export + Refresh ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button style={{ height: 36, padding: '0 14px', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
               onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}

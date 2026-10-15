@@ -61,7 +61,7 @@ class PaymentsErrorBoundary extends React.Component<{ children: React.ReactNode 
   }
 }
 
-const PaymentsKpiCard: React.FC<{ label: string; value: string; color: string; bgColor: string; textColor: string; icon: string; sub: string }> = ({ label, value, color, bgColor, textColor, icon, sub }) => {
+const PaymentsKpiCard: React.FC<{ label: string; value: string; color: string; bgColor: string; textColor: string; icon: string; sub?: string }> = ({ label, value, color, bgColor, textColor, icon, sub }) => {
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -86,10 +86,12 @@ const PaymentsKpiCard: React.FC<{ label: string; value: string; color: string; b
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: hovered ? color : '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4, transition: 'color 0.25s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: hovered ? textColor : '#0F172A', marginBottom: 2, transition: 'color 0.25s' }}>{value}</div>
-        <div style={{ fontSize: 11, color: '#10B981', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {sub}
-        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: hovered ? textColor : '#0F172A', marginBottom: sub ? 2 : 0, transition: 'color 0.25s' }}>{value}</div>
+        {sub && (
+          <div style={{ fontSize: 11, color: '#10B981', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -108,6 +110,7 @@ const PaymentsContent: React.FC = () => {
   const isAssistant = user?.role === 'ASSISTANT_FM';
   const isHeadAccountant = user?.role === 'HEAD_ACCOUNTANT';
   const isAccountant = user?.role === 'ACCOUNTANT';
+  const isMisty = user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT';
 
   const [showForm, setShowForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -676,9 +679,8 @@ const PaymentsContent: React.FC = () => {
 
         <ClientInfoCard client={client} />
 
-        <Card>
-          <div style={{ padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: '#0F172A', fontWeight: 700 }}>Payment Transaction History</h3>
+        {(user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT') ? (
+          <TableContainer>
             <DataTable
               data={enriched}
               columns={columns.filter(c => c.key !== 'clientName')}
@@ -716,8 +718,51 @@ const PaymentsContent: React.FC = () => {
                 onClick: () => setShowForm(true)
               }] : []}
             />
-          </div>
-        </Card>
+          </TableContainer>
+        ) : (
+          <Card>
+            <div style={{ padding: '24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: '#0F172A', fontWeight: 700 }}>Payment Transaction History</h3>
+              <DataTable
+                data={enriched}
+                columns={columns.filter(c => c.key !== 'clientName')}
+                actions={actions}
+                rowKey="id"
+                searchPlaceholder="Search payments..."
+                searchFields={['invoiceNumber', 'referenceNumber', 'status'] as any}
+                filters={[
+                  {
+                    key: 'flow',
+                    label: 'Flow Direction',
+                    options: [
+                      { label: 'Inflow', value: 'inflow' },
+                      { label: 'Outflow', value: 'outflow' }
+                    ],
+                    filterFn: (row: any, val: string) => (row.flow || 'inflow') === val
+                  },
+                  {
+                    key: 'status',
+                    label: 'All Statuses',
+                    options: [
+                      { label: 'Pending Validation', value: 'Pending Validation' },
+                      { label: 'Validated', value: 'Validated' },
+                      { label: 'Approved', value: 'Approved' },
+                      { label: 'Rejected', value: 'Rejected' }
+                    ],
+                    filterFn: (row: any, val: string) => row.status === val
+                  }
+                ]}
+                emptyMessage="No payment records found for this client."
+                columnToggle={true} densityToggle={true} exportable={false}
+                createButtons={isAccountant ? [{
+                  label: '+ Record Payment',
+                  variant: 'primary',
+                  onClick: () => setShowForm(true)
+                }] : []}
+              />
+            </div>
+          </Card>
+        )}
 
         {showForm && createPortal(
           <div style={{
@@ -1454,10 +1499,10 @@ const PaymentsContent: React.FC = () => {
       {/* KPI Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {[
-          { label: 'Total Cash Inflow', value: `₱${Number(totalInflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#10B981', bgColor: '#F0FDF4', textColor: '#15803D', icon: 'ti-trending-up', sub: 'Validated payments only' },
-          { label: 'Total Cash Outflow', value: `₱${Number(totalOutflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#EF4444', bgColor: '#FEF2F2', textColor: '#B91C1C', icon: 'ti-trending-down', sub: 'Approved outgoing transactions' },
-          { label: 'Net Cash Flow', value: `₱${Number(netCashFlow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: netCashFlow >= 0 ? '#6366F1' : '#EF4444', bgColor: netCashFlow >= 0 ? '#EEF2FF' : '#FEF2F2', textColor: netCashFlow >= 0 ? '#4338CA' : '#B91C1C', icon: 'ti-currency-peso', sub: 'Total Inflow minus Outflow' },
-          { label: 'Pending Validation', value: `₱${Number(pendingInflowAmt || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', icon: 'ti-clock', sub: `${pendingPayments.length} payment(s) awaiting` },
+          { label: 'Total Cash Inflow', value: `₱${Number(totalInflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#10B981', bgColor: '#F0FDF4', textColor: '#15803D', icon: 'ti-trending-up', sub: isMisty ? undefined : 'Validated payments only' },
+          { label: 'Total Cash Outflow', value: `₱${Number(totalOutflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#EF4444', bgColor: '#FEF2F2', textColor: '#B91C1C', icon: 'ti-trending-down', sub: isMisty ? undefined : 'Approved outgoing transactions' },
+          { label: 'Net Cash Flow', value: `₱${Number(netCashFlow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: netCashFlow >= 0 ? '#6366F1' : '#EF4444', bgColor: netCashFlow >= 0 ? '#EEF2FF' : '#FEF2F2', textColor: netCashFlow >= 0 ? '#4338CA' : '#B91C1C', icon: 'ti-currency-peso', sub: isMisty ? undefined : 'Total Inflow minus Outflow' },
+          { label: 'Pending Validation', value: `₱${Number(pendingInflowAmt || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', icon: 'ti-clock', sub: isMisty ? undefined : `${pendingPayments.length} payment(s) awaiting` },
         ].map(kpi => (
           <PaymentsKpiCard key={kpi.label} {...kpi} />
         ))}
@@ -1583,7 +1628,6 @@ const PaymentsContent: React.FC = () => {
             },
           ]}
           rowKey="id"
-          title="Cash Flow — Payment Transactions"
           searchPlaceholder="Search by client, invoice, or reference..."
           searchFields={['clientName', 'invoiceNumber', 'referenceNumber'] as any}
           emptyMessage="No cash flow records found. Adjust your filters or wait for validated payments."

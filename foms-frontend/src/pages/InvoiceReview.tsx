@@ -319,7 +319,6 @@ export const InvoiceReview: React.FC = () => {
       {selectedClientId ? (
         <TableContainer>
           <DataTable
-            title="Invoices for Review"
             rowKey="id"
             data={sortedInvoices}
             columns={[
@@ -342,7 +341,6 @@ export const InvoiceReview: React.FC = () => {
       ) : (
         <TableContainer>
           <DataTable
-            title="Client Invoice Queue"
             rowKey="id"
             data={enrichedClients}
             searchPlaceholder="Search clients..."

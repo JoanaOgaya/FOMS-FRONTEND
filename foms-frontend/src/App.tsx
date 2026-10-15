@@ -97,6 +97,7 @@ const AppRoutes: React.FC = () => {
           const element = <RoleGuard module={m.key}><Page /></RoleGuard>;
           return [m.path, ...(m.detailPath ? [m.detailPath] : [])].map((path) => <Route key={path} path={path} element={element} />);
         })}
+        <Route path="/ai/output-history" element={<Navigate to="/ai-history" replace />} />
         <Route path="/" element={<RoleHome />} />
         <Route path="*" element={<RoleHome />} />
       </Route>

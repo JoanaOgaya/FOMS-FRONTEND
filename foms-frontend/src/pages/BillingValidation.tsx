@@ -119,6 +119,8 @@ export const BillingValidation: React.FC = () => {
     toast.info('Billing record returned for revision.', 'Returned');
   };
 
+  const isMisty = user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {!isHead && (
@@ -160,36 +162,63 @@ export const BillingValidation: React.FC = () => {
       )}
 
       {isHead && (
-        <Card>
-          <div style={{ padding: '24px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', marginBottom: '16px', marginTop: 0 }}>Pending Billing Approvals</h2>
-            <TableContainer>
-              <DataTable
-                title=""
-                data={pendingRecords.map(br => {
-                  const wb = waybills.find(w => w.id === br.waybillId);
-                  const client = clients.find(c => c.id === br.clientId);
-                  return {
-                    ...br,
-                    waybillNumber: wb?.waybillNumber || br.waybillId,
-                    clientName: client?.name || br.clientId,
-                  };
-                })}
-                columns={[
-                  { key: 'waybillNumber', label: 'Waybill No.', sortable: true },
-                  { key: 'clientName', label: 'Client', sortable: true },
-                  { key: 'grandTotal', label: 'Computed Amount', render: (row: any) => formatCurrency(row.grandTotal) },
-                  { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> }
-                ]}
-                actions={[
-                  { label: 'Approve', icon: 'ti-check', onClick: (row: any) => handleApprove(row.id) },
-                  { label: 'Reject', icon: 'ti-x', onClick: (row: any) => handleReject(row.id) }
-                ]}
-                rowKey="id"
-              />
-            </TableContainer>
-          </div>
-        </Card>
+        isMisty ? (
+          <TableContainer>
+            <DataTable
+              data={pendingRecords.map(br => {
+                const wb = waybills.find(w => w.id === br.waybillId);
+                const client = clients.find(c => c.id === br.clientId);
+                return {
+                  ...br,
+                  waybillNumber: wb?.waybillNumber || br.waybillId,
+                  clientName: client?.name || br.clientId,
+                };
+              })}
+              columns={[
+                { key: 'waybillNumber', label: 'Waybill No.', sortable: true },
+                { key: 'clientName', label: 'Client', sortable: true },
+                { key: 'grandTotal', label: 'Computed Amount', render: (row: any) => formatCurrency(row.grandTotal) },
+                { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> }
+              ]}
+              actions={[
+                { label: 'Approve', icon: 'ti-check', onClick: (row: any) => handleApprove(row.id) },
+                { label: 'Reject', icon: 'ti-x', onClick: (row: any) => handleReject(row.id) }
+              ]}
+              rowKey="id"
+            />
+          </TableContainer>
+        ) : (
+          <Card>
+            <div style={{ padding: '24px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A', marginBottom: '16px', marginTop: 0 }}>Pending Billing Approvals</h2>
+              <TableContainer>
+                <DataTable
+                  title=""
+                  data={pendingRecords.map(br => {
+                    const wb = waybills.find(w => w.id === br.waybillId);
+                    const client = clients.find(c => c.id === br.clientId);
+                    return {
+                      ...br,
+                      waybillNumber: wb?.waybillNumber || br.waybillId,
+                      clientName: client?.name || br.clientId,
+                    };
+                  })}
+                  columns={[
+                    { key: 'waybillNumber', label: 'Waybill No.', sortable: true },
+                    { key: 'clientName', label: 'Client', sortable: true },
+                    { key: 'grandTotal', label: 'Computed Amount', render: (row: any) => formatCurrency(row.grandTotal) },
+                    { key: 'status', label: 'Status', render: (row: any) => <StatusBadge status={row.status} /> }
+                  ]}
+                  actions={[
+                    { label: 'Approve', icon: 'ti-check', onClick: (row: any) => handleApprove(row.id) },
+                    { label: 'Reject', icon: 'ti-x', onClick: (row: any) => handleReject(row.id) }
+                  ]}
+                  rowKey="id"
+                />
+              </TableContainer>
+            </div>
+          </Card>
+        )
       )}
     </div>
   );

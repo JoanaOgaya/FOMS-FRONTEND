@@ -137,7 +137,6 @@ export default function RecordSettlement() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <Card style={{ padding: '24px' }}>
         <DataTable
-          title="Record Settlement"
           data={myRecords}
           columns={columns}
           rowKey="id"

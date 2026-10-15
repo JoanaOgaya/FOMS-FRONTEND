@@ -169,7 +169,7 @@ const ForReview: React.FC = () => {
       {/* Main Table Area */}
       <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
         <DataTable 
-          title="Logged Decisions Audit Log"
+          title={(user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT') ? undefined : "Logged Decisions Audit Log"}
           data={data}
           columns={columns}
           rowKey="id"

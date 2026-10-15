@@ -59,12 +59,12 @@ const SharedKPIs = ({ arRecords }: { arRecords: any[] }) => {
   );
 };
 
-const CustomSearchFilter = ({ searchQuery, setSearchQuery, priorityFilter, setPriorityFilter }: any) => {
+const CustomSearchFilter = ({ searchQuery, setSearchQuery, priorityFilter, setPriorityFilter, isMisty }: any) => {
   const [isFocused, setIsFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(['Shopee and', 'Lazada Account']);
 
   return (
-    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 12 }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: isMisty ? 0 : 12 }}>
       <div style={{ position: 'relative', width: '280px' }}>
         <i className="ti ti-search" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#0D9488', zIndex: 2, fontSize: 18 }}></i>
         <input 
@@ -220,10 +220,12 @@ const ManagerView = ({ token, user, arRecords }: any) => {
 
       <div style={{ marginTop: 24, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: 0 }}>
-            For Manager Approval / Logged Decisions
-          </h2>
-          <CustomSearchFilter searchQuery={searchQuery} setSearchQuery={setSearchQuery} priorityFilter={priorityFilter} setPriorityFilter={setPriorityFilter} />
+          {!(user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT') && (
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: 0 }}>
+              For Manager Approval / Logged Decisions
+            </h2>
+          )}
+          <CustomSearchFilter isMisty={user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT'} searchQuery={searchQuery} setSearchQuery={setSearchQuery} priorityFilter={priorityFilter} setPriorityFilter={setPriorityFilter} />
         </div>
 
         <div style={{ padding: 24 }}>

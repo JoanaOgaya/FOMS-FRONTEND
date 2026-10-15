@@ -189,6 +189,7 @@ export default function FinancialAdjustments() {
   const pendingCount = filteredAdjustments.filter(a => a.status === 'Pending Approval').length;
 
   const isReviewer = user?.role === 'FINANCIAL_MANAGER' || user?.role === 'HEAD_ACCOUNTANT';
+  const isMisty = user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT';
 
   const columns = [
     { key: 'id', label: 'ID', sortable: true },
@@ -254,29 +255,29 @@ export default function FinancialAdjustments() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <Card style={{ padding: '20px' }}>
           <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#0D9488', letterSpacing: '0.06em' }}>TOTAL ADJUSTMENTS</p>
-          <p style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{formatCurrency(totalAdjustments)}</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Adjustments</p>
+          <p style={{ margin: isMisty ? '0' : '0 0 4px', fontSize: 24, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{formatCurrency(totalAdjustments)}</p>
+          {!isMisty && <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Adjustments</p>}
         </Card>
         <Card style={{ padding: '20px' }}>
           <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#7C3AED', letterSpacing: '0.06em' }}>CREDIT MEMOS</p>
-          <p style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{formatCurrency(totalCreditMemos)}</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Credit Memos</p>
+          <p style={{ margin: isMisty ? '0' : '0 0 4px', fontSize: 24, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{formatCurrency(totalCreditMemos)}</p>
+          {!isMisty && <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Credit Memos</p>}
         </Card>
         <Card style={{ padding: '20px' }}>
           <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#F59E0B', letterSpacing: '0.06em' }}>PENDING APPROVAL</p>
-          <p style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{pendingCount}</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Awaiting decision</p>
+          <p style={{ margin: isMisty ? '0' : '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{pendingCount}</p>
+          {!isMisty && <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>Awaiting decision</p>}
         </Card>
         <Card style={{ padding: '20px' }}>
           <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#3B82F6', letterSpacing: '0.06em' }}>TOTAL REQUESTS</p>
-          <p style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{filteredAdjustments.length}</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>All time</p>
+          <p style={{ margin: isMisty ? '0' : '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{filteredAdjustments.length}</p>
+          {!isMisty && <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>All time</p>}
         </Card>
       </div>
 
       <TableContainer>
         <DataTable
-          title={isReviewer ? 'Financial Validation' : 'Financial Adjustments'}
+          title={isMisty ? undefined : (isReviewer ? 'Financial Validation' : 'Financial Adjustments')}
           exportable={true}
           createButtons={isReviewer ? undefined : [
             {

@@ -21,6 +21,7 @@ import { Role, type SpeedPaySubmission, type Invoice, type Client } from '../typ
 export const SpeedPayValidation: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isMisty = user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT';
   const navigate = useNavigate();
   const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
 
@@ -291,15 +292,14 @@ export const SpeedPayValidation: React.FC = () => {
             }}
           >
             <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: kpi.color, letterSpacing: '0.06em' }}>{kpi.label}</p>
-            <p style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{kpi.value}</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>{kpi.sub}</p>
+            <p style={{ margin: isMisty ? '0' : '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{kpi.value}</p>
+            {!isMisty && <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>{kpi.sub}</p>}
           </div>
         ))}
       </div>
 
       <TableContainer>
         <DataTable
-          title="SpeedPay Validations"
           data={filteredData}
           columns={columns}
           actions={actions}

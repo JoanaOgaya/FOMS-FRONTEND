@@ -189,7 +189,6 @@ export const InvoicingDesk: React.FC = () => {
       ) : (
         <TableContainer>
           <DataTable
-            title="Invoicing Desk"
             data={enrichedInvoices}
             columns={tableColumns}
             actions={actions}

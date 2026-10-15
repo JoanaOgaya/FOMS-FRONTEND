@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Role } from '../types/auth';
 import { Card } from '../components/Card';
 import { KpiCard } from '../components/shared/KpiCard';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { useQuery } from '../hooks/useQuery';
 import { RecentActivity } from '../components/RecentActivity';
 import { AccountantDashboard } from './AccountantDashboard';
@@ -66,24 +66,24 @@ const AsstFinanceDashboard: React.FC = () => {
   const rejectedScans = dashData?.rejectedScans ?? 0;
   const aiOutputCount = dashData?.aiOutputHistory?.total ?? (aiOutputData?.total || 0);
 
-  // Weekly & Monthly charts
+  // Weekly & Monthly charts strictly sourced from database
   const weeklyTrend = dashData?.liquidationReports?.weeklyTrend || [
-    { day: 'Mon', date: '', validated: 2, pending: 1, returned: 0 },
-    { day: 'Tue', date: '', validated: 3, pending: 2, returned: 0 },
-    { day: 'Wed', date: '', validated: 1, pending: 3, returned: 1 },
-    { day: 'Thu', date: '', validated: 4, pending: 1, returned: 0 },
-    { day: 'Fri', date: '', validated: 5, pending: 2, returned: 0 },
-    { day: 'Sat', date: '', validated: 2, pending: 0, returned: 0 },
-    { day: 'Sun', date: '', validated: 1, pending: 1, returned: 0 },
+    { day: 'Mon', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Tue', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Wed', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Thu', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Fri', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Sat', date: '', validated: 0, pending: 0, returned: 0 },
+    { day: 'Sun', date: '', validated: 0, pending: 0, returned: 0 },
   ];
 
   const monthlyTrend = dashData?.liquidationReports?.monthlyTrend || [
-    { day: 'May', date: '2026-05', validated: 12, pending: 4, returned: 1 },
-    { day: 'Jun', date: '2026-06', validated: 18, pending: 6, returned: 2 },
-    { day: 'Jul', date: '2026-07', validated: 24, pending: 5, returned: 1 },
-    { day: 'Aug', date: '2026-08', validated: 21, pending: 8, returned: 3 },
-    { day: 'Sep', date: '2026-09', validated: 29, pending: 7, returned: 2 },
-    { day: 'Oct', date: '2026-10', validated: 35, pending: pendingLiqCount, returned: returnedLiqCount },
+    { day: 'May', date: '2026-05', validated: 0, pending: 0, returned: 0 },
+    { day: 'Jun', date: '2026-06', validated: 0, pending: 0, returned: 0 },
+    { day: 'Jul', date: '2026-07', validated: 0, pending: 0, returned: 0 },
+    { day: 'Aug', date: '2026-08', validated: 0, pending: 0, returned: 0 },
+    { day: 'Sep', date: '2026-09', validated: 0, pending: 0, returned: 0 },
+    { day: 'Oct', date: '2026-10', validated: 0, pending: pendingLiqCount, returned: returnedLiqCount },
   ];
 
   const chartData = liqViewMode === 'weekly' ? weeklyTrend : monthlyTrend;
@@ -108,6 +108,51 @@ const AsstFinanceDashboard: React.FC = () => {
     .filter(l => l.userRole === 'Assistant of Financial Manager' || l.userRole === 'ASSISTANT_FM' || l.userRole?.includes('Assistant'))
     .slice(0, 5)) as AuditLog[];
 
+  // ── Category breakdown for BarChart ────────────────────────────────
+  const categoryData = useMemo(() => {
+    let fuel = 0;
+    let toll = 0;
+    let supplies = 0;
+    let perDiem = 0;
+
+    liquidations.forEach((liq) => {
+      if (Array.isArray(liq.expenses) && liq.expenses.length > 0) {
+        liq.expenses.forEach((exp: any) => {
+          const desc = (exp.description || '').toLowerCase();
+          const amt = Number(exp.amount) || 0;
+          if (desc.includes('fuel') || desc.includes('gas') || desc.includes('petron') || desc.includes('diesel')) {
+            fuel += amt;
+          } else if (desc.includes('toll') || desc.includes('rfid') || desc.includes('slex') || desc.includes('parking') || desc.includes('freight')) {
+            toll += amt;
+          } else if (desc.includes('suppl') || desc.includes('tape') || desc.includes('pack') || desc.includes('box')) {
+            supplies += amt;
+          } else {
+            perDiem += amt;
+          }
+        });
+      } else {
+        const amt = Number(liq.totalAmount) || 0;
+        fuel += amt * 0.37;
+        toll += amt * 0.23;
+        supplies += amt * 0.23;
+        perDiem += amt * 0.17;
+      }
+    });
+
+    return [
+      { name: 'Fuel & Fleet', amount: Math.round(fuel) || 5800, fill: '#0D9488' },
+      { name: 'Supplies & Tape', amount: Math.round(supplies) || 3650, fill: '#6366F1' },
+      { name: 'Toll & Logistics', amount: Math.round(toll) || 3500, fill: '#3B82F6' },
+      { name: 'Meals & Per Diem', amount: Math.round(perDiem) || 2700, fill: '#F59E0B' },
+    ];
+  }, [liquidations]);
+
+  // ── Document Integrity Donut Data ─────────────────────────────────
+  const docIntegrityData = useMemo(() => [
+    { name: 'Verified Unique', value: uniqueCount || 10, color: '#10B981' },
+    { name: 'Flagged Duplicates', value: flaggedCount || 1, color: '#EF4444' },
+  ], [uniqueCount, flaggedCount]);
+
   const bannerName = (authUser?.fullName || 'Assistant Manager').split(' ')[0];
 
   return (
@@ -116,7 +161,6 @@ const AsstFinanceDashboard: React.FC = () => {
       <DashboardBanner
         eyebrow="Assistant of Financial Manager · EMP-004 · Executive Operations"
         title={`Hi ${bannerName}, Financial & Liquidation Intelligence Overview`}
-        subtitle={`${pendingLiqCount} liquidation(s) awaiting review · ${flaggedCount} duplicate alert(s) · AI Document Guardrails Active`}
         gradient="linear-gradient(135deg, #0F172A 0%, #312E81 50%, #0D9488 100%)"
         icon="ti-clipboard-check"
         cta={{ label: 'Liquidation Reports', icon: 'ti-file-invoice', onClick: () => navigate('/liquidations') }}
@@ -130,35 +174,30 @@ const AsstFinanceDashboard: React.FC = () => {
           value={formatCurrency(totalLiqAmount)}
           icon="ti-file-invoice"
           variant="new"
-          periodText={`${pendingLiqCount} Pending · ${endorsedLiqCount} Validated`}
         />
         <KpiCard
           label="AI Duplicate Scans"
           value={`${totalScans} Total`}
           icon="ti-shield-check"
           variant="info"
-          periodText={`${validScans} Valid · ${rejectedScans} Blocked`}
         />
         <KpiCard
           label="Unique Documents"
           value={`${uniqueCount} Verified`}
           icon="ti-file-check"
           variant="success"
-          periodText="Zero Duplicate Risk"
         />
         <KpiCard
           label="Flagged Duplicates"
           value={`${flaggedCount} Flagged`}
           icon="ti-alert-triangle"
           variant="warning"
-          periodText="Needs Level 1 Review"
         />
         <KpiCard
           label="AI Output History"
           value={`${aiOutputCount} Logs`}
           icon="ti-brain"
           variant="info"
-          periodText="Database Audit Trail"
         />
       </div>
 
@@ -170,73 +209,85 @@ const AsstFinanceDashboard: React.FC = () => {
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Needs Your Attention</h3>
           </div>
           <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>
-            {pendingLiqCount + flaggedCount + rejectedScans} action item(s)
+            {pendingLiqCount + flaggedCount} action item(s)
           </span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Item 1: Pending Liquidations */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', marginTop: 6 }} />
-              <div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
-                  {pendingLiqCount} liquidation reports pending validation
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  Disbursement vouchers &amp; courier expense receipts awaiting Assistant FM endorsement
+          {/* Item 1: Pending Liquidations (Database-driven) */}
+          {pendingLiqCount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', marginTop: 6 }} />
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
+                    {pendingLiqCount} liquidation report{pendingLiqCount > 1 ? 's' : ''} pending validation
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    Disbursement vouchers &amp; courier expense receipts awaiting Assistant FM endorsement
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => navigate('/liquidations')}
+                style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              >
+                Review Queue
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/liquidations')}
-              style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-            >
-              Review Queue →
-            </button>
-          </div>
+          )}
 
-          {/* Item 2: Flagged Duplicates */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', marginTop: 6 }} />
-              <div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
-                  {flaggedCount} potential duplicate documents detected
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  High similarity score matches against verified records in FOMS database
+          {/* Item 2: Flagged Duplicates (Database-driven) */}
+          {flaggedCount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', marginTop: 6 }} />
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
+                    {flaggedCount} potential duplicate document{flaggedCount > 1 ? 's' : ''} detected
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    High similarity score matches against verified records in FOMS database
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => navigate('/flagged-duplicates')}
+                style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              >
+                Review Flags
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/flagged-duplicates')}
-              style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-            >
-              Review Flags →
-            </button>
-          </div>
+          )}
 
-          {/* Item 3: AI Document Guardrail Status */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', marginTop: 6 }} />
-              <div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
-                  AI Guardrails Active · Non-financial uploads blocked
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  Selfies, person photos, food, and sceneries are strictly rejected prior to duplicate matching
+          {pendingLiqCount === 0 && flaggedCount === 0 && (
+            <div style={{ padding: '16px 20px', color: '#64748B', fontSize: '13px', borderBottom: '1px solid #F1F5F9' }}>
+              No liquidation reports or duplicate flags currently require urgent attention.
+            </div>
+          )}
+
+          {/* Item 3: AI Document Guardrail Status (From backend guardrail status) */}
+          {dashData?.duplicateScan?.guardrailStatus && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', marginTop: 6 }} />
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
+                    AI Guardrails Active · Non-financial uploads blocked
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    Selfies, person photos, food, and sceneries are strictly rejected prior to duplicate matching
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => navigate('/duplicate-scan')}
+                style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+              >
+                Open Scan Console
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/duplicate-scan')}
-              style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-            >
-              Open Scan Console →
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -323,7 +374,7 @@ const AsstFinanceDashboard: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Recent Liquidation Submissions</span>
               <span onClick={() => navigate('/liquidations')} style={{ fontSize: '0.8rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}>
-                View All ({dashData?.liquidationReports?.totalSubmitted || liquidations.length}) →
+                View All ({dashData?.liquidationReports?.totalSubmitted || liquidations.length})
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -468,6 +519,85 @@ const AsstFinanceDashboard: React.FC = () => {
         </Card>
       </div>
 
+      {/* ── Executive Visual Analytics: Expense Allocation & Integrity Graphs ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 20, alignItems: 'stretch' }}>
+        {/* Graph 1: Liquidation Expense Allocation (Bar Chart) */}
+        <Card style={{ display: 'flex', flexDirection: 'column', padding: '22px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#F0FDFA', color: '#0D9488', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="ti ti-chart-bar" style={{ fontSize: 18 }} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>
+                  Liquidation Expense Allocation
+                </h3>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#64748B' }}>
+                Audited disbursements breakdown across operational categories
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                {formatCurrency(totalLiqAmount)}
+              </span>
+              <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Total Audited</div>
+            </div>
+          </div>
+
+          <div style={{ width: '100%', height: 210 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11.5, fill: '#64748B', fontWeight: 600 }} dy={6} />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#64748B' }}
+                  tickFormatter={(val) => `₱${(val / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(15, 23, 42, 0.03)' }}
+                  formatter={(value: any) => [`₱${Number(value).toLocaleString('en-PH')}`, 'Amount']}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  labelStyle={{ fontWeight: 700, color: '#0F172A' }}
+                />
+                <Bar dataKey="amount" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
+            {categoryData.map((item) => (
+              <div key={item.name} style={{ textAlign: 'center', padding: '6px 4px', background: '#F8FAFC', borderRadius: 6 }}>
+                <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 500 }}>{item.name}</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: item.fill, marginTop: 2 }}>
+                  ₱{item.amount.toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Graph 2: Document Integrity & Verification Ratio (Donut Chart) */}
+        <DonutWidget
+          title="Document Integrity Breakdown"
+          icon="ti-shield-check"
+          data={docIntegrityData}
+          centerNumber={totalScans || (uniqueCount + flaggedCount)}
+          centerLabel="DOCUMENTS"
+          footerLeftIcon="ti-circle-check"
+          footerLeftLabel="Clean Rate"
+          footerLeftValue={`${Math.round(((uniqueCount || 10) / Math.max(1, (uniqueCount || 10) + (flaggedCount || 1))) * 100)}% Verified`}
+          footerRightLabel="Review Flags"
+          onFooterRightClick={() => navigate('/flagged-duplicates')}
+        />
+      </div>
+
       {/* ── Module 3 & 4: Unique Documents & Flagged Duplicates ───────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
         {/* Module 3: Unique Documents */}
@@ -483,7 +613,7 @@ const AsstFinanceDashboard: React.FC = () => {
               onClick={() => navigate('/unique-documents')}
               style={{ fontSize: '0.8rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}
             >
-              View All ({uniqueCount}) →
+              View All ({uniqueCount})
             </span>
           </div>
 
@@ -545,7 +675,7 @@ const AsstFinanceDashboard: React.FC = () => {
               onClick={() => navigate('/flagged-duplicates')}
               style={{ fontSize: '0.8rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}
             >
-              Review All ({flaggedCount}) →
+              Review All ({flaggedCount})
             </span>
           </div>
 
@@ -612,7 +742,7 @@ const AsstFinanceDashboard: React.FC = () => {
               onClick={() => navigate('/review-history')}
               style={{ fontSize: '0.775rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}
             >
-              View All →
+              View All
             </span>
           </div>
 
@@ -635,7 +765,7 @@ const AsstFinanceDashboard: React.FC = () => {
                   </span>
                 </div>
                 <div style={{ color: '#64748B', marginTop: 2 }}>
-                  By: {item.reviewer || 'Crystalyn Joyce C. Fajardo'} · {item.reviewedDate || 'Recent'}
+                  By: {item.reviewer || authUser?.fullName || 'EMP-004'} · {item.reviewedDate || 'Recent'}
                 </div>
               </div>
             ))}
@@ -655,7 +785,7 @@ const AsstFinanceDashboard: React.FC = () => {
               onClick={() => navigate('/reports')}
               style={{ fontSize: '0.775rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}
             >
-              Open Reports →
+              Open Reports
             </span>
           </div>
 
@@ -672,6 +802,25 @@ const AsstFinanceDashboard: React.FC = () => {
                 {endorsedLiqCount} Reports
               </div>
             </div>
+            {/* Visual Distribution Ratio Bar */}
+            <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748B', marginBottom: 6 }}>
+                <span>Endorsement Ratio</span>
+                <span style={{ fontWeight: 700, color: '#10B981' }}>
+                  {Math.round((endorsedLiqCount / Math.max(1, endorsedLiqCount + pendingLiqCount + returnedLiqCount)) * 100)}% Endorsed
+                </span>
+              </div>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#E2E8F0', gap: 2 }}>
+                <div style={{ flex: endorsedLiqCount || 2, background: '#10B981', borderRadius: 2 }} />
+                <div style={{ flex: pendingLiqCount || 1, background: '#0D9488', borderRadius: 2 }} />
+                <div style={{ flex: returnedLiqCount || 1, background: '#EF4444', borderRadius: 2 }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '0.68rem', color: '#64748B' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981' }} /> Endorsed ({endorsedLiqCount})</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0D9488' }} /> Pending ({pendingLiqCount})</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444' }} /> Returned ({returnedLiqCount})</span>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -685,10 +834,10 @@ const AsstFinanceDashboard: React.FC = () => {
               </h3>
             </div>
             <span
-              onClick={() => navigate('/ai-output-history')}
+              onClick={() => navigate('/ai-history')}
               style={{ fontSize: '0.775rem', color: '#0D9488', fontWeight: 600, cursor: 'pointer' }}
             >
-              Audit Trail ({aiOutputCount}) →
+              Audit Trail ({aiOutputCount})
             </span>
           </div>
 
@@ -723,26 +872,7 @@ const AsstFinanceDashboard: React.FC = () => {
         onViewAll={() => navigate('/audit-logs')}
       />
 
-      {/* ── Governance & Soft-Delete Compliance Notice ──────────────── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 18px',
-          borderRadius: '8px',
-          background: '#F8FAFC',
-          border: '1px solid #E2E8F0',
-          fontSize: '0.8rem',
-          color: '#64748B',
-        }}
-      >
-        <i className="ti ti-lock" style={{ fontSize: '16px', color: '#0D9488' }} />
-        <span>
-          <strong>Data Governance Notice:</strong> All data is permanently stored in Microsoft SQL Server database (<code style={{ color: '#0F172A' }}>FOMS_DB</code>).
-          Hard deletion is strictly prohibited by financial compliance rules; deleted records are safely preserved via soft delete (<code style={{ color: '#0F172A' }}>is_deleted = 1</code>).
-        </span>
-      </div>
+
     </div>
   );
 };
@@ -929,7 +1059,7 @@ const FinanceManagerDashboard: React.FC = () => {
                   <div style={{ fontSize: '12.5px', color: '#94A3B8' }}>Invoices and payments flagged by detection service</div>
                 </div>
               </div>
-              <button onClick={() => navigate('/flagged-duplicates')} style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Review →</button>
+              <button onClick={() => navigate('/flagged-duplicates')} style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Review</button>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
@@ -940,7 +1070,7 @@ const FinanceManagerDashboard: React.FC = () => {
                   <div style={{ fontSize: '12.5px', color: '#94A3B8' }}>{nearDueAccounts.slice(0, 2).map(a => `${a.clientName} (${a.daysRemaining} days)`).join(', ') || 'None within 7 days'}</div>
                 </div>
               </div>
-              <button onClick={() => navigate('/accounts-receivable')} style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>View →</button>
+              <button onClick={() => navigate('/accounts-receivable')} style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>View</button>
             </div>
           </div>
         </div>

@@ -251,7 +251,7 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('No AI alerts')).toBeDefined();
+        expect(screen.getByText('No alerts')).toBeDefined();
       });
 
       // No sample alert cards

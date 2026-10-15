@@ -110,11 +110,56 @@ export const assistantFinanceService = {
   getDashboard: async (): Promise<{ success: boolean; data: AsstFinanceDashboardData }> => {
     return http.get<{ success: boolean; data: AsstFinanceDashboardData }>('/assistant-finance-manager/dashboard');
   },
+  getLiquidations: async (status?: string, page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/liquidations', { status, page, pageSize });
+  },
+  getLiquidationById: async (id: number | string) => {
+    return http.get<any>(`/assistant-finance-manager/liquidations/${id}`);
+  },
+  reviewLiquidation: async (id: number | string) => {
+    return http.post<any>(`/assistant-finance-manager/liquidations/${id}/review`, {});
+  },
+  returnLiquidation: async (id: number | string, remarks: string) => {
+    return http.post<any>(`/assistant-finance-manager/liquidations/${id}/return`, { remarks });
+  },
+  endorseLiquidation: async (id: number | string) => {
+    return http.post<any>(`/assistant-finance-manager/liquidations/${id}/endorse`, {});
+  },
   softDeleteLiquidation: async (id: number | string): Promise<{ success: boolean; message: string }> => {
     return http.delete<{ success: boolean; message: string }>(`/assistant-finance-manager/liquidations/${id}`);
   },
+  getScanHistory: async (page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/ai/duplicate-scan/history', { page, pageSize });
+  },
+  getUniqueDocuments: async (page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/ai/unique-documents', { page, pageSize });
+  },
+  getFlaggedDuplicates: async (page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/ai/flagged-duplicates', { page, pageSize });
+  },
+  markDuplicate: async (alertId: string, remarks?: string) => {
+    return http.post<any>(`/assistant-finance-manager/ai/flagged-duplicates/${alertId}/mark-duplicate`, { remarks });
+  },
+  markUnique: async (alertId: string, remarks?: string) => {
+    return http.post<any>(`/assistant-finance-manager/ai/flagged-duplicates/${alertId}/mark-unique`, { remarks });
+  },
+  returnDuplicateForReview: async (alertId: string, remarks: string) => {
+    return http.post<any>(`/assistant-finance-manager/ai/flagged-duplicates/${alertId}/return-for-review`, { remarks });
+  },
+  endorseFlaggedDuplicate: async (alertId: string) => {
+    return http.post<any>(`/assistant-finance-manager/ai/flagged-duplicates/${alertId}/endorse`, {});
+  },
+  getReviewHistory: async (page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/review-history', { page, pageSize });
+  },
   softDeleteReviewHistory: async (id: number | string): Promise<{ success: boolean; message: string }> => {
     return http.delete<{ success: boolean; message: string }>(`/assistant-finance-manager/ai/review-history/${id}`);
+  },
+  generateReport: async (payload: { reportType: string; dateFrom?: string; dateTo?: string; status?: string }) => {
+    return http.post<any>('/assistant-finance-manager/reports/generate', payload);
+  },
+  getAiOutputHistory: async (page: number = 1, pageSize: number = 50) => {
+    return http.get<any>('/assistant-finance-manager/ai/output-history', { page, pageSize });
   },
 };
 

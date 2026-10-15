@@ -64,7 +64,6 @@ public class AuditLogsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        await EnsureSeededAsync();
         var logs = await _fomsDb.AuditLogs
             .OrderByDescending(a => a.created_at)
             .AsNoTracking()

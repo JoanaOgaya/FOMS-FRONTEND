@@ -4,7 +4,7 @@ import { TableContainer } from '../components/TableContainer';
 import { DataTable } from '../components/DataTable';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import { ClientInfoCard } from '../components/ClientInfoCard';
-import { Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line, ComposedChart, Cell } from 'recharts';
+import { Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line, ComposedChart, Cell, AreaChart, Area } from 'recharts';
 import { useToast } from '../components/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '../hooks/useQuery';
@@ -12,10 +12,11 @@ import { invoicesService } from '../services/invoicesService';
 import { clientsService } from '../services/clientsService';
 import { arService } from '../services/arService';
 import { paymentsService } from '../services/paymentsService';
+import { liquidationsService } from '../services/liquidationsService';
 import { auditLogsService } from '../services/auditLogsService';
 import { duplicatesService, type DuplicateFlagItem, type UniqueDocumentItem, type ReviewHistoryItem } from '../services/duplicates.service';
 import { Role } from '../types/auth';
-import type { Invoice, Client, AccountsReceivableRecord, Payment, AuditLog } from '../types/entities';
+import type { Invoice, Client, AccountsReceivableRecord, Payment, AuditLog, Liquidation } from '../types/entities';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -58,10 +59,14 @@ const ReportsContent: React.FC = () => {
   const { id } = useParams();
   const selectedClientId = id;
 
+  const roleStr = String(user?.role || '');
+  const isAFM = roleStr === 'ASSISTANT_FM' || roleStr.toLowerCase().includes('assistant');
+
   const { data: invData } = useQuery('reports:invoices', () => invoicesService.list({ pageSize: 100 }));
   const { data: clientData } = useQuery('reports:clients', () => clientsService.list({ pageSize: 100 }));
   const { data: arData } = useQuery('reports:ar', () => arService.records({ pageSize: 100 }));
   const { data: pmtData } = useQuery('reports:payments', () => paymentsService.list({ pageSize: 100 }));
+  const { data: liqData } = useQuery('reports:liquidations', () => liquidationsService.list({ pageSize: 100 }));
   const { data: flagData } = useQuery('reports:duplicate-flags', () => duplicatesService.flagged({ pageSize: 100 }));
   const { data: uniqueData } = useQuery('reports:unique-docs', () => duplicatesService.uniqueDocuments({ pageSize: 100 }));
   const { data: historyData } = useQuery('reports:review-history', () => duplicatesService.reviewHistory({ pageSize: 100 }));
@@ -70,6 +75,7 @@ const ReportsContent: React.FC = () => {
   const clients: Client[] = clientData?.items || [];
   const arRecords: AccountsReceivableRecord[] = arData?.items || [];
   const payments: Payment[] = pmtData?.items || [];
+  const liquidations: Liquidation[] = liqData?.items || [];
   const duplicateFlags: DuplicateFlagItem[] = flagData?.items || [];
   const uniqueDocs: UniqueDocumentItem[] = uniqueData?.items || [];
   const reviewHistory: ReviewHistoryItem[] = historyData?.items || [];
@@ -78,8 +84,9 @@ const ReportsContent: React.FC = () => {
     auditLogsService.create(data).catch(() => {});
   };
 
-  const initialTab = searchParams.get('tab') || 'aging';
-  const initialLedger = initialTab === 'invoices' ? 'Invoice Summary' :
+  const initialTab = searchParams.get('tab') || (isAFM ? 'liquidation' : 'aging');
+  const initialLedger = initialTab === 'liquidation' ? 'Liquidation Summary' :
+                        initialTab === 'invoices' ? 'Invoice Summary' :
                         initialTab === 'collections' ? 'Collection Summary' :
                         initialTab === 'duplicate' ? 'Duplicate Alert Summary' :
                         initialTab === 'unique' ? 'Unique Document Ledger' :
@@ -99,6 +106,10 @@ const ReportsContent: React.FC = () => {
   const [activeSearch, setActiveSearch] = useState('');
   const [compileDateRange, setCompileDateRange] = useState('All Time');
   const [compileStatus, setCompileStatus] = useState('All Statuses');
+  const [liqTrendMode, setLiqTrendMode] = useState<'timeline' | 'cumulative'>('timeline');
+  const [showLiqExpense, setShowLiqExpense] = useState(true);
+  const [showLiqReimburse, setShowLiqReimburse] = useState(true);
+  const [showLiqLeftover, setShowLiqLeftover] = useState(false);
 
   const handleGenerateReport = () => {
     const today = new Date();
@@ -127,6 +138,7 @@ const ReportsContent: React.FC = () => {
     setIsGenerated(true);
 
     if (compileLedgerType === 'Aging of Accounts') setReportType('aging');
+    else if (compileLedgerType === 'Liquidation Summary') setReportType('liquidation');
     else if (compileLedgerType === 'Invoice Summary') setReportType('invoices');
     else if (compileLedgerType === 'Collection Summary') setReportType('collections');
     else if (compileLedgerType === 'Unique Document Ledger') setReportType('unique');
@@ -261,6 +273,35 @@ const ReportsContent: React.FC = () => {
       return true;
     });
   };
+
+  const getFilteredLiquidations = () => {
+    return liquidations.filter((l: Liquidation) => {
+      const d = (l.dateSubmitted || (l as any).createdAt || '').split('T')[0];
+      if (d && dateFrom && dateTo && compileDateRange !== 'All Time') {
+        if (d < dateFrom || d > dateTo) return false;
+      }
+      if (activeSearch) {
+        const term = activeSearch.toLowerCase();
+        const ref = (l.reference || l.referenceNumber || l.id || '').toLowerCase();
+        const sub = (l.submittedBy || (l as any).submittedByName || '').toLowerCase();
+        if (!ref.includes(term) && !sub.includes(term)) return false;
+      }
+      if (compileStatus && compileStatus !== 'All Statuses') {
+        const s = (l.status || '').toLowerCase();
+        if (!s.includes(compileStatus.toLowerCase())) return false;
+      }
+      return true;
+    });
+  };
+
+  const liquidationColumns = [
+    { key: 'reference', label: 'REFERENCE NO.', sortable: true, render: (row: any) => <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{row.reference || row.referenceNumber || row.id}</span> },
+    { key: 'submittedBy', label: 'SUBMITTED BY', sortable: true, render: (row: any) => <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.submittedBy || (row as any).submittedByName}</span> },
+    { key: 'dateSubmitted', label: 'DATE SUBMITTED', render: (row: any) => row.dateSubmitted ? new Date(row.dateSubmitted).toLocaleDateString('en-PH') : 'N/A' },
+    { key: 'amount', label: 'TOTAL EXPENSE', render: (row: any) => <span style={{ fontWeight: 800 }}>₱{Number(row.amount || (row as any).totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> },
+    { key: 'reimbursementAmount', label: 'REIMBURSEMENT', render: (row: any) => <span>₱{Number(row.reimbursementAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> },
+    { key: 'status', label: 'STATUS', render: (row: any) => <StatusBadge status={row.status} /> }
+  ];
 
   // --- Aging Tab Data ---
   let agingRecords: any[] = [];
@@ -536,6 +577,18 @@ const ReportsContent: React.FC = () => {
       ]);
       headers = ['REVIEW ID', 'DOCUMENT NO.', 'FINAL DECISION', 'REVIEWER', 'REASON', 'REVIEWED DATE'];
       filename = `review_history_audit_${new Date().toISOString().split('T')[0]}.csv`;
+    } else if (activeTab === 'liquidation') {
+      const liqs = getFilteredLiquidations();
+      dataToExport = liqs.map(l => [
+        l.reference || l.referenceNumber || l.id,
+        l.submittedBy || (l as any).submittedByName || 'N/A',
+        l.dateSubmitted ? new Date(l.dateSubmitted).toLocaleDateString('en-PH') : 'N/A',
+        l.amount || (l as any).totalAmount || 0,
+        l.reimbursementAmount || 0,
+        l.status || 'Pending Validation'
+      ]);
+      headers = ['REFERENCE NO.', 'SUBMITTED BY', 'DATE SUBMITTED', 'TOTAL EXPENSE', 'REIMBURSEMENT', 'STATUS'];
+      filename = `liquidation_summary_${new Date().toISOString().split('T')[0]}.csv`;
     }
 
     const csvContent = '\uFEFF' + [
@@ -627,6 +680,17 @@ const ReportsContent: React.FC = () => {
         h.reviewer || 'N/A',
         h.decisionReason || 'N/A',
         h.reviewedDate ? new Date(h.reviewedDate).toLocaleDateString('en-PH') : 'N/A'
+      ]);
+    } else if (activeTab === 'liquidation') {
+      const liqs = getFilteredLiquidations();
+      headers = [['Reference No.', 'Submitted By', 'Date Submitted', 'Total Expense', 'Reimbursement', 'Status']];
+      bodyData = liqs.map(l => [
+        l.reference || l.referenceNumber || l.id,
+        l.submittedBy || (l as any).submittedByName || 'N/A',
+        l.dateSubmitted ? new Date(l.dateSubmitted).toLocaleDateString('en-PH') : 'N/A',
+        `PHP ${Number(l.amount || (l as any).totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        `PHP ${Number(l.reimbursementAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        l.status || 'Pending Validation'
       ]);
     }
 
@@ -725,11 +789,7 @@ const ReportsContent: React.FC = () => {
       <div className="no-print" style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
 
         {/* Header row: title left, export buttons right */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="ti ti-filter" style={{ fontSize: '15px', color: '#0D9488' }} />
-            <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0F172A' }}>Compile Parameters</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 24px', borderBottom: '1px solid #F1F5F9' }}>
           {/* Export & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
@@ -769,6 +829,7 @@ const ReportsContent: React.FC = () => {
                   const val = e.target.value;
                   setCompileLedgerType(val);
                   if (val === 'Aging of Accounts') setReportType('aging');
+                  else if (val === 'Liquidation Summary') setReportType('liquidation');
                   else if (val === 'Invoice Summary') setReportType('invoices');
                   else if (val === 'Collection Summary') setReportType('collections');
                   else if (val === 'Unique Document Ledger') setReportType('unique');
@@ -777,14 +838,19 @@ const ReportsContent: React.FC = () => {
                 }}
                 style={{ width: '100%', appearance: 'none', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '9px 32px 9px 12px', fontSize: '0.85rem', color: '#0F172A', cursor: 'pointer', outline: 'none' }}
               >
-                {(user?.role === Role.FINANCIAL_MANAGER || user?.role === Role.HEAD_ACCOUNTANT || user?.role === Role.ACCOUNTANT) && (
+                {(roleStr === Role.FINANCIAL_MANAGER || isAFM) && (
+                  <optgroup label="── Liquidation Reports ──">
+                    <option value="Liquidation Summary">Liquidation Summary</option>
+                  </optgroup>
+                )}
+                {(roleStr === Role.FINANCIAL_MANAGER || roleStr === Role.HEAD_ACCOUNTANT || roleStr === Role.ACCOUNTANT) && (
                   <optgroup label="── Financial Reports ──">
                     <option value="Aging of Accounts">Aging of Accounts</option>
                     <option value="Invoice Summary">Invoice Summary</option>
                     <option value="Collection Summary">Collection Summary</option>
                   </optgroup>
                 )}
-                {(user?.role === Role.FINANCIAL_MANAGER || user?.role === Role.HEAD_ACCOUNTANT || user?.role === Role.ASSISTANT_FM) && (
+                {(roleStr === Role.FINANCIAL_MANAGER || roleStr === Role.HEAD_ACCOUNTANT || isAFM) && (
                   <optgroup label="── Duplicate Detection ──">
                     <option value="Duplicate Alert Summary">Duplicate Alert Summary</option>
                     <option value="Unique Document Ledger">Unique Document Ledger</option>
@@ -882,6 +948,393 @@ const ReportsContent: React.FC = () => {
             {compileLedgerType}
           </h2>
         </div>
+
+        {/* ── Tab: Liquidation Summary ── */}
+        {activeTab === 'liquidation' && (() => {
+          const liqs = getFilteredLiquidations();
+          const totalExpense = liqs.reduce((acc, l) => acc + (l.amount || (l as any).totalAmount || 0), 0);
+          const totalReimburse = liqs.reduce((acc, l) => acc + (l.reimbursementAmount || 0), 0);
+          const validatedCount = liqs.filter(l => l.status === 'Validated' || l.status === 'Endorsed').length;
+          const pendingCount = liqs.filter(l => l.status === 'Pending Validation' || l.status === 'Pending Review').length;
+
+          // Sort liquidations chronologically by submission / creation date
+          const sortedLiqs = [...liqs].sort((a: any, b: any) => {
+            const da = new Date(a.dateSubmitted || a.submittedAt || a.createdAt || 0).getTime();
+            const db = new Date(b.dateSubmitted || b.submittedAt || b.createdAt || 0).getTime();
+            return da - db;
+          });
+
+          // Aggregate by Date (Day / Time progression)
+          const dateMap: Record<string, { date: string; displayDate: string; fullDate: string; Expense: number; Reimbursement: number; Leftover: number; count: number; refs: string[] }> = {};
+
+          sortedLiqs.forEach((item: any) => {
+            const rawDate = item.dateSubmitted || item.submittedAt || item.createdAt;
+            const d = rawDate ? new Date(rawDate) : new Date();
+            const key = d.toISOString().split('T')[0];
+            const displayDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const fullDate = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+            if (!dateMap[key]) {
+              dateMap[key] = {
+                date: key,
+                displayDate,
+                fullDate,
+                Expense: 0,
+                Reimbursement: 0,
+                Leftover: 0,
+                count: 0,
+                refs: []
+              };
+            }
+            const amt = Number(item.amount || (item as any).totalAmount || 0);
+            const reimb = Number(item.reimbursementAmount || 0);
+            const left = Number(item.leftoverCash || 0);
+            dateMap[key].Expense += amt;
+            dateMap[key].Reimbursement += reimb;
+            dateMap[key].Leftover += left;
+            dateMap[key].count += 1;
+            const ref = item.referenceNumber || item.reference;
+            if (ref && !dateMap[key].refs.includes(ref)) {
+              dateMap[key].refs.push(ref);
+            }
+          });
+
+          const rawTimeline = Object.values(dateMap);
+          let cumulativeExpense = 0;
+          let cumulativeReimburse = 0;
+
+          const trendData = rawTimeline.map(pt => {
+            cumulativeExpense += pt.Expense;
+            cumulativeReimburse += pt.Reimbursement;
+            return {
+              ...pt,
+              CumulativeExpense: cumulativeExpense,
+              CumulativeReimburse: cumulativeReimburse,
+            };
+          });
+
+          // If only 1 date exists, prepend a baseline date point with 0 so a trend line can always be drawn smoothly
+          const chartPoints = trendData.length === 1 ? [
+            {
+              date: 'start',
+              displayDate: 'Baseline',
+              fullDate: 'Baseline Period',
+              Expense: 0,
+              Reimbursement: 0,
+              Leftover: 0,
+              CumulativeExpense: 0,
+              CumulativeReimburse: 0,
+              count: 0,
+              refs: []
+            },
+            ...trendData
+          ] : trendData;
+
+          const maxExpense = Math.max(...trendData.map(d => d.Expense), 0);
+          const avgDailyExpense = trendData.length > 0 ? (totalExpense / trendData.length) : 0;
+
+          return (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                <MetricCard label="TOTAL LIQUIDATIONS" value={liqs.length} icon="ti-file-text" color="#0EA5E9" bg="#E0F2FE" />
+                <MetricCard label="VALIDATED / ENDORSED" value={validatedCount} icon="ti-circle-check" color="#10B981" bg="#D1FAE5" />
+                <MetricCard label="PENDING VALIDATION" value={pendingCount} icon="ti-clock" color="#F59E0B" bg="#FEF3C7" />
+                <MetricCard label="TOTAL EXPENSE" value={`₱${totalExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`} icon="ti-cash" color="#8B5CF6" bg="#EDE9FE" />
+              </div>
+
+              {trendData.length > 0 && (
+                <div className="kpi-anim-wrapper" style={{ background: '#fff', borderRadius: 12, padding: '24px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#CCFBF1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <i className="ti ti-chart-line" style={{ color: '#0D9488', fontSize: '1.2rem' }}></i>
+                        </div>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.3px' }}>
+                            Liquidation Expense Trend Over Time
+                          </h3>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                            {liqTrendMode === 'timeline'
+                              ? 'Daily timeline progression of courier expenses, leftover cash, and reimbursements'
+                              : 'Cumulative spend accumulation across submitted liquidation batches'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                      {/* Metric Badges */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#F8FAFC', padding: '4px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: '0.78rem' }}>
+                        <span style={{ color: '#64748B' }}>Peak Day:</span>
+                        <strong style={{ color: '#0F172A' }}>₱{maxExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                        <span style={{ color: '#CBD5E1' }}>|</span>
+                        <span style={{ color: '#64748B' }}>Daily Avg:</span>
+                        <strong style={{ color: '#0D9488' }}>₱{avgDailyExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+
+                      {/* Mode Switcher */}
+                      <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: '3px', borderRadius: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setLiqTrendMode('timeline')}
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: liqTrendMode === 'timeline' ? '#fff' : 'transparent',
+                            color: liqTrendMode === 'timeline' ? '#0F172A' : '#64748B',
+                            boxShadow: liqTrendMode === 'timeline' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          Daily Progression
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLiqTrendMode('cumulative')}
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: liqTrendMode === 'cumulative' ? '#fff' : 'transparent',
+                            color: liqTrendMode === 'cumulative' ? '#0F172A' : '#64748B',
+                            boxShadow: liqTrendMode === 'cumulative' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          Cumulative Total
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ height: 280, width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartPoints} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="liqExpenseGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0D9488" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#0D9488" stopOpacity={0.0} />
+                          </linearGradient>
+                          <linearGradient id="liqReimburseGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
+                          </linearGradient>
+                          <linearGradient id="liqCumulGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
+                          </linearGradient>
+                          <linearGradient id="liqLeftoverGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                        <XAxis
+                          dataKey="displayDate"
+                          stroke="#94A3B8"
+                          fontSize={12}
+                          tickLine={false}
+                          dy={6}
+                        />
+                        <YAxis
+                          stroke="#94A3B8"
+                          fontSize={12}
+                          tickLine={false}
+                          tickFormatter={v => `₱${v >= 1000 ? `${(v / 1000).toFixed(1).replace('.0', '')}k` : v}`}
+                          width={60}
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const item = payload[0].payload;
+                            return (
+                              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '10px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)', border: '1px solid #E2E8F0', minWidth: 200 }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: 6 }}>
+                                  {item.fullDate || item.displayDate}
+                                </div>
+                                {item.refs && item.refs.length > 0 && (
+                                  <div style={{ fontSize: '0.72rem', color: '#64748B', marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                    {item.refs.map((r: string) => (
+                                      <span key={r} style={{ background: '#F1F5F9', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>{r}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                                    <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0D9488' }} />
+                                      {liqTrendMode === 'timeline' ? 'Daily Expense:' : 'Cumulative Expense:'}
+                                    </span>
+                                    <strong style={{ color: '#0F172A' }}>
+                                      ₱{(liqTrendMode === 'timeline' ? item.Expense : item.CumulativeExpense).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                    </strong>
+                                  </div>
+                                  {item.Reimbursement > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                                      <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B' }} />
+                                        Reimbursement:
+                                      </span>
+                                      <strong style={{ color: '#D97706' }}>
+                                        ₱{item.Reimbursement.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                      </strong>
+                                    </div>
+                                  )}
+                                  {item.Leftover > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                                      <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6' }} />
+                                        Leftover Cash:
+                                      </span>
+                                      <strong style={{ color: '#2563EB' }}>
+                                        ₱{item.Leftover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                      </strong>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
+                        {liqTrendMode === 'timeline' ? (
+                          <>
+                            {showLiqExpense && (
+                              <Area
+                                type="monotone"
+                                dataKey="Expense"
+                                stroke="#0D9488"
+                                strokeWidth={3}
+                                fillOpacity={1}
+                                fill="url(#liqExpenseGrad)"
+                                activeDot={{ r: 7, fill: '#0D9488', stroke: '#fff', strokeWidth: 2 }}
+                                dot={{ r: 4, fill: '#0D9488', stroke: '#fff', strokeWidth: 2 }}
+                                name="Expense Amount"
+                              />
+                            )}
+                            {showLiqReimburse && (
+                              <Area
+                                type="monotone"
+                                dataKey="Reimbursement"
+                                stroke="#F59E0B"
+                                strokeWidth={2.5}
+                                fillOpacity={1}
+                                fill="url(#liqReimburseGrad)"
+                                activeDot={{ r: 6, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
+                                dot={{ r: 3.5, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
+                                name="Reimbursement"
+                              />
+                            )}
+                            {showLiqLeftover && (
+                              <Area
+                                type="monotone"
+                                dataKey="Leftover"
+                                stroke="#3B82F6"
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill="url(#liqLeftoverGrad)"
+                                activeDot={{ r: 5, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
+                                dot={{ r: 3, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
+                                name="Leftover Cash"
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Area
+                              type="monotone"
+                              dataKey="CumulativeExpense"
+                              stroke="#6366F1"
+                              strokeWidth={3}
+                              fillOpacity={1}
+                              fill="url(#liqCumulGrad)"
+                              activeDot={{ r: 7, fill: '#6366F1', stroke: '#fff', strokeWidth: 2 }}
+                              dot={{ r: 4, fill: '#6366F1', stroke: '#fff', strokeWidth: 2 }}
+                              name="Cumulative Total"
+                            />
+                            {showLiqReimburse && (
+                              <Area
+                                type="monotone"
+                                dataKey="CumulativeReimburse"
+                                stroke="#F59E0B"
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill="url(#liqReimburseGrad)"
+                                activeDot={{ r: 5, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
+                                dot={{ r: 3, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
+                                name="Cumulative Reimbursement"
+                              />
+                            )}
+                          </>
+                        )}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Interactive Legend */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, paddingTop: 14, borderTop: '1px solid #F1F5F9', marginTop: 12 }}>
+                    {liqTrendMode === 'timeline' ? (
+                      <>
+                        <div
+                          onClick={() => setShowLiqExpense(!showLiqExpense)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqExpense ? 1 : 0.4, transition: 'opacity 0.2s' }}
+                        >
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0D9488' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Expense Amount</span>
+                        </div>
+                        <div
+                          onClick={() => setShowLiqReimburse(!showLiqReimburse)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqReimburse ? 1 : 0.4, transition: 'opacity 0.2s' }}
+                        >
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Reimbursement</span>
+                        </div>
+                        <div
+                          onClick={() => setShowLiqLeftover(!showLiqLeftover)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqLeftover ? 1 : 0.4, transition: 'opacity 0.2s' }}
+                        >
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Leftover Cash</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#6366F1' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Cumulative Expense</span>
+                        </div>
+                        <div
+                          onClick={() => setShowLiqReimburse(!showLiqReimburse)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqReimburse ? 1 : 0.4, transition: 'opacity 0.2s' }}
+                        >
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Cumulative Reimbursement</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <TableContainer>
+                <DataTable
+                  data={liqs}
+                  columns={liquidationColumns}
+                  rowKey="id"
+                  exportable={false}
+                  hideSearch={true}
+                />
+              </TableContainer>
+            </>
+          );
+        })()}
 
         {/* ── Tab 1: Aging of Accounts ── */}
         {activeTab === 'aging' && (

@@ -65,6 +65,7 @@ export interface CreateButton {
   icon?: string;
   onClick: () => void;
   variant?: "primary" | "secondary" | "danger";
+  disabled?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -690,6 +691,7 @@ export function DataTable<T>({
               icon={btn.icon}
               variant={btn.variant === "secondary" ? "secondary" : "primary"}
               size="sm"
+              disabled={btn.disabled}
               onClick={btn.onClick}
             />
           ))}

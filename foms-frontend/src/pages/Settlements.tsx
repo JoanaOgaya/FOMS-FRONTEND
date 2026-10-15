@@ -153,6 +153,8 @@ const Settlements: React.FC = () => {
     }
   };
 
+  const isMisty = user?.employeeId === 'EMP-002' || user?.role === 'HEAD_ACCOUNTANT';
+
   if (loading) {
     return <LoadingSpinner text="Loading settlements..." />;
   }
@@ -166,30 +168,26 @@ const Settlements: React.FC = () => {
           value={pendingCount} 
           icon="ti-clock-hour-4" 
           variant="warning" 
-          periodText="waiting for you" 
+          periodText={isMisty ? undefined : "waiting for you"} 
         />
         <KpiCard 
           label="Leftover Cash" 
           value={formatCurrency(pendingLeftoverAmount)} 
           icon="ti-cash" 
           variant="success" 
-          periodText={`${leftoverEnvelopesCount} envelopes recorded`} 
+          periodText={isMisty ? undefined : `${leftoverEnvelopesCount} envelopes recorded`} 
         />
         <KpiCard 
           label="Reimbursements" 
           value={formatCurrency(pendingReimbAmount)} 
           icon="ti-receipt-refund" 
           variant="info" 
-          periodText={`${reimbRequestsCount} requests`} 
+          periodText={isMisty ? undefined : `${reimbRequestsCount} requests`} 
         />
       </div>
 
       {/* Table Section */}
       <Card style={{ padding: '24px' }}>
-        <div>
-          <h2 style={{ margin: '0 0 20px', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Settlements</h2>
-        </div>
-        
         {/* Filters */}
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ position: 'relative', width: '280px' }}>

@@ -8,7 +8,7 @@ export const peso = (n: number) =>
 interface BannerProps {
   eyebrow: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   gradient: string;
   icon: string;
   cta?: { label: string; icon?: string; onClick: () => void };
@@ -39,7 +39,7 @@ export const DashboardBanner: React.FC<BannerProps> = ({ eyebrow, title, subtitl
         {eyebrow}
       </div>
       <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{title}</h2>
-      <p style={{ margin: '6px 0 0', fontSize: '0.9rem', opacity: 0.85 }}>{subtitle}</p>
+      {subtitle && <p style={{ margin: '6px 0 0', fontSize: '0.9rem', opacity: 0.85 }}>{subtitle}</p>}
     </div>
     <div style={{ display: 'flex', gap: 10, position: 'relative', flexShrink: 0 }}>
       {secondaryCta && (
@@ -113,7 +113,7 @@ export const WorkQueue: React.FC<QueueProps> = ({ title, subtitle, icon, iconCol
         </span>
         {onViewAll && (
           <span onClick={onViewAll} style={{ color: '#0D9488', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-            View all →
+            View all
           </span>
         )}
       </div>
@@ -131,11 +131,11 @@ export const WorkQueue: React.FC<QueueProps> = ({ title, subtitle, icon, iconCol
           onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-            <span style={{ padding: '4px 10px', borderRadius: 6, background: it.tagBg, color: it.tagColor, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', minWidth: 92, textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+            <span style={{ padding: '4px 10px', borderRadius: 6, background: it.tagBg, color: it.tagColor, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', minWidth: 92, textAlign: 'center', flexShrink: 0 }}>
               {it.tag}
             </span>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
               {it.subtitle && <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.subtitle}</div>}
             </div>
@@ -144,7 +144,7 @@ export const WorkQueue: React.FC<QueueProps> = ({ title, subtitle, icon, iconCol
             {it.amount !== undefined && (
               <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0F172A' }}>{peso(it.amount)}</span>
             )}
-            <span style={{ color: '#0D9488', fontSize: 13, fontWeight: 600 }}>{it.actionLabel} →</span>
+            <span style={{ color: '#0D9488', fontSize: 13, fontWeight: 600 }}>{it.actionLabel}</span>
           </div>
         </div>
       ))}

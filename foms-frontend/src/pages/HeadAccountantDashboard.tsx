@@ -77,12 +77,23 @@ export const HeadAccountantDashboard: React.FC = () => {
     return { ...r, dueDate: r.dueDate || inv?.dueDate, invoiceNumber: inv?.invoiceNumber || r.invoiceId };
   });
 
+  const formatPeriod = (period?: string) => {
+    if (!period) return '';
+    const parts = period.split(' - ');
+    if (parts.length === 2) {
+      const s = formatDate(parts[0].trim());
+      const e = formatDate(parts[1].trim());
+      if (s && e) return `${s} - ${e}`;
+    }
+    return period;
+  };
+
   // Unified approval queue
   const queue: QueueItem[] = [
     ...pendingInvoices.map(i => ({
       id: `inv-${i.id}`, tag: 'Invoice', tagColor: '#0F766E', tagBg: '#CCFBF1',
       title: `${i.invoiceNumber} — ${clientName(i.clientId)}`,
-      subtitle: `${i.waybillIds?.length || 0} waybill(s) · prepared by ${i.createdBy} · ${i.billingPeriod}`,
+      subtitle: `${i.waybillIds?.length || 0} waybill(s) · prepared by ${i.createdBy} · ${formatPeriod(i.billingPeriod)}`,
       amount: i.totalAmount, actionLabel: 'Review', onClick: () => navigate('/invoice-review'),
     })),
     ...pendingPayments.map(p => ({
@@ -144,7 +155,6 @@ export const HeadAccountantDashboard: React.FC = () => {
       <DashboardBanner
         eyebrow="Head Accountant · Review & Approval Center"
         title={`${firstName}, ${totalPending} item${totalPending !== 1 ? 's' : ''} await your decision`}
-        subtitle={`${peso(valueAwaiting)} in invoices is pending your approval.`}
         gradient="linear-gradient(135deg, #1E293B 0%, #0F172A 60%, #134E4A 100%)"
         icon="ti-shield-check"
         cta={{ label: 'Review Invoices', icon: 'ti-file-check', onClick: () => navigate('/invoice-review') }}
@@ -153,20 +163,19 @@ export const HeadAccountantDashboard: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <KpiCard label="Invoices for Approval" value={pendingInvoices.length} icon="ti-file-check" variant="warning"
-          trend={{ type: 'neutral', value: peso(valueAwaiting) }} periodText="awaiting decision" onClick={() => navigate('/invoice-review')} />
+          onClick={() => navigate('/invoice-review')} />
         <KpiCard label="Payments to Validate" value={pendingPayments.length + pendingSpeedPay.length} icon="ti-cash" variant="info"
-          trend={{ type: 'neutral', value: `${pendingSpeedPay.length} SpeedPay` }} periodText="manual + online" onClick={() => navigate('/payments')} />
+          onClick={() => navigate('/payments')} />
         <KpiCard label="Adjustments to Review" value={pendingAdjustments.length} icon="ti-adjustments-alt" variant="new"
-          trend={{ type: 'neutral', value: 'Credit memos' }} periodText="pending approval" onClick={() => navigate('/adjustments')} />
+          onClick={() => navigate('/adjustments')} />
         <KpiCard label="Approval Rate" value={`${approvalRate}%`} icon="ti-chart-pie" variant="success"
-          trend={{ type: 'neutral', value: `${returned} returned` }} periodText={`of ${decided} decisions`} onClick={() => navigate('/review-history')} />
+          onClick={() => navigate('/review-history')} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.7fr) minmax(0, 1.3fr)', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <WorkQueue
             title="Needs your attention"
-            subtitle="Approval queue: everything submitted to you awaiting decision"
             icon="ti-gavel" iconColor="#0F766E" iconBg="#CCFBF1"
             items={queue}
             emptyText="Queue is clear — no pending approvals."
@@ -224,7 +233,7 @@ export const HeadAccountantDashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <span onClick={() => navigate('/accounts-receivable')} style={{ color: '#0D9488', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>View AR →</span>
+              <span onClick={() => navigate('/accounts-receivable')} style={{ color: '#0D9488', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>View AR</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {nearDueAccounts.slice(0, 4).map((a) => (
@@ -250,7 +259,6 @@ export const HeadAccountantDashboard: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <DonutWidget
             title="Pending by Type"
-            subtitle="What's sitting in your queue"
             icon="ti-report-money"
             data={overviewData}
             centerLabel="PENDING"

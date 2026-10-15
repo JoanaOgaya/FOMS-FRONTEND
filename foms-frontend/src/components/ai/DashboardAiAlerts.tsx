@@ -130,7 +130,7 @@ const DashboardAiAlertsInner: React.FC<DashboardAiAlertsInnerProps> = ({ limit =
             fontWeight: 500,
           }}
         >
-          No AI alerts
+          No alerts
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

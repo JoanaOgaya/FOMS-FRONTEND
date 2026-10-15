@@ -39,10 +39,11 @@ function resolveTrend(trend: KpiCardProps['trend']): { type: TrendType; text: st
 }
 
 export const KpiCard: React.FC<KpiCardProps> = ({
-  label, value, icon, variant = 'teal', trend, periodText = 'vs prev.', polarity = 'higher-is-better', loading = false, onClick,
+  label, value, icon, variant = 'teal', trend, periodText, polarity = 'higher-is-better', loading = false, onClick,
 }) => {
   const colors = variantColors[variant] || variantColors.teal;
-  const t = resolveTrend(trend);
+  const hasTrend = trend !== undefined && trend !== null;
+  const t = hasTrend ? resolveTrend(trend) : null;
 
   const style = {
     '--kpi-ac': colors.accent,
@@ -54,10 +55,11 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   } as React.CSSProperties;
 
   const trendClass =
-    t.type === 'neutral' ? 't-nl'
+    !t ? ''
+    : t.type === 'neutral' ? 't-nl'
     : polarity === 'lower-is-better' ? (t.type === 'down' ? 't-up' : 't-dn')
     : (t.type === 'up' ? 't-up' : 't-dn');
-  const trendIcon = t.type === 'up' ? '↑' : t.type === 'down' ? '↓' : '•';
+  const trendIcon = !t ? '' : t.type === 'up' ? '↑' : t.type === 'down' ? '↓' : '•';
 
   if (loading) {
     return (
@@ -89,12 +91,18 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
           <span className="kpi-label" style={{ fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block', lineHeight: 1.2, textTransform: 'uppercase' }}>{label}</span>
           <div className="kpi-val" style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', lineHeight: 1 }}>{value}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: 'auto' }}>
-            <div className={`kpi-trend ${trendClass}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, fontSize: '0.7rem' }}>
-              <span>{trendIcon} {t.text}</span>
+          {(hasTrend || Boolean(periodText)) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: 'auto' }}>
+              {hasTrend && t && (
+                <div className={`kpi-trend ${trendClass}`} style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, fontSize: '0.7rem' }}>
+                  <span>{trendIcon} {t.text}</span>
+                </div>
+              )}
+              {periodText && (
+                <span className="kpi-period" style={{ fontSize: '0.65rem', color: '#94A3B8', whiteSpace: 'nowrap' }}>{periodText}</span>
+              )}
             </div>
-            <span className="kpi-period" style={{ fontSize: '0.65rem', color: '#94A3B8', whiteSpace: 'nowrap' }}>{periodText}</span>
-          </div>
+          )}
         </div>
       </div>
     </div>
