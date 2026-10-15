@@ -9,6 +9,40 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Auto-load .env file if running locally
+var currentDir = new DirectoryInfo(Directory.GetCurrentDirectory());
+for (var dir = currentDir; dir != null; dir = dir.Parent)
+{
+    var envPath = Path.Combine(dir.FullName, ".env");
+    if (File.Exists(envPath))
+    {
+        foreach (var line in File.ReadAllLines(envPath))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+            var parts = trimmed.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                var key = parts[0].Trim();
+                var val = parts[1].Trim().Trim('"').Trim('\'');
+                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                {
+                    Environment.SetEnvironmentVariable(key, val);
+                }
+                if (key.Contains("__"))
+                {
+                    var configKey = key.Replace("__", ":");
+                    if (string.IsNullOrEmpty(builder.Configuration[configKey]))
+                    {
+                        builder.Configuration[configKey] = val;
+                    }
+                }
+            }
+        }
+        break;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TASK 4: JWT SECRET VALIDATION
 // Fail fast at startup if the JWT secret is missing or too short.
@@ -37,8 +71,18 @@ if (secret.Length < 32)
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
+var fomsDbConnection = builder.Configuration.GetConnectionString("FomsSqlServer");
+if (string.IsNullOrWhiteSpace(fomsDbConnection))
+    fomsDbConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(fomsDbConnection))
+    fomsDbConnection = Environment.GetEnvironmentVariable("ConnectionStrings__FomsSqlServer");
+if (string.IsNullOrWhiteSpace(fomsDbConnection))
+    fomsDbConnection = Environment.GetEnvironmentVariable("MSSQL_CONNECTION_STRING");
+if (string.IsNullOrWhiteSpace(fomsDbConnection))
+    fomsDbConnection = "Server=localhost\\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;";
+
 builder.Services.AddDbContext<FomsDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("FomsSqlServer")));
+    options.UseSqlServer(fomsDbConnection));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
