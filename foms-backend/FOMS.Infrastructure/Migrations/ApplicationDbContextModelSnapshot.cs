@@ -126,7 +126,7 @@ namespace FOMS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AppAuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("FOMS.Domain.Entities.BankAdviceRecord", b =>
@@ -709,6 +709,10 @@ namespace FOMS.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("DateRecorded")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Flow")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 

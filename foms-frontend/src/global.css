@@ -965,6 +965,13 @@ body.modal-open .app-layout {
 }
 
 /* KPI CARDS (Status Cards) */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
 .kpi {
   background: var(--s0);
   border: 1px solid var(--border);

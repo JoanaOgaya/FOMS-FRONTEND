@@ -23,6 +23,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <UserSecretsId>cb6897a2-2d69-4c5b-b78c-5a8203581ba2</UserSecretsId>
   </PropertyGroup>
 
 </Project>

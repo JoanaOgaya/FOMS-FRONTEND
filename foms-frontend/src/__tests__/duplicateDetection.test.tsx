@@ -394,21 +394,22 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
   // 3. FINANCIAL MANAGER & ASSISTANT FM TESTS
   // ──────────────────────────────────────────────────────────────────────────
   describe('Role 3 & 4: Financial Manager & Assistant FM Access Table Verification', () => {
-    it('Financial Manager: Duplicate Scan hidden, Unique Docs visible, Flagged hidden, Review History visible, Doc Extraction hidden', () => {
+    it('Financial Manager: Duplicate Scan hidden, Unique Docs and Flagged visible, Review History visible, Doc Extraction hidden', () => {
       const groups = getNavGroups(ROLES.FINANCIAL_MANAGER);
       const allKeys = groups.flatMap((g) => g.items).map((i) => i.key);
 
       expect(allKeys).not.toContain('duplicateScan');
-      expect(allKeys).not.toContain('flaggedDuplicates');
       expect(allKeys).not.toContain('documentExtraction');
       expect(allKeys).toContain('uniqueDocuments');
+      expect(allKeys).toContain('flaggedDuplicates');
       expect(allKeys).toContain('reviewHistory');
 
       const dupGroup = groups.find((g) => g.label === 'Duplicate Detection');
       expect(dupGroup).toBeDefined();
-      expect(dupGroup!.items.map((i) => i.key)).toEqual(['uniqueDocuments', 'reviewHistory']);
+      expect(dupGroup!.items.map((i) => i.key)).toEqual(['uniqueDocuments', 'flaggedDuplicates', 'reviewHistory']);
+      expect(getDuplicateScope(ROLES.FINANCIAL_MANAGER)).toBe('all');
 
-      // 403 on hidden pages
+      // Duplicate Scan and Document Extraction remain restricted, while Flagged Duplicates is accessible.
       mockAuthUser({ role: ROLES.FINANCIAL_MANAGER, email: 'fm@example.com', fullName: 'Financial Manager' });
 
       const { unmount: u1 } = render(
@@ -424,7 +425,8 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
           <RoleGuard module="flaggedDuplicates"><div>FM Flagged</div></RoleGuard>
         </MemoryRouter>
       );
-      expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
+      expect(screen.getByText('FM Flagged')).toBeDefined();
+      expect(screen.queryByText(/403 — Access denied/i)).toBeNull();
       u2();
     });
 
@@ -455,6 +457,39 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
       expect(screen.getAllByRole('button', { name: 'Mark False Positive' }).length).toBe(1);
       expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Return' })).toBeNull();
+    });
+
+    it('Financial Manager sees all duplicate flags but can review only liquidation records', () => {
+      mockAuthUser({ id: 'FM-001', employeeId: 'FM-001', role: ROLES.FINANCIAL_MANAGER, email: 'fm@example.com', fullName: 'Financial Manager' });
+      const pendingStandard = {
+        ...mockFlaggedItems[2],
+        id: 'dup-standard-pending',
+        flagId: 'FLG-STANDARD',
+        status: 'PENDING_REVIEW',
+        documentType: 'Commercial Invoice',
+      };
+      const pendingLiquidation = {
+        ...mockFlaggedItems[2],
+        id: 'dup-liquidation-pending',
+        flagId: 'FLG-LIQUIDATION',
+        status: 'PENDING_REVIEW',
+        documentType: 'Fuel Receipt',
+      };
+      setupHookMock([pendingStandard, pendingLiquidation]);
+
+      render(
+        <MemoryRouter>
+          <FlaggedDuplicates />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText('FLG-STANDARD')).toBeDefined();
+      expect(screen.getByText('FLG-LIQUIDATION')).toBeDefined();
+      expect(screen.queryByText(/Oversight queue across all accounts/i)).toBeNull();
+      expect(screen.queryByRole('heading', { level: 2, name: 'Flagged Duplicates' })).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Review' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Return' })).toHaveLength(1);
     });
 
     it('renders Sidebar per role using API user supplied by MSW', async () => {
@@ -507,7 +542,7 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
         expect(screen.getByText('Document Extraction')).toBeDefined();
         unmountACC();
 
-        // 3. Financial Manager: Duplicate Scan is HIDDEN; Flagged Duplicates is HIDDEN; Document Extraction is HIDDEN
+        // 3. Financial Manager: Duplicate Scan and Document Extraction are hidden; Flagged Duplicates is visible.
         currentMockRole = ROLES.FINANCIAL_MANAGER;
         mockAuthUser({ role: ROLES.FINANCIAL_MANAGER, fullName: 'Finance Manager' });
         const { unmount: unmountFM } = render(
@@ -516,7 +551,7 @@ describe('Duplicate Detection — Four-Role Access, Routing & Workflow', () => {
           </MemoryRouter>
         );
         expect(screen.queryByText('Duplicate Scan')).toBeNull();
-        expect(screen.queryByText('Flagged Duplicates')).toBeNull();
+        expect(screen.getByText('Flagged Duplicates')).toBeDefined();
         expect(screen.queryByText('Document Extraction')).toBeNull();
         expect(screen.getByText('Unique Documents')).toBeDefined();
         expect(screen.getByText('Review History')).toBeDefined();

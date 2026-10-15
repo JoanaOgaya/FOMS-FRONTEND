@@ -75,11 +75,13 @@ const RowMenu: React.FC<{ onView: () => void }> = ({ onView }) => {
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
-        onClick={() => setOpen(o => !o)}
+        aria-label="View Details"
+        title="View Details"
+        onClick={() => { setOpen(o => !o); onView(); }}
         style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
         onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
         onMouseLeave={e => (e.currentTarget.style.background = '#fff')}>
-        <i className="ti ti-dots-vertical" style={{ fontSize: 15, color: '#64748B' }} />
+        <i className="ti ti-eye" style={{ fontSize: 15, color: '#0D9488' }} />
       </button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.1)', zIndex: 100, minWidth: 150, overflow: 'hidden' }}>

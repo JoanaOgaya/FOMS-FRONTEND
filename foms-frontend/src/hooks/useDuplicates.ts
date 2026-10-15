@@ -1,12 +1,10 @@
 /**
  * useDuplicates.ts — hooks for the Duplicate Detection pages.
- *  - Scope (?scope=all|own|liquidation) comes from roleAccess; the backend enforces it.
- *    The frontend never re-filters or re-scores rows.
- *  - Shared filter/search/pagination state (sent as query params).
- *  - Realtime: refetches on 'aiDuplicates' events (WebSocket, polling fallback), so the Head
- *    Accountant's "For Review" queue updates when an Accountant decides, and vice versa.
+ * Uses the ONE central query cache (useQuery).
+ * Scope (?scope=all|own|liquidation) comes from roleAccess; the backend enforces it.
+ * The frontend never re-filters or re-scores rows.
+ * Realtime: refetches on 'aiDuplicates' and duplicate events (WebSocket, polling fallback).
  */
-import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   duplicatesService,
@@ -18,7 +16,8 @@ import {
 import type { Paged } from '../types/entities';
 import { getDuplicateScope } from '../utils/roleAccess';
 import { lockedQueueStatus } from '../utils/duplicateWorkflow';
-import { connectRealtime } from '../services/realtime';
+import { useQuery } from './useQuery';
+import { useState } from 'react';
 
 export const DUPLICATE_TOPIC = 'aiDuplicates';
 
@@ -41,10 +40,6 @@ function useDuplicateList<T>(
   const scope = getDuplicateScope(user?.role);
   const lockedFilter = options.lockedFilter ?? options.initialStatus;
 
-  const [items, setItems] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(options.pageSize ?? 10);
   const [draft, setDraft] = useState<Filters>(() => ({
@@ -60,11 +55,12 @@ function useDuplicateList<T>(
     dateTo: '',
   }));
 
-  const fetchList = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetcher({
+  const queryKey = `duplicates:${filterParam}:${scope}:${page}:${pageSize}:${applied.search}:${lockedFilter || applied.filter}:${applied.dateFrom}:${applied.dateTo}`;
+
+  const query = useQuery<Paged<T>>(
+    queryKey,
+    () =>
+      fetcher({
         scope,
         page,
         pageSize,
@@ -72,38 +68,21 @@ function useDuplicateList<T>(
         [filterParam]: (lockedFilter || applied.filter) ? (lockedFilter || applied.filter) : undefined,
         dateFrom: applied.dateFrom || undefined,
         dateTo: applied.dateTo || undefined,
-      });
-      setItems(res.items ?? []);
-      setTotal(res.total ?? res.items?.length ?? 0);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to load records'));
-      setItems([]);
-      setTotal(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [scope, page, pageSize, applied, filterParam, lockedFilter, fetcher]);
-
-  useEffect(() => {
-    void fetchList();
-  }, [fetchList]);
-
-  useEffect(
-    () =>
-      connectRealtime(({ topic }) => {
-        if (topic === '*' || topic === DUPLICATE_TOPIC) void fetchList();
       }),
-    [fetchList],
+    { enabled: !!user },
   );
+
+  const items = query.data?.items ?? [];
+  const total = query.data?.total ?? query.data?.items?.length ?? 0;
 
   const setField = (key: keyof Filters) => (value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
   return {
     items,
     total,
-    isLoading,
-    error,
-    refetch: fetchList,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
     page,
     setPage,
     pageSize,

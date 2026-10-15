@@ -56,9 +56,9 @@ describe('AI-Powered Financial Intelligence Layer — Test Suite', () => {
     });
 
     it('enforces Separation of Duties: user CANNOT act on their own record', () => {
-      const user = { id: 'EMP-002', employeeId: 'EMP-002', role: 'HEAD_ACCOUNTANT' as const };
-      const ownRecord = { createdBy: 'EMP-002', status: 'Pending Review' };
-      const otherRecord = { createdBy: 'EMP-003', status: 'Pending Review' };
+      const user = { id: 'STAFF-002', employeeId: 'STAFF-002', role: 'HEAD_ACCOUNTANT' as const };
+      const ownRecord = { createdBy: 'STAFF-002', status: 'Pending Review' };
+      const otherRecord = { createdBy: 'STAFF-003', status: 'Pending Review' };
 
       const ownCheck = canActOnRecord(user, ownRecord, 'confirm');
       expect(ownCheck.allowed).toBe(false);
@@ -69,12 +69,12 @@ describe('AI-Powered Financial Intelligence Layer — Test Suite', () => {
     });
 
     it('enforces role action hierarchy: only FM can perform final resolve on verified records', () => {
-      const fm = { id: 'EMP-001', role: 'FINANCIAL_MANAGER' as const };
-      const ha = { id: 'EMP-002', role: 'HEAD_ACCOUNTANT' as const };
-      const acc = { id: 'EMP-003', role: 'ACCOUNTANT' as const };
+      const fm = { id: 'STAFF-001', role: 'FINANCIAL_MANAGER' as const };
+      const ha = { id: 'STAFF-002', role: 'HEAD_ACCOUNTANT' as const };
+      const acc = { id: 'STAFF-003', role: 'ACCOUNTANT' as const };
 
-      const unverifiedRecord = { createdBy: 'EMP-099', status: 'Pending Review' };
-      const verifiedRecord = { createdBy: 'EMP-099', status: 'CONFIRMED_DUPLICATE' };
+      const unverifiedRecord = { createdBy: 'STAFF-099', status: 'Pending Review' };
+      const verifiedRecord = { createdBy: 'STAFF-099', status: 'CONFIRMED_DUPLICATE' };
 
       // FM on unverified -> blocked
       expect(canActOnRecord(fm, unverifiedRecord, 'resolve').allowed).toBe(false);

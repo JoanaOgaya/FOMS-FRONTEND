@@ -224,7 +224,8 @@ export const AIDuplicateScan: React.FC = () => {
   const scanAbortRef = useRef(false);
 
   // Outcome state
-  const [outcome, setOutcome] = useState<'IDLE' | 'NO_MATCH' | 'POSSIBLE_MATCH' | 'AI_UNAVAILABLE'>('IDLE');
+  const [outcome, setOutcome] = useState<'IDLE' | 'NO_MATCH' | 'POSSIBLE_MATCH' | 'AI_UNAVAILABLE' | 'GUARDRAIL_REJECTED'>('IDLE');
+  const [guardrailReason, setGuardrailReason] = useState<string>('');
   const [extractedFields, setExtractedFields] = useState<any>(null);
   const [matches, setMatches] = useState<ComparisonCandidate[]>([]);
   const [aiUnavailableJustification, setAiUnavailableJustification] = useState('');
@@ -324,6 +325,14 @@ export const AIDuplicateScan: React.FC = () => {
       } catch (err: any) {
         clearInterval(progressTimer);
         setIsScanning(false);
+        const data = err.response?.data;
+        const msg = data?.message || data?.detail?.message || data?.details?.reason || data?.detail?.details?.reason;
+        if (err.response?.status === 422 || data?.status === 'INVALID_DOCUMENT' || data?.isAllowed === false) {
+          setGuardrailReason(msg || 'The uploaded file does not contain official receipt, invoice, or payment fields.');
+          setOutcome('GUARDRAIL_REJECTED');
+          toast.warning(msg || 'Non-financial document rejected by AI Guardrail.', 'Guardrail Block');
+          return;
+        }
         // Step 2: AI unavailable outcome
         setOutcome('AI_UNAVAILABLE');
         toast.error('AI Duplicate service unreachable or request failed.', 'AI Service Offline');
@@ -532,42 +541,21 @@ export const AIDuplicateScan: React.FC = () => {
             marginBottom: '24px',
           }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ marginBottom: '20px', maxWidth: '320px' }}>
             {/* Document Type Picker */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Document Type *
-              </label>
-              <select
-                value={docType}
-                onChange={e => setDocType(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', color: '#0F172A' }}
-              >
-                <option value="Invoice">Invoice</option>
-                <option value="Official Receipt">Official Receipt</option>
-                <option value="Payment Proof">Payment Proof</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            {/* Optional Client Link */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Link Client Account (Optional)
-              </label>
-              <select
-                value={selectedClientId}
-                onChange={e => setSelectedClientId(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', color: '#0F172A' }}
-              >
-                <option value="">No specific client selected</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.clientCode ? `${c.clientCode} - ` : ''}{c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              Document Type *
+            </label>
+            <select
+              value={docType}
+              onChange={e => setDocType(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', color: '#0F172A' }}
+            >
+              <option value="Invoice">Invoice</option>
+              <option value="Official Receipt">Official Receipt</option>
+              <option value="Payment Proof">Payment Proof</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
 
           {/* Dashed Upload Area */}
@@ -955,7 +943,61 @@ export const AIDuplicateScan: React.FC = () => {
           </div>
         )}
 
-        {/* Outcome C: AI Unavailable / Failed */}
+        {/* Outcome C: AI Guardrail Block (Non-Financial Document) */}
+        {outcome === 'GUARDRAIL_REJECTED' && (
+          <div
+            style={{
+              background: '#FFF5F5',
+              borderRadius: '12px',
+              border: '1.5px solid #FCA5A5',
+              padding: '24px',
+              marginBottom: '24px',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '16px' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <i className="ti ti-shield-x" style={{ fontSize: '24px' }} />
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 800, color: '#991B1B' }}>
+                  AI Guardrail Block: Non-Financial Document Detected
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#7F1D1D', lineHeight: 1.5 }}>
+                  {guardrailReason || 'The uploaded file does not contain invoice, official receipt, payment, or billing fields.'}
+                </p>
+                <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: '#B91C1C', fontWeight: 600 }}>
+                  <strong>Notice:</strong> FOMS AI Duplicate Detection only accepts financial documents (Invoices, Official Receipts, Billing Statements, Waybills, or Proof of Payment). Personal photos, quizzes, homework, animals, and non-financial uploads are strictly rejected prior to duplicate matching.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFile(null);
+                  setOutcome('IDLE');
+                }}
+                style={{
+                  padding: '9px 22px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(220, 38, 38, 0.25)',
+                }}
+              >
+                Upload Valid Financial Document
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Outcome D: AI Unavailable / Failed */}
         {outcome === 'AI_UNAVAILABLE' && (
           <div
             style={{

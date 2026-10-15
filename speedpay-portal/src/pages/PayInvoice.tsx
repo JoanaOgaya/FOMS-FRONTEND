@@ -89,7 +89,6 @@ export const PayInvoice: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Try FOMS Backend API (registers transaction & creates PayMongo session)
       const fomsRes = await fetch('/api/speedpay/initiate-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,54 +100,17 @@ export const PayInvoice: React.FC = () => {
         })
       });
 
-      if (fomsRes.ok) {
-        const fomsData = await fomsRes.json();
-        setReferenceNo(fomsData?.referenceOrNumber || fomsData?.payMongoCheckoutId || `PAY-${Math.floor(1000000 + Math.random() * 9000000)}`);
-        setCheckoutUrl(fomsData?.checkoutUrl || '');
-        setShowModal(true);
-        setStep(2);
-        return;
+      const fomsData = await fomsRes.json();
+      if (!fomsRes.ok || !fomsData?.checkoutUrl) {
+        throw new Error(fomsData?.message || 'Unable to start the payment checkout.');
       }
 
-      // 2. Direct PayMongo Link fallback via Vite proxy middleware
-      const response = await fetch('/api/paymongo-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            attributes: {
-              amount: Math.round(selectedInvoice.amount * 100),
-              description: `Payment for Invoice ${selectedInvoice.invoiceNumber}`,
-              remarks: selectedInvoice.id
-            }
-          }
-        })
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data?.data?.attributes?.checkout_url) {
-        window.open(data.data.attributes.checkout_url, '_blank');
-        setCheckoutUrl(data.data.attributes.checkout_url);
-        setReferenceNo(data.data.id || `PAY-${Math.floor(1000000 + Math.random() * 9000000)}`);
-        setShowModal(true);
-        setStep(3);
-      } else {
-        // 3. Seamless simulation fallback
-        toast.info('PayMongo API key not found. Opening PayMongo demo page for testing.', 'Demo Mode');
-        window.open('https://developers.paymongo.com/docs/testing', '_blank');
-        setCheckoutUrl('https://developers.paymongo.com/docs/testing');
-        setReferenceNo('');
-        setShowModal(true);
-        setStep(3); // Go straight to upload proof since it's demo
-      }
-    } catch (err: any) {
-      toast.info('PayMongo API key not found. Opening PayMongo demo page for testing.', 'Demo Mode');
-      window.open('https://developers.paymongo.com/docs/testing', '_blank');
-      setCheckoutUrl('https://developers.paymongo.com/docs/testing');
-      setReferenceNo('');
+      setReferenceNo(fomsData.referenceOrNumber || fomsData.payMongoCheckoutId || '');
+      setCheckoutUrl(fomsData.checkoutUrl);
       setShowModal(true);
-      setStep(3);
+      setStep(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to start the payment checkout.', 'Payment Error');
     } finally {
       setIsLoading(false);
     }

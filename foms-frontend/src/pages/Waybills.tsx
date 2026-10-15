@@ -601,7 +601,7 @@ export const Waybills: React.FC = () => {
 
       <TableContainer>
         <DataTable
-          title="Waybill Records"
+          title=""
           data={listData}
           columns={tableColumns}
           actions={actions}

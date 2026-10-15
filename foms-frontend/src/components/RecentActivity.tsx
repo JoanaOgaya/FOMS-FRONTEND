@@ -44,10 +44,10 @@ export const RecentActivity: React.FC<{ logs: AuditLog[]; title?: string; onView
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: getActionColor(log.action), marginTop: 7, flexShrink: 0 }} />
               <div>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: '#0F172A', fontWeight: 600 }}>
-                  System event: {log.action} for <strong>System</strong>
+                  {log.action} {log.module ? <span style={{ color: '#0D9488', fontSize: '0.8rem', fontWeight: 600, marginLeft: 6 }}>({log.module})</span> : ''}
                 </p>
                 <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
-                  {relativeTime(log.timestamp)} &bull; {log.userRole || 'Finance Manager'}
+                  {relativeTime(log.timestamp)} &bull; {log.userFullName || log.userRole || 'Finance Manager'} {log.details ? `— ${log.details}` : ''}
                 </p>
               </div>
             </div>

@@ -1,78 +1,18 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-
-  return {
-    plugins: [
-      react(),
-      {
-        name: 'paymongo-server-middleware',
-        configureServer(server) {
-          server.middlewares.use('/api/paymongo-link', async (req: any, res: any) => {
-            if (req.method !== 'POST') {
-              res.statusCode = 405;
-              res.end('Method Not Allowed');
-              return;
-            }
-
-            let body = '';
-            req.on('data', (chunk: any) => { body += chunk.toString(); });
-            req.on('end', async () => {
-              try {
-                const secretKey = env.VITE_PAYMONGO_SECRET_KEY;
-                if (!secretKey) throw new Error('VITE_PAYMONGO_SECRET_KEY not set in .env');
-
-                const base64Key = Buffer.from(`${secretKey}:`).toString('base64');
-                let parsedBody: any = {};
-                try {
-                  parsedBody = JSON.parse(body);
-                  if (parsedBody && parsedBody.data && parsedBody.data.attributes) {
-                    if (!parsedBody.data.attributes.payment_method_types) {
-                      parsedBody.data.attributes.payment_method_types = ['qrph'];
-                    }
-                  }
-                } catch {
-                  parsedBody = body;
-                }
-
-                const pmRes = await fetch('https://api.paymongo.com/v1/links', {
-                  method: 'POST',
-                  headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${base64Key}`,
-                  },
-                  body: typeof parsedBody === 'string' ? parsedBody : JSON.stringify(parsedBody),
-                });
-
-                const data = await pmRes.json();
-                res.setHeader('Content-Type', 'application/json');
-                res.statusCode = pmRes.status;
-                res.end(JSON.stringify(data));
-              } catch (err: any) {
-                console.error('[paymongo-middleware] Error:', err.message);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: err.message }));
-              }
-            });
-          });
-        },
-      }
-    ],
-    server: {
-      port: 5174,
-      host: true,
-      proxy: {
-        '/api/speedpay': {
-          target: 'http://localhost:5007',
-          changeOrigin: true,
-          secure: false,
-        }
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5174,
+    host: true,
+    proxy: {
+      '/api/speedpay': {
+        target: 'http://localhost:5007',
+        changeOrigin: true,
+        secure: false,
       }
     }
-  };
+  }
 })

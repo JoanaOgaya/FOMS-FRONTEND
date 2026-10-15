@@ -1,4 +1,5 @@
 import os
+from sqlalchemy.engine import URL
 
 # Auto-load variables from .env file if python-dotenv is installed
 try:
@@ -19,6 +20,18 @@ class Settings:
         "POSTGRES_CONNECTION_STRING", 
         "postgresql://postgres:postgres@foms-ai-postgres:5432/foms_ai_db"
     )
+    _postgres_connection_string = os.getenv("POSTGRES_CONNECTION_STRING", "")
+    if _postgres_connection_string and not _postgres_connection_string.startswith(
+        ("postgresql://", "postgresql+psycopg2://")
+    ):
+        POSTGRES_URI = URL.create(
+            "postgresql+psycopg2",
+            username=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", ""),
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            database=os.getenv("POSTGRES_DATABASE", os.getenv("POSTGRES_DB", "foms_ai_results")),
+        )
     MONGODB_URI: str = os.getenv(
         "MONGODB_URI", 
         "mongodb://foms-ai-mongodb:27017/"

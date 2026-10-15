@@ -3,8 +3,9 @@ import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { TableContainer } from '../components/TableContainer';
 import { DataTable } from '../components/DataTable';
 import { StatusBadge } from '../components/shared/StatusBadge';
+import { KpiCard } from '../components/shared/KpiCard';
 import { ClientInfoCard } from '../components/ClientInfoCard';
-import { Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line, ComposedChart, Cell, AreaChart, Area } from 'recharts';
+import { Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line, ComposedChart, Cell } from 'recharts';
 import { useToast } from '../components/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '../hooks/useQuery';
@@ -12,11 +13,10 @@ import { invoicesService } from '../services/invoicesService';
 import { clientsService } from '../services/clientsService';
 import { arService } from '../services/arService';
 import { paymentsService } from '../services/paymentsService';
-import { liquidationsService } from '../services/liquidationsService';
 import { auditLogsService } from '../services/auditLogsService';
 import { duplicatesService, type DuplicateFlagItem, type UniqueDocumentItem, type ReviewHistoryItem } from '../services/duplicates.service';
 import { Role } from '../types/auth';
-import type { Invoice, Client, AccountsReceivableRecord, Payment, AuditLog, Liquidation } from '../types/entities';
+import type { Invoice, Client, AccountsReceivableRecord, Payment, AuditLog } from '../types/entities';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -59,14 +59,10 @@ const ReportsContent: React.FC = () => {
   const { id } = useParams();
   const selectedClientId = id;
 
-  const roleStr = String(user?.role || '');
-  const isAFM = roleStr === 'ASSISTANT_FM' || roleStr.toLowerCase().includes('assistant');
-
   const { data: invData } = useQuery('reports:invoices', () => invoicesService.list({ pageSize: 100 }));
   const { data: clientData } = useQuery('reports:clients', () => clientsService.list({ pageSize: 100 }));
   const { data: arData } = useQuery('reports:ar', () => arService.records({ pageSize: 100 }));
   const { data: pmtData } = useQuery('reports:payments', () => paymentsService.list({ pageSize: 100 }));
-  const { data: liqData } = useQuery('reports:liquidations', () => liquidationsService.list({ pageSize: 100 }));
   const { data: flagData } = useQuery('reports:duplicate-flags', () => duplicatesService.flagged({ pageSize: 100 }));
   const { data: uniqueData } = useQuery('reports:unique-docs', () => duplicatesService.uniqueDocuments({ pageSize: 100 }));
   const { data: historyData } = useQuery('reports:review-history', () => duplicatesService.reviewHistory({ pageSize: 100 }));
@@ -75,7 +71,6 @@ const ReportsContent: React.FC = () => {
   const clients: Client[] = clientData?.items || [];
   const arRecords: AccountsReceivableRecord[] = arData?.items || [];
   const payments: Payment[] = pmtData?.items || [];
-  const liquidations: Liquidation[] = liqData?.items || [];
   const duplicateFlags: DuplicateFlagItem[] = flagData?.items || [];
   const uniqueDocs: UniqueDocumentItem[] = uniqueData?.items || [];
   const reviewHistory: ReviewHistoryItem[] = historyData?.items || [];
@@ -84,9 +79,8 @@ const ReportsContent: React.FC = () => {
     auditLogsService.create(data).catch(() => {});
   };
 
-  const initialTab = searchParams.get('tab') || (isAFM ? 'liquidation' : 'aging');
-  const initialLedger = initialTab === 'liquidation' ? 'Liquidation Summary' :
-                        initialTab === 'invoices' ? 'Invoice Summary' :
+  const initialTab = searchParams.get('tab') || 'aging';
+  const initialLedger = initialTab === 'invoices' ? 'Invoice Summary' :
                         initialTab === 'collections' ? 'Collection Summary' :
                         initialTab === 'duplicate' ? 'Duplicate Alert Summary' :
                         initialTab === 'unique' ? 'Unique Document Ledger' :
@@ -106,10 +100,8 @@ const ReportsContent: React.FC = () => {
   const [activeSearch, setActiveSearch] = useState('');
   const [compileDateRange, setCompileDateRange] = useState('All Time');
   const [compileStatus, setCompileStatus] = useState('All Statuses');
-  const [liqTrendMode, setLiqTrendMode] = useState<'timeline' | 'cumulative'>('timeline');
-  const [showLiqExpense, setShowLiqExpense] = useState(true);
-  const [showLiqReimburse, setShowLiqReimburse] = useState(true);
-  const [showLiqLeftover, setShowLiqLeftover] = useState(false);
+  const [compileClient, setCompileClient] = useState(selectedClientId || 'All');
+  const [activeClient, setActiveClient] = useState(selectedClientId || 'All');
 
   const handleGenerateReport = () => {
     const today = new Date();
@@ -135,10 +127,10 @@ const ReportsContent: React.FC = () => {
     setDateFrom(newDateFrom);
     setDateTo(newDateTo);
     setActiveSearch(compileSearch);
+    setActiveClient(compileClient);
     setIsGenerated(true);
 
     if (compileLedgerType === 'Aging of Accounts') setReportType('aging');
-    else if (compileLedgerType === 'Liquidation Summary') setReportType('liquidation');
     else if (compileLedgerType === 'Invoice Summary') setReportType('invoices');
     else if (compileLedgerType === 'Collection Summary') setReportType('collections');
     else if (compileLedgerType === 'Unique Document Ledger') setReportType('unique');
@@ -274,39 +266,11 @@ const ReportsContent: React.FC = () => {
     });
   };
 
-  const getFilteredLiquidations = () => {
-    return liquidations.filter((l: Liquidation) => {
-      const d = (l.dateSubmitted || (l as any).createdAt || '').split('T')[0];
-      if (d && dateFrom && dateTo && compileDateRange !== 'All Time') {
-        if (d < dateFrom || d > dateTo) return false;
-      }
-      if (activeSearch) {
-        const term = activeSearch.toLowerCase();
-        const ref = (l.reference || l.referenceNumber || l.id || '').toLowerCase();
-        const sub = (l.submittedBy || (l as any).submittedByName || '').toLowerCase();
-        if (!ref.includes(term) && !sub.includes(term)) return false;
-      }
-      if (compileStatus && compileStatus !== 'All Statuses') {
-        const s = (l.status || '').toLowerCase();
-        if (!s.includes(compileStatus.toLowerCase())) return false;
-      }
-      return true;
-    });
-  };
-
-  const liquidationColumns = [
-    { key: 'reference', label: 'REFERENCE NO.', sortable: true, render: (row: any) => <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{row.reference || row.referenceNumber || row.id}</span> },
-    { key: 'submittedBy', label: 'SUBMITTED BY', sortable: true, render: (row: any) => <span style={{ color: '#0F172A', fontWeight: 700 }}>{row.submittedBy || (row as any).submittedByName}</span> },
-    { key: 'dateSubmitted', label: 'DATE SUBMITTED', render: (row: any) => row.dateSubmitted ? new Date(row.dateSubmitted).toLocaleDateString('en-PH') : 'N/A' },
-    { key: 'amount', label: 'TOTAL EXPENSE', render: (row: any) => <span style={{ fontWeight: 800 }}>₱{Number(row.amount || (row as any).totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> },
-    { key: 'reimbursementAmount', label: 'REIMBURSEMENT', render: (row: any) => <span>₱{Number(row.reimbursementAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> },
-    { key: 'status', label: 'STATUS', render: (row: any) => <StatusBadge status={row.status} /> }
-  ];
-
   // --- Aging Tab Data ---
+  const effectiveClientId = selectedClientId || (activeClient !== 'All' ? activeClient : null);
   let agingRecords: any[] = [];
-  if (selectedClientId) {
-    agingRecords = getFilteredAR().filter((ar: AccountsReceivableRecord) => ar.clientId === selectedClientId).map((ar: AccountsReceivableRecord) => {
+  if (effectiveClientId) {
+    agingRecords = getFilteredAR().filter((ar: AccountsReceivableRecord) => ar.clientId === effectiveClientId).map((ar: AccountsReceivableRecord) => {
       const client = clients.find((c: Client) => c.id === ar.clientId);
       const invoice = getFilteredInvoices().find((i: Invoice) => i.id === ar.invoiceId);
       return {
@@ -333,8 +297,8 @@ const ReportsContent: React.FC = () => {
   }
 
   const getAgingBracketData = (bracket: string) => {
-    const base = selectedClientId
-      ? getFilteredAR().filter((r: AccountsReceivableRecord) => r.clientId === selectedClientId)
+    const base = effectiveClientId
+      ? getFilteredAR().filter((r: AccountsReceivableRecord) => r.clientId === effectiveClientId)
       : getFilteredAR();
     const recs = base.filter((r: AccountsReceivableRecord) => {
       if (bracket === '0-30 days') {
@@ -376,8 +340,8 @@ const ReportsContent: React.FC = () => {
 
   // --- Invoice Summary Tab Data ---
   let allInvoices: any[] = [];
-  if (selectedClientId) {
-    allInvoices = getFilteredInvoices().filter((i: Invoice) => i.clientId === selectedClientId).map((i: Invoice) => {
+  if (effectiveClientId) {
+    allInvoices = getFilteredInvoices().filter((i: Invoice) => i.clientId === effectiveClientId).map((i: Invoice) => {
       const client = clients.find((c: Client) => c.id === i.clientId);
       return { ...i, clientName: client?.name ?? 'Unknown' };
     });
@@ -577,18 +541,6 @@ const ReportsContent: React.FC = () => {
       ]);
       headers = ['REVIEW ID', 'DOCUMENT NO.', 'FINAL DECISION', 'REVIEWER', 'REASON', 'REVIEWED DATE'];
       filename = `review_history_audit_${new Date().toISOString().split('T')[0]}.csv`;
-    } else if (activeTab === 'liquidation') {
-      const liqs = getFilteredLiquidations();
-      dataToExport = liqs.map(l => [
-        l.reference || l.referenceNumber || l.id,
-        l.submittedBy || (l as any).submittedByName || 'N/A',
-        l.dateSubmitted ? new Date(l.dateSubmitted).toLocaleDateString('en-PH') : 'N/A',
-        l.amount || (l as any).totalAmount || 0,
-        l.reimbursementAmount || 0,
-        l.status || 'Pending Validation'
-      ]);
-      headers = ['REFERENCE NO.', 'SUBMITTED BY', 'DATE SUBMITTED', 'TOTAL EXPENSE', 'REIMBURSEMENT', 'STATUS'];
-      filename = `liquidation_summary_${new Date().toISOString().split('T')[0]}.csv`;
     }
 
     const csvContent = '\uFEFF' + [
@@ -681,17 +633,6 @@ const ReportsContent: React.FC = () => {
         h.decisionReason || 'N/A',
         h.reviewedDate ? new Date(h.reviewedDate).toLocaleDateString('en-PH') : 'N/A'
       ]);
-    } else if (activeTab === 'liquidation') {
-      const liqs = getFilteredLiquidations();
-      headers = [['Reference No.', 'Submitted By', 'Date Submitted', 'Total Expense', 'Reimbursement', 'Status']];
-      bodyData = liqs.map(l => [
-        l.reference || l.referenceNumber || l.id,
-        l.submittedBy || (l as any).submittedByName || 'N/A',
-        l.dateSubmitted ? new Date(l.dateSubmitted).toLocaleDateString('en-PH') : 'N/A',
-        `PHP ${Number(l.amount || (l as any).totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-        `PHP ${Number(l.reimbursementAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-        l.status || 'Pending Validation'
-      ]);
     }
 
     // Top Header Banner
@@ -753,17 +694,14 @@ const ReportsContent: React.FC = () => {
     toast.success('Report exported to Formal PDF successfully.');
   };
 
-  const MetricCard = ({ label, value, icon, color, bg }: any) => (
-    <div style={{ background: '#fff', borderRadius: 12, padding: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', lineHeight: 1.2, maxWidth: '70%' }}>{label}</div>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: bg, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <i className={`ti ${icon}`} style={{ fontSize: '1.1rem' }}></i>
-        </div>
-      </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A' }}>{value}</div>
-    </div>
-  );
+  const MetricCard: React.FC<{ label: string; value: React.ReactNode; icon: string; color: string; bg: string }> = ({ label, value, icon, color }) => {
+    const variant = color === '#10B981' ? 'success'
+      : color === '#F59E0B' ? 'warning'
+      : color === '#EF4444' ? 'danger'
+      : color === '#8B5CF6' ? 'new'
+      : 'info';
+    return <KpiCard label={label} value={value} icon={icon} variant={variant} hideTrend />;
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -789,7 +727,11 @@ const ReportsContent: React.FC = () => {
       <div className="no-print" style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
 
         {/* Header row: title left, export buttons right */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 24px', borderBottom: '1px solid #F1F5F9' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="ti ti-filter" style={{ fontSize: '15px', color: '#0D9488' }} />
+            <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0F172A' }}>Compile Parameters</span>
+          </div>
           {/* Export & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
@@ -829,7 +771,6 @@ const ReportsContent: React.FC = () => {
                   const val = e.target.value;
                   setCompileLedgerType(val);
                   if (val === 'Aging of Accounts') setReportType('aging');
-                  else if (val === 'Liquidation Summary') setReportType('liquidation');
                   else if (val === 'Invoice Summary') setReportType('invoices');
                   else if (val === 'Collection Summary') setReportType('collections');
                   else if (val === 'Unique Document Ledger') setReportType('unique');
@@ -838,19 +779,14 @@ const ReportsContent: React.FC = () => {
                 }}
                 style={{ width: '100%', appearance: 'none', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '9px 32px 9px 12px', fontSize: '0.85rem', color: '#0F172A', cursor: 'pointer', outline: 'none' }}
               >
-                {(roleStr === Role.FINANCIAL_MANAGER || isAFM) && (
-                  <optgroup label="── Liquidation Reports ──">
-                    <option value="Liquidation Summary">Liquidation Summary</option>
-                  </optgroup>
-                )}
-                {(roleStr === Role.FINANCIAL_MANAGER || roleStr === Role.HEAD_ACCOUNTANT || roleStr === Role.ACCOUNTANT) && (
+                {(user?.role === Role.FINANCIAL_MANAGER || user?.role === Role.HEAD_ACCOUNTANT || user?.role === Role.ACCOUNTANT) && (
                   <optgroup label="── Financial Reports ──">
                     <option value="Aging of Accounts">Aging of Accounts</option>
                     <option value="Invoice Summary">Invoice Summary</option>
                     <option value="Collection Summary">Collection Summary</option>
                   </optgroup>
                 )}
-                {(roleStr === Role.FINANCIAL_MANAGER || roleStr === Role.HEAD_ACCOUNTANT || isAFM) && (
+                {(user?.role === Role.FINANCIAL_MANAGER || user?.role === Role.HEAD_ACCOUNTANT || user?.role === Role.ASSISTANT_FM) && (
                   <optgroup label="── Duplicate Detection ──">
                     <option value="Duplicate Alert Summary">Duplicate Alert Summary</option>
                     <option value="Unique Document Ledger">Unique Document Ledger</option>
@@ -918,6 +854,27 @@ const ReportsContent: React.FC = () => {
             </div>
           </div>
 
+          {/* Client Filter */}
+          <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Account</label>
+            <div style={{ position: 'relative' }}>
+              <select
+                value={compileClient}
+                onChange={e => {
+                  setCompileClient(e.target.value);
+                  setActiveClient(e.target.value);
+                }}
+                style={{ width: '100%', appearance: 'none', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '9px 32px 9px 12px', fontSize: '0.85rem', color: '#0F172A', cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="All">All Client Accounts</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                ))}
+              </select>
+              <i className="ti ti-chevron-down" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748B', fontSize: '13px', pointerEvents: 'none' }} />
+            </div>
+          </div>
+
           {/* Generate Report */}
           <div style={{ flexShrink: 0 }}>
             <button
@@ -935,411 +892,27 @@ const ReportsContent: React.FC = () => {
 
       {/* ══ ROW 3: Main Content (full-width) ══ */}
       <div className="report-printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
-        {selectedClientId && clients.find((c: Client) => c.id === selectedClientId) && (
+        {effectiveClientId && clients.find((c: Client) => c.id === effectiveClientId) && (
           <div style={{ marginBottom: -8 }}>
-            <ClientInfoCard client={clients.find((c: Client) => c.id === selectedClientId)!} />
+            <ClientInfoCard client={clients.find((c: Client) => c.id === effectiveClientId)!} />
           </div>
         )}
 
         {/* Dynamic Report Header */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.75rem', fontWeight: 800, color: '#0D9488', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OFFICIAL FOMS REPORT</p>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0F172A' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: '1.5rem', fontWeight: 800, color: '#0F172A' }}>
             {compileLedgerType}
           </h2>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B', fontWeight: 500 }}>
+            Generated {new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })} &bull; Snapshot: {compileDateRange} &bull; Filter: {compileStatus} &bull; Prepared by: {user?.fullName || 'Crystalyn Joyce C. Fajardo'} ({user?.role || 'Financial Manager'})
+          </p>
         </div>
-
-        {/* ── Tab: Liquidation Summary ── */}
-        {activeTab === 'liquidation' && (() => {
-          const liqs = getFilteredLiquidations();
-          const totalExpense = liqs.reduce((acc, l) => acc + (l.amount || (l as any).totalAmount || 0), 0);
-          const totalReimburse = liqs.reduce((acc, l) => acc + (l.reimbursementAmount || 0), 0);
-          const validatedCount = liqs.filter(l => l.status === 'Validated' || l.status === 'Endorsed').length;
-          const pendingCount = liqs.filter(l => l.status === 'Pending Validation' || l.status === 'Pending Review').length;
-
-          // Sort liquidations chronologically by submission / creation date
-          const sortedLiqs = [...liqs].sort((a: any, b: any) => {
-            const da = new Date(a.dateSubmitted || a.submittedAt || a.createdAt || 0).getTime();
-            const db = new Date(b.dateSubmitted || b.submittedAt || b.createdAt || 0).getTime();
-            return da - db;
-          });
-
-          // Aggregate by Date (Day / Time progression)
-          const dateMap: Record<string, { date: string; displayDate: string; fullDate: string; Expense: number; Reimbursement: number; Leftover: number; count: number; refs: string[] }> = {};
-
-          sortedLiqs.forEach((item: any) => {
-            const rawDate = item.dateSubmitted || item.submittedAt || item.createdAt;
-            const d = rawDate ? new Date(rawDate) : new Date();
-            const key = d.toISOString().split('T')[0];
-            const displayDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const fullDate = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-
-            if (!dateMap[key]) {
-              dateMap[key] = {
-                date: key,
-                displayDate,
-                fullDate,
-                Expense: 0,
-                Reimbursement: 0,
-                Leftover: 0,
-                count: 0,
-                refs: []
-              };
-            }
-            const amt = Number(item.amount || (item as any).totalAmount || 0);
-            const reimb = Number(item.reimbursementAmount || 0);
-            const left = Number(item.leftoverCash || 0);
-            dateMap[key].Expense += amt;
-            dateMap[key].Reimbursement += reimb;
-            dateMap[key].Leftover += left;
-            dateMap[key].count += 1;
-            const ref = item.referenceNumber || item.reference;
-            if (ref && !dateMap[key].refs.includes(ref)) {
-              dateMap[key].refs.push(ref);
-            }
-          });
-
-          const rawTimeline = Object.values(dateMap);
-          let cumulativeExpense = 0;
-          let cumulativeReimburse = 0;
-
-          const trendData = rawTimeline.map(pt => {
-            cumulativeExpense += pt.Expense;
-            cumulativeReimburse += pt.Reimbursement;
-            return {
-              ...pt,
-              CumulativeExpense: cumulativeExpense,
-              CumulativeReimburse: cumulativeReimburse,
-            };
-          });
-
-          // If only 1 date exists, prepend a baseline date point with 0 so a trend line can always be drawn smoothly
-          const chartPoints = trendData.length === 1 ? [
-            {
-              date: 'start',
-              displayDate: 'Baseline',
-              fullDate: 'Baseline Period',
-              Expense: 0,
-              Reimbursement: 0,
-              Leftover: 0,
-              CumulativeExpense: 0,
-              CumulativeReimburse: 0,
-              count: 0,
-              refs: []
-            },
-            ...trendData
-          ] : trendData;
-
-          const maxExpense = Math.max(...trendData.map(d => d.Expense), 0);
-          const avgDailyExpense = trendData.length > 0 ? (totalExpense / trendData.length) : 0;
-
-          return (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                <MetricCard label="TOTAL LIQUIDATIONS" value={liqs.length} icon="ti-file-text" color="#0EA5E9" bg="#E0F2FE" />
-                <MetricCard label="VALIDATED / ENDORSED" value={validatedCount} icon="ti-circle-check" color="#10B981" bg="#D1FAE5" />
-                <MetricCard label="PENDING VALIDATION" value={pendingCount} icon="ti-clock" color="#F59E0B" bg="#FEF3C7" />
-                <MetricCard label="TOTAL EXPENSE" value={`₱${totalExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`} icon="ti-cash" color="#8B5CF6" bg="#EDE9FE" />
-              </div>
-
-              {trendData.length > 0 && (
-                <div className="kpi-anim-wrapper" style={{ background: '#fff', borderRadius: 12, padding: '24px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#CCFBF1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <i className="ti ti-chart-line" style={{ color: '#0D9488', fontSize: '1.2rem' }}></i>
-                        </div>
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.3px' }}>
-                            Liquidation Expense Trend Over Time
-                          </h3>
-                          <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
-                            {liqTrendMode === 'timeline'
-                              ? 'Daily timeline progression of courier expenses, leftover cash, and reimbursements'
-                              : 'Cumulative spend accumulation across submitted liquidation batches'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                      {/* Metric Badges */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#F8FAFC', padding: '4px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: '0.78rem' }}>
-                        <span style={{ color: '#64748B' }}>Peak Day:</span>
-                        <strong style={{ color: '#0F172A' }}>₱{maxExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-                        <span style={{ color: '#CBD5E1' }}>|</span>
-                        <span style={{ color: '#64748B' }}>Daily Avg:</span>
-                        <strong style={{ color: '#0D9488' }}>₱{avgDailyExpense.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-
-                      {/* Mode Switcher */}
-                      <div style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: '3px', borderRadius: 8 }}>
-                        <button
-                          type="button"
-                          onClick={() => setLiqTrendMode('timeline')}
-                          style={{
-                            padding: '5px 12px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            borderRadius: 6,
-                            border: 'none',
-                            cursor: 'pointer',
-                            background: liqTrendMode === 'timeline' ? '#fff' : 'transparent',
-                            color: liqTrendMode === 'timeline' ? '#0F172A' : '#64748B',
-                            boxShadow: liqTrendMode === 'timeline' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          Daily Progression
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLiqTrendMode('cumulative')}
-                          style={{
-                            padding: '5px 12px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            borderRadius: 6,
-                            border: 'none',
-                            cursor: 'pointer',
-                            background: liqTrendMode === 'cumulative' ? '#fff' : 'transparent',
-                            color: liqTrendMode === 'cumulative' ? '#0F172A' : '#64748B',
-                            boxShadow: liqTrendMode === 'cumulative' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          Cumulative Total
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ height: 280, width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartPoints} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="liqExpenseGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0D9488" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#0D9488" stopOpacity={0.0} />
-                          </linearGradient>
-                          <linearGradient id="liqReimburseGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.35} />
-                            <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
-                          </linearGradient>
-                          <linearGradient id="liqCumulGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
-                          </linearGradient>
-                          <linearGradient id="liqLeftoverGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                        <XAxis
-                          dataKey="displayDate"
-                          stroke="#94A3B8"
-                          fontSize={12}
-                          tickLine={false}
-                          dy={6}
-                        />
-                        <YAxis
-                          stroke="#94A3B8"
-                          fontSize={12}
-                          tickLine={false}
-                          tickFormatter={v => `₱${v >= 1000 ? `${(v / 1000).toFixed(1).replace('.0', '')}k` : v}`}
-                          width={60}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (!active || !payload || !payload.length) return null;
-                            const item = payload[0].payload;
-                            return (
-                              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '10px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)', border: '1px solid #E2E8F0', minWidth: 200 }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: 6 }}>
-                                  {item.fullDate || item.displayDate}
-                                </div>
-                                {item.refs && item.refs.length > 0 && (
-                                  <div style={{ fontSize: '0.72rem', color: '#64748B', marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                    {item.refs.map((r: string) => (
-                                      <span key={r} style={{ background: '#F1F5F9', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>{r}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                                    <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0D9488' }} />
-                                      {liqTrendMode === 'timeline' ? 'Daily Expense:' : 'Cumulative Expense:'}
-                                    </span>
-                                    <strong style={{ color: '#0F172A' }}>
-                                      ₱{(liqTrendMode === 'timeline' ? item.Expense : item.CumulativeExpense).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                    </strong>
-                                  </div>
-                                  {item.Reimbursement > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                                      <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B' }} />
-                                        Reimbursement:
-                                      </span>
-                                      <strong style={{ color: '#D97706' }}>
-                                        ₱{item.Reimbursement.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                      </strong>
-                                    </div>
-                                  )}
-                                  {item.Leftover > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                                      <span style={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6' }} />
-                                        Leftover Cash:
-                                      </span>
-                                      <strong style={{ color: '#2563EB' }}>
-                                        ₱{item.Leftover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                      </strong>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }}
-                        />
-                        {liqTrendMode === 'timeline' ? (
-                          <>
-                            {showLiqExpense && (
-                              <Area
-                                type="monotone"
-                                dataKey="Expense"
-                                stroke="#0D9488"
-                                strokeWidth={3}
-                                fillOpacity={1}
-                                fill="url(#liqExpenseGrad)"
-                                activeDot={{ r: 7, fill: '#0D9488', stroke: '#fff', strokeWidth: 2 }}
-                                dot={{ r: 4, fill: '#0D9488', stroke: '#fff', strokeWidth: 2 }}
-                                name="Expense Amount"
-                              />
-                            )}
-                            {showLiqReimburse && (
-                              <Area
-                                type="monotone"
-                                dataKey="Reimbursement"
-                                stroke="#F59E0B"
-                                strokeWidth={2.5}
-                                fillOpacity={1}
-                                fill="url(#liqReimburseGrad)"
-                                activeDot={{ r: 6, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
-                                dot={{ r: 3.5, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
-                                name="Reimbursement"
-                              />
-                            )}
-                            {showLiqLeftover && (
-                              <Area
-                                type="monotone"
-                                dataKey="Leftover"
-                                stroke="#3B82F6"
-                                strokeWidth={2}
-                                fillOpacity={1}
-                                fill="url(#liqLeftoverGrad)"
-                                activeDot={{ r: 5, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
-                                dot={{ r: 3, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
-                                name="Leftover Cash"
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <Area
-                              type="monotone"
-                              dataKey="CumulativeExpense"
-                              stroke="#6366F1"
-                              strokeWidth={3}
-                              fillOpacity={1}
-                              fill="url(#liqCumulGrad)"
-                              activeDot={{ r: 7, fill: '#6366F1', stroke: '#fff', strokeWidth: 2 }}
-                              dot={{ r: 4, fill: '#6366F1', stroke: '#fff', strokeWidth: 2 }}
-                              name="Cumulative Total"
-                            />
-                            {showLiqReimburse && (
-                              <Area
-                                type="monotone"
-                                dataKey="CumulativeReimburse"
-                                stroke="#F59E0B"
-                                strokeWidth={2}
-                                fillOpacity={1}
-                                fill="url(#liqReimburseGrad)"
-                                activeDot={{ r: 5, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
-                                dot={{ r: 3, fill: '#F59E0B', stroke: '#fff', strokeWidth: 2 }}
-                                name="Cumulative Reimbursement"
-                              />
-                            )}
-                          </>
-                        )}
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Interactive Legend */}
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, paddingTop: 14, borderTop: '1px solid #F1F5F9', marginTop: 12 }}>
-                    {liqTrendMode === 'timeline' ? (
-                      <>
-                        <div
-                          onClick={() => setShowLiqExpense(!showLiqExpense)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqExpense ? 1 : 0.4, transition: 'opacity 0.2s' }}
-                        >
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0D9488' }} />
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Expense Amount</span>
-                        </div>
-                        <div
-                          onClick={() => setShowLiqReimburse(!showLiqReimburse)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqReimburse ? 1 : 0.4, transition: 'opacity 0.2s' }}
-                        >
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Reimbursement</span>
-                        </div>
-                        <div
-                          onClick={() => setShowLiqLeftover(!showLiqLeftover)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqLeftover ? 1 : 0.4, transition: 'opacity 0.2s' }}
-                        >
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6' }} />
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Leftover Cash</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#6366F1' }} />
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Cumulative Expense</span>
-                        </div>
-                        <div
-                          onClick={() => setShowLiqReimburse(!showLiqReimburse)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: showLiqReimburse ? 1 : 0.4, transition: 'opacity 0.2s' }}
-                        >
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Cumulative Reimbursement</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <TableContainer>
-                <DataTable
-                  data={liqs}
-                  columns={liquidationColumns}
-                  rowKey="id"
-                  exportable={false}
-                  hideSearch={true}
-                />
-              </TableContainer>
-            </>
-          );
-        })()}
 
         {/* ── Tab 1: Aging of Accounts ── */}
         {activeTab === 'aging' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div className="kpi-grid">
               {['0-30 days', '31-60 days', '61-90 days', '90+ days'].map(bracket => {
                 const data = getAgingBracketData(bracket);
                 const { color, bg } = BRACKET_COLORS[bracket];
@@ -1349,22 +922,76 @@ const ReportsContent: React.FC = () => {
               })}
             </div>
 
-            <TableContainer>
-              <DataTable
-                data={agingRecords}
-                columns={agingColumns}
-                rowKey="id"
-                exportable={false}
-                hideSearch={true}
-              />
-            </TableContainer>
+            {agingRecords.length === 0 ? (
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                <i className="ti ti-file-analytics" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                No aging accounts found
+              </div>
+            ) : (
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice No.</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Amount</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aging / Days Overdue</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agingRecords.map((row: any) => (
+                        <tr
+                          key={row.id || row.invoiceNumber}
+                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
+                              {row.invoiceNumber || row.id}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                            {row.clientName}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
+                            {row.dueDate ? new Date(row.dueDate).toLocaleDateString('en-PH') : 'N/A'}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
+                            ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                              background: row.agingDays > 0 ? '#FEF2F2' : '#F0FDF4',
+                              color: row.agingDays > 0 ? '#DC2626' : '#16A34A',
+                              border: `1px solid ${row.agingDays > 0 ? '#FECACA' : '#BBF7D0'}`
+                            }}>
+                              <i className={`ti ${row.agingDays > 0 ? 'ti-clock' : 'ti-circle-check'}`} style={{ fontSize: 12 }} />
+                              {row.agingDays > 0 ? `${row.agingDays}d overdue` : 'On schedule'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <StatusBadge status={row.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── Tab 2: Invoice Summary ── */}
         {activeTab === 'invoices' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+            <div className="kpi-grid">
               <MetricCard label="TOTAL INVOICED" value={`₱${(totalInvoiced / 1000).toFixed(1)}k`} icon="ti-file-invoice" color="#0EA5E9" bg="#E0F2FE" />
               <MetricCard label="PAID AMOUNT" value={`₱${(totalPaid / 1000).toFixed(1)}k`} icon="ti-check" color="#10B981" bg="#D1FAE5" />
               <MetricCard label="OUTSTANDING" value={`₱${(totalOutstanding / 1000).toFixed(1)}k`} icon="ti-alert-circle" color="#F59E0B" bg="#FEF3C7" />
@@ -1389,22 +1016,67 @@ const ReportsContent: React.FC = () => {
               </div>
             </div>
 
-            <TableContainer>
-              <DataTable
-                data={allInvoices}
-                columns={invoiceColumns}
-                rowKey="id"
-                exportable={false}
-                hideSearch={true}
-              />
-            </TableContainer>
+            {allInvoices.length === 0 ? (
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                <i className="ti ti-file-invoice" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                No invoices found
+              </div>
+            ) : (
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice No.</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issue Date</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Amount</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allInvoices.map((row: any) => (
+                        <tr
+                          key={row.id || row.invoiceNumber}
+                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
+                              {row.invoiceNumber || row.id}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                            {row.clientName}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
+                            {new Date(row.createdAt || row.billingDate || Date.now()).toLocaleDateString('en-PH')}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
+                            {new Date(row.dueDate || Date.now()).toLocaleDateString('en-PH')}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#0369A1' }}>
+                            ₱{Number(row.totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <StatusBadge status={row.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── Tab 3: Collection Report ── */}
         {activeTab === 'collections' && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+            <div className="kpi-grid">
               <MetricCard label="TOTAL COLLECTED" value={`₱${(totalCollected / 1000).toFixed(1)}k`} icon="ti-cash" color="#10B981" bg="#D1FAE5" />
               <MetricCard label="TRANSACTIONS" value={collections.length} icon="ti-receipt" color="#8B5CF6" bg="#EDE9FE" />
             </div>
@@ -1429,15 +1101,62 @@ const ReportsContent: React.FC = () => {
               </div>
             </div>
 
-            <TableContainer>
-              <DataTable
-                data={collections}
-                columns={collectionColumns}
-                rowKey="id"
-                exportable={false}
-                hideSearch={true}
-              />
-            </TableContainer>
+            {collections.length === 0 ? (
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                <i className="ti ti-receipt" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                No collections found
+              </div>
+            ) : (
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment / OR Ref</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Method</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date Collected</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount Collected</th>
+                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {collections.map((row: any) => (
+                        <tr
+                          key={row.id || row.referenceNumber}
+                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
+                              {row.referenceNumber || row.orNumber || row.id}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                            {row.clientName}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', color: '#475569' }}>
+                              {row.paymentMethod || 'Official Receipt'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
+                            {row.paymentDate ? new Date(row.paymentDate).toLocaleDateString('en-PH') : 'Recent'}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
+                            ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                            <StatusBadge status={row.status || 'Verified'} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1456,7 +1175,7 @@ const ReportsContent: React.FC = () => {
 
           return (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+              <div className="kpi-grid">
                 <MetricCard label="TOTAL ALERTS FLAGGED" value={flags.length || 4} icon="ti-alert-triangle" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="PENDING SUPERVISOR REVIEW" value={pendingCount} icon="ti-clock" color="#F59E0B" bg="#FEF3C7" />
                 <MetricCard label="CONFIRMED DUPLICATES" value={confirmedCount} icon="ti-copy" color="#EF4444" bg="#FEE2E2" />
@@ -1482,15 +1201,66 @@ const ReportsContent: React.FC = () => {
                 </div>
               </div>
 
-              <TableContainer>
-                <DataTable
-                  data={flags}
-                  columns={duplicateColumns}
-                  rowKey="id"
-                  exportable={false}
-                  hideSearch={true}
-                />
-              </TableContainer>
+              {flags.length === 0 ? (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                  <i className="ti ti-shield-check" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                  No duplicate alerts found
+                </div>
+              ) : (
+                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flag ID</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No.</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Matched Record</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Similarity</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flagged Date</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {flags.map((row: any) => (
+                          <tr
+                            key={row.id}
+                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                                FLAG #{row.id}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                              {row.uploadedNumber || row.id}
+                            </td>
+                            <td style={{ padding: '14px 18px', color: '#475569' }}>
+                              {row.clientName || 'General Client'}
+                            </td>
+                            <td style={{ padding: '14px 18px', color: '#334155' }}>
+                              {row.existingRecord || 'N/A'}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#DC2626' }}>
+                                {row.similarityScore || 98.5}% match
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#64748B' }}>
+                              {row.flaggedDate || 'Recent'}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <StatusBadge status={row.status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           );
         })()}
@@ -1500,21 +1270,70 @@ const ReportsContent: React.FC = () => {
           const docs = getFilteredUniqueDocs();
           return (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div className="kpi-grid">
                 <MetricCard label="TOTAL UNIQUE DOCUMENTS" value={docs.length} icon="ti-file-check" color="#10B981" bg="#D1FAE5" />
                 <MetricCard label="AVERAGE OCR CONFIDENCE" value="99.4%" icon="ti-percentage" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="VERIFIED BY FINANCE" value={docs.length} icon="ti-shield-check" color="#8B5CF6" bg="#EDE9FE" />
               </div>
 
-              <TableContainer>
-                <DataTable
-                  data={docs}
-                  columns={uniqueColumns}
-                  rowKey="id"
-                  exportable={false}
-                  hideSearch={true}
-                />
-              </TableContainer>
+              {docs.length === 0 ? (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                  <i className="ti ti-file-check" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                  No unique documents found
+                </div>
+              ) : (
+                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No. / ID</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Uniqueness</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {docs.map((row: any) => (
+                          <tr
+                            key={row.id}
+                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
+                                {row.orInvoiceNumber || row.id}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                              {row.clientName || 'General Account'}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
+                              ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }}>
+                                99.4% Unique
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#64748B' }}>
+                              {row.transactionDate ? new Date(row.transactionDate).toLocaleDateString('en-PH') : '2026-10-14'}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ color: '#059669', fontWeight: 700, fontSize: 11, background: '#ECFDF5', padding: '3px 8px', borderRadius: 6, border: '1px solid #A7F3D0' }}>
+                                VERIFIED
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           );
         })()}
@@ -1527,21 +1346,67 @@ const ReportsContent: React.FC = () => {
 
           return (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div className="kpi-grid">
                 <MetricCard label="TOTAL REVIEWS LOGGED" value={history.length} icon="ti-history" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="VERIFIED UNIQUE" value={uniqueCount} icon="ti-check" color="#10B981" bg="#D1FAE5" />
                 <MetricCard label="CONFIRMED DUPLICATES" value={duplicateCount} icon="ti-copy" color="#EF4444" bg="#FEE2E2" />
               </div>
 
-              <TableContainer>
-                <DataTable
-                  data={history}
-                  columns={reviewHistoryColumns}
-                  rowKey="id"
-                  exportable={false}
-                  hideSearch={true}
-                />
-              </TableContainer>
+              {history.length === 0 ? (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                  <i className="ti ti-history" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                  No review history found
+                </div>
+              ) : (
+                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>History ID</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No.</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reviewer</th>
+                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decision</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((row: any) => (
+                          <tr
+                            key={row.id}
+                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                                #{row.historyId || row.id}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
+                              {row.documentNumber || row.id}
+                            </td>
+                            <td style={{ padding: '14px 18px', color: '#475569' }}>
+                              {row.clientName || 'General Account'}
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontWeight: 600, color: '#334155' }}>
+                                {row.reviewer || 'Gemini-Flash-2.0'}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#64748B', display: 'block' }}>
+                                {row.reviewerRole || 'Financial Manager'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                              <StatusBadge status={row.finalDecision} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           );
         })()}

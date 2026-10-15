@@ -180,13 +180,13 @@
 }
 
 .dt-filter-select {
-  height: 36px;
-  padding: 0 10px;
+  height: 42px;
+  padding: 0 16px;
   border: 1px solid var(--border, #E2E8F0);
   border-radius: 8px;
   background: #fff;
   color: var(--tp, #0F172A);
-  font-size: 13px;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: border-color 0.15s;
 }

@@ -246,7 +246,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   ];
 
   const formattedValue = value
-    ? new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: (variant === 'toolbar' || variant === 'filter') ? 'short' : 'long', day: 'numeric' })
     : '';
 
   const computedState = isOpen ? 'focused' : state;
@@ -255,7 +255,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
   return (
     <div 
-      className={`tf-group state-${computedState}`} 
+      className={`tf-group state-${computedState} ${variant === 'toolbar' ? 'tf-group--toolbar' : ''}`} 
       ref={containerRef} 
       style={{ 
         position: 'relative', 
@@ -265,7 +265,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
       <label 
         className="tf-label" 
         htmlFor={pickerId}
-        style={(variant === 'toolbar' || variant === 'filter') ? { fontSize: '0.75rem', fontWeight: 600, color: '#64748B', textTransform: 'none', letterSpacing: 'normal' } : undefined}
+        style={(variant === 'toolbar' || variant === 'filter') ? { fontSize: '0.82rem', fontWeight: 600, color: '#475569', textTransform: 'none', letterSpacing: 'normal', margin: 0, whiteSpace: 'nowrap' } : undefined}
       >
         {label}
         {required && <span className="tf-label-required"> *</span>}
@@ -274,12 +274,16 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         className="tf-wrapper tf-calendar-trigger"
         onClick={() => state !== 'disabled' && setIsOpen(!isOpen)}
         style={variant === 'toolbar' ? { 
-          padding: '5px 10px', 
-          borderRadius: 6, 
-          border: computedState === 'focused' ? '1px solid #00A99D' : '1px solid #E2E8F0', 
+          height: 38,
+          padding: '0 10px', 
+          display: 'flex',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          borderRadius: 8, 
+          border: computedState === 'focused' ? '1px solid #0D9488' : '1px solid #E2E8F0', 
           background: computedState === 'focused' ? '#fff' : '#F8FAFC', 
-          boxShadow: computedState === 'focused' ? '0 0 0 2px rgba(0,169,157,0.1)' : 'none',
-          minWidth: 130
+          boxShadow: computedState === 'focused' ? '0 0 0 2px rgba(13,148,136,0.1)' : 'none',
+          minWidth: 125
         } : variant === 'filter' ? {
           padding: '8px 12px',
           borderRadius: 8,

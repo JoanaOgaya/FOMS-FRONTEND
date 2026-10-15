@@ -288,6 +288,50 @@
   cursor: pointer;
 }
 
+/* Toolbar variant specific overrides */
+.tf-group--toolbar {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: auto !important;
+  margin: 0 !important;
+}
+
+.tf-group--toolbar .tf-label {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+}
+
+.tf-group--toolbar .tf-wrapper {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 0 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  border-radius: 8px !important;
+  min-width: 112px !important;
+}
+
+.tf-group--toolbar .tf-cal-icon {
+  left: 9px !important;
+}
+
+.tf-group--toolbar .tf-input.tf-cal-input {
+  padding: 0 0 0 22px !important;
+  font-size: 0.82rem !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  box-sizing: border-box !important;
+}
+
 
 /* ================================================================
    CALENDAR POPOVER

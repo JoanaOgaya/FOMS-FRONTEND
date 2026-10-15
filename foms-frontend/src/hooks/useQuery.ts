@@ -1,22 +1,44 @@
 /**
- * useQuery — minimal data-fetching hook with a shared cache.
- * Keys follow "<domain>:<params>" so `invalidateQueries('invoices')` refetches every invoices query.
+ * useQuery — Minimal reactive data-fetching hook with a shared query cache.
+ * Keys follow "<domain>:<params>" or query key factory outputs.
  * The cache is wiped on logout/user switch via `clearQueryCache()`.
+ * Refetches on window focus and reconnect when configured.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { queryConfig } from '../services/queryConfig';
 
 const cache = new Map<string, unknown>();
 const active = new Set<{ key: string; refetch: () => void }>();
 
-/** Refetch every mounted query whose key starts with one of the prefixes (all queries when none given). */
+/** Refetch every mounted query whose key matches or starts with one of the prefixes (all queries when none given). */
 export function invalidateQueries(...prefixes: string[]): void {
   active.forEach((q) => {
-    if (prefixes.length === 0 || prefixes.some((p) => q.key.startsWith(p))) q.refetch();
+    if (!q.key) return;
+    if (prefixes.length === 0 || prefixes.some((p) => {
+      if (p === '*') return true;
+      const lowerKey = q.key.toLowerCase();
+      const lowerP = p.toLowerCase();
+      if (lowerKey === lowerP || lowerKey.startsWith(lowerP)) return true;
+      if (lowerKey.startsWith(`${lowerP}:`)) return true;
+      if (lowerKey.includes(`:${lowerP}:`) || lowerKey.endsWith(`:${lowerP}`)) return true;
+      return false;
+    })) {
+      q.refetch();
+    }
   });
 }
 
 export function clearQueryCache(): void {
   cache.clear();
+}
+
+export function getCachedQuery<T>(key: string): T | undefined {
+  return cache.get(key) as T | undefined;
+}
+
+export function setCachedQuery<T>(key: string, data: T): void {
+  cache.set(key, data);
+  invalidateQueries(key);
 }
 
 export interface QueryResult<T> {
@@ -25,21 +47,48 @@ export interface QueryResult<T> {
   /** True only while there is no data yet. */
   isLoading: boolean;
   isFetching: boolean;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 }
 
-export function useQuery<T>(key: string, fetcher: () => Promise<T>, options: { enabled?: boolean } = {}): QueryResult<T> {
+// Window focus / visibility refetch listener (set up once globally)
+let isFocusListenerSetup = false;
+function setupWindowFocusListener() {
+  if (isFocusListenerSetup || typeof window === 'undefined') return;
+  isFocusListenerSetup = true;
+
+  const onFocus = () => {
+    if (queryConfig.refetchOnWindowFocus) {
+      invalidateQueries();
+    }
+  };
+
+  window.addEventListener('focus', onFocus);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && queryConfig.refetchOnWindowFocus) {
+      invalidateQueries();
+    }
+  });
+}
+
+export function useQuery<T>(
+  key: string | null | undefined,
+  fetcher: () => Promise<T>,
+  options: { enabled?: boolean; staleTime?: number } = {},
+): QueryResult<T> {
+  setupWindowFocusListener();
   const { enabled = true } = options;
+  const isEnabled = enabled && Boolean(key);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const seq = useRef(0);
   const [state, setState] = useState<{ data: T | undefined; error: Error | null; fetching: boolean }>(() => ({
-    data: cache.get(key) as T | undefined,
+    data: key ? (cache.get(key) as T | undefined) : undefined,
     error: null,
-    fetching: enabled,
+    fetching: isEnabled && !cache.has(key!),
   }));
 
   const run = useCallback(async () => {
+    if (!key) return;
     const id = ++seq.current;
     setState((s) => ({ ...s, fetching: true }));
     try {
@@ -54,7 +103,7 @@ export function useQuery<T>(key: string, fetcher: () => Promise<T>, options: { e
   }, [key]);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!isEnabled || !key) return undefined;
     setState({ data: cache.get(key) as T | undefined, error: null, fetching: true });
     void run();
     const entry = { key, refetch: () => void run() };
@@ -63,13 +112,13 @@ export function useQuery<T>(key: string, fetcher: () => Promise<T>, options: { e
       active.delete(entry);
       seq.current += 1;
     };
-  }, [key, enabled, run]);
+  }, [key, isEnabled, run]);
 
   return {
     data: state.data,
     error: state.error,
     isLoading: state.fetching && state.data === undefined,
     isFetching: state.fetching,
-    refetch: () => void run(),
+    refetch: run,
   };
 }

@@ -18,21 +18,23 @@ and machine-to-machine authentication.
 
 import logging
 from fastapi import Depends, HTTPException, Request, status
-from typing import List, Optional
+from typing import Optional
 
 from .jwt_validator import decode_and_validate
 from .service_auth import validate_service_token
+from app.constants.roles import Roles
 
 logger = logging.getLogger(__name__)
 
-# Valid FOMS roles — must match constants/roles.py
-_VALID_ROLES = {
-    "Finance Manager",
-    "Head Accountant",
-    "Accountant",
-    "Coordinator",
-    "Assistant of Finance Manager",
-    "Client",
+_ROLE_ALIASES = {
+    "financemanager": Roles.FINANCIAL_MANAGER.value,
+    "financialmanager": Roles.FINANCIAL_MANAGER.value,
+    "headaccountant": Roles.HEAD_ACCOUNTANT.value,
+    "accountant": Roles.ACCOUNTANT.value,
+    "coordinator": Roles.COORDINATOR.value,
+    "assistantoffinancemanager": Roles.ASSISTANT_OF_FINANCIAL_MANAGER.value,
+    "assistantoffinancialmanager": Roles.ASSISTANT_OF_FINANCIAL_MANAGER.value,
+    "client": Roles.CLIENT.value,
 }
 
 # Role-name variants used by the FOMS .NET API (dbo.Roles / JWT) and the AI gateway,
@@ -51,6 +53,23 @@ def normalize_role(role: Optional[str]) -> Optional[str]:
         return role
     role = role.strip()
     return _ROLE_ALIASES.get(role, role)
+
+
+def _canonical_role(role: object) -> Optional[str]:
+    if not isinstance(role, str):
+        return None
+    key = "".join(character.lower() for character in role if character.isalnum())
+    return _ROLE_ALIASES.get(key)
+
+
+def _canonicalize_identity(payload: dict) -> dict:
+    role = _canonical_role(payload.get("role"))
+    if role is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid role in authenticated identity.",
+        )
+    return {**payload, "role": role}
 
 
 def get_current_user(request: Request) -> dict:
@@ -73,7 +92,8 @@ def get_current_user(request: Request) -> dict:
     if forwarded_role and forwarded_username:
         # The gateway API-key middleware (main.py) already verified the
         # request came from the trusted gateway.  Accept forwarded identity.
-        if forwarded_role not in _VALID_ROLES:
+        role = _canonical_role(forwarded_role)
+        if role is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid role in forwarded identity.",
@@ -81,7 +101,7 @@ def get_current_user(request: Request) -> dict:
         return {
             "sub": forwarded_username,
             "name": forwarded_username,
-            "role": forwarded_role,
+            "role": role,
             "client_id": request.headers.get("X-Client-Id", ""),
             "account_type": request.headers.get("X-Account-Type", "Staff"),
             "pwd_version": request.headers.get("X-Password-Version", "2"),
@@ -112,14 +132,14 @@ def get_current_user(request: Request) -> dict:
         if header.get("alg") == "none":
             payload_b64 = token.split(".")[1]
             payload = json.loads(base64.urlsafe_b64decode(pad(payload_b64)).decode())
-            return {
+            return _canonicalize_identity({
                 "sub": payload.get("unique_name"),
                 "name": payload.get("unique_name"),
                 "role": payload.get("role"),
                 "client_id": payload.get("client_id", ""),
                 "account_type": payload.get("account_type", "Staff"),
                 "pwd_version": payload.get("password_version", "2")
-            }
+            })
     except Exception as mock_e:
         print(f"DEBUG MOCK DECODE ERROR: {mock_e}")
         pass
@@ -136,7 +156,7 @@ def get_current_user(request: Request) -> dict:
                 "traceId": request.headers.get("X-Trace-Id", ""),
             },
         )
-    return payload
+    return _canonicalize_identity(payload)
 
 
 def require_roles(*allowed_roles):

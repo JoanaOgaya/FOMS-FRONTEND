@@ -4,6 +4,7 @@ import Button from './Buttons';
 import { useToast } from './ToastContext';
 import { settlementsService } from '../services/settlementsService';
 import { useAuth } from '../context/AuthContext';
+import { invalidateForMutation } from '../services/invalidation';
 
 interface RecordSettlementModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({ isOpen, o
       cashCounted: activeTab === 'leftover' ? cashCounted : undefined,
       recordedBy: user?.fullName || '',
     }).then(() => {
+      invalidateForMutation('recordSettlement');
       triggerToast('success', 'Success', 'Settlement record sent to Finance Manager for validation.');
       onSuccess?.();
       onClose();

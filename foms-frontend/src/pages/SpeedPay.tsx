@@ -7,10 +7,11 @@ import { User, Lock, AlertCircle, Eye, EyeOff, Calendar } from 'lucide-react';
 import { invoicesService } from '../services/invoicesService';
 import { clientsService } from '../services/clientsService';
 import { speedpayService } from '../services/speedpayService';
+import { createPayMongoLink } from '../services/paymongoService';
 import { paymentsService } from '../services/paymentsService';
 import { useQuery } from '../hooks/useQuery';
 import { Invoice, Client, SpeedPaySubmission } from '../types/entities';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, formatBillingPeriod } from '../utils/format';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import './LoginPage.css';
 
@@ -296,47 +297,15 @@ export const SpeedPay: React.FC = () => {
     if (!selectedMethod || !foundInvoice) return;
     setIsProcessing(true);
     try {
-      const secretKey = import.meta.env.VITE_PAYMONGO_SECRET_KEY;
-      if (!secretKey) {
-        setIsProcessing(false);
-        setStep('upload');
-        toast.info('PayMongo API key not configured. Proceeding to upload proof directly.');
-        return;
-      }
-
       const amountInCents = Math.round(foundInvoice.totalAmount * 100);
       if (amountInCents < 10000) throw new Error(`Minimum amount is ₱100. Invoice total is ${formatCurrency(foundInvoice.totalAmount)}.`);
 
-      const response = await fetch('https://api.paymongo.com/v1/links', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${btoa(secretKey + ':')}`
-        },
-        body: JSON.stringify({
-          data: {
-            attributes: {
-              amount: amountInCents,
-              currency: 'PHP',
-              description: `Payment for ${foundInvoice.invoiceNumber}`,
-              remarks: `Client: ${loggedInClient?.name}`,
-            },
-          },
-        }),
-      });
-
-      const rawText = await response.text();
-      let data: any;
-      try { data = JSON.parse(rawText); } catch { throw new Error(`Server returned unexpected response.`); }
-
-      if (!response.ok || data.errors || data.error) {
-        throw new Error(data.errors?.[0]?.detail ?? data.error ?? `PayMongo error (HTTP ${response.status})`);
-      }
-
-      const checkoutUrl: string = data.data.attributes.checkout_url;
-      const refNum: string = data.data.attributes.reference_number;
-      setReferenceNumber(refNum);
+      const { checkoutUrl, referenceNumber } = await createPayMongoLink(
+        foundInvoice.invoiceNumber,
+        foundInvoice.totalAmount,
+        window.location.href,
+      );
+      setReferenceNumber(referenceNumber);
       window.open(checkoutUrl, '_blank');
       setIsProcessing(false);
       setStep('upload');
@@ -737,7 +706,7 @@ export const SpeedPay: React.FC = () => {
 
                       <div style={{ marginBottom: 28 }}>
                         <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4, fontWeight: 600 }}>Billing Period</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{foundInvoice.billingPeriod}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{formatBillingPeriod(foundInvoice.billingPeriod)}</div>
                       </div>
 
                       <div style={{ borderTop: '1px solid #E2E8F0', padding: '16px 0', display: 'flex', justifyContent: 'space-between' }}>
@@ -839,7 +808,7 @@ export const SpeedPay: React.FC = () => {
                 <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
                   {[
                     { label: 'Invoice No.', value: foundInvoice.invoiceNumber },
-                    { label: 'Billing Period', value: foundInvoice.billingPeriod },
+                    { label: 'Billing Period', value: formatBillingPeriod(foundInvoice.billingPeriod) },
                     { label: 'Base Amount', value: formatCurrency(foundInvoice.amount) },
                     { label: 'VAT (12%)', value: formatCurrency(foundInvoice.vatAmount) },
                     { label: 'Surcharge', value: formatCurrency(foundInvoice.surchargeAmount) },

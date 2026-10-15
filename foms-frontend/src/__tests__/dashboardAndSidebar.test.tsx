@@ -20,8 +20,8 @@ import type { DashboardAiAlert } from '../types/ai';
 function mockAuthUser(user: Partial<User> | null) {
   vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
     user: user ? ({
-      id: user.id || 'EMP-001',
-      employeeId: user.employeeId || user.id || 'EMP-001',
+      id: user.id || 'STAFF-001',
+      employeeId: user.employeeId || user.id || 'STAFF-001',
       fullName: user.fullName || 'Test User',
       email: user.email || 'test@speedex.com',
       role: user.role || ROLES.ACCOUNTANT,
@@ -68,6 +68,27 @@ const mockAlerts: DashboardAiAlert[] = [
 
 const server = setupServer(
   http.get(/.*\/ai\/dashboard\/alerts/, () => HttpResponse.json(mockAlerts)),
+  http.get(/.*\/financial-manager\/executive-dashboard/, () => HttpResponse.json({
+    success: true,
+    data: {
+      asOf: new Date().toISOString(),
+      period: 'monthly',
+      totalInvoicesBilled: 0,
+      totalInvoiceAmount: 0,
+      totalCollected: 0,
+      totalArOutstanding: 0,
+      collectionRate: 0,
+      cashInflowThisMonth: 0,
+      duplicateAlerts: 0,
+      accountsNearDueDate: 0,
+      cashFlowAnalytics: [],
+      agingBuckets: [],
+      topPayingClients: [],
+      nearDueAccounts: [],
+      recentActivity: [],
+      insights: [],
+    },
+  })),
   http.get(/.*\/dashboard\/nav-badges/, () => HttpResponse.json({})),
   http.get(/.*\/invoices/, () => HttpResponse.json({ items: [], total: 0 })),
   http.get(/.*\/shipment-records/, () => HttpResponse.json({ items: [], total: 0 })),
@@ -112,7 +133,7 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       // Verifies all other 19 Accountant modules remain accessible
       expect(allLabels).toContain('Dashboard');
       expect(allLabels).toContain('Client Accounts');
-      expect(allLabels).toContain('Create Invoice');
+      expect(allLabels).not.toContain('Create Invoice');
       expect(allLabels).toContain('Invoice List');
       expect(allLabels).toContain('Billing Validation');
       expect(allLabels).toContain('Accounts Receivable');
@@ -120,18 +141,18 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       expect(allLabels).toContain('SpeedPay Validation');
       expect(allLabels).toContain('Official Receipts');
       expect(allLabels).toContain('Settlements');
-      expect(allLabels).toContain('Record Settlement');
+      expect(allLabels).not.toContain('Record Settlement');
       expect(allLabels).toContain('Financial Adjustments');
       expect(allLabels).toContain('Duplicate Scan');
       expect(allLabels).toContain('Unique Documents');
       expect(allLabels).toContain('Flagged');
       expect(allLabels).toContain('Review History');
-      expect(allLabels).toContain('Document Extraction');
+      expect(allLabels).not.toContain('Document Extraction');
       expect(allLabels).toContain('Reports');
       expect(allLabels).toContain('AI Output History');
 
-      // Total nav items for Accountant must be exactly 19 (21 minus rates and waybills)
-      expect(allLabels).toHaveLength(19);
+      // Total nav items for Accountant is 16 (after removing Document Extraction and consolidating Record Settlement)
+      expect(allLabels).toHaveLength(16);
 
       // Render actual Sidebar component
       render(
@@ -142,8 +163,8 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
 
       expect(screen.queryByText('Rate Configuration')).toBeNull();
       expect(screen.queryByText('Waybills & POD')).toBeNull();
+      expect(screen.queryByText('Create Invoice')).toBeNull();
       expect(screen.getByText('Client Accounts')).toBeDefined();
-      expect(screen.getByText('Create Invoice')).toBeDefined();
     });
 
     it('Accountant typing /rate-configuration or /waybills receives 403 Forbidden', () => {
@@ -175,16 +196,16 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       expect(screen.queryByText('Waybills Content')).toBeNull();
     });
 
-    it('Financial Manager retains view access to Rate Configuration and Waybills & POD', () => {
+    it('Financial Manager sidebar has NO Rate Configuration and NO Waybills & POD', () => {
       mockAuthUser({ role: ROLES.FINANCIAL_MANAGER, fullName: 'Fiona Manager' });
 
       const groups = getNavGroups(ROLES.FINANCIAL_MANAGER);
       const allLabels = groups.flatMap((g) => g.items.map((i) => i.label));
 
-      expect(allLabels).toContain('Rate Configuration');
-      expect(allLabels).toContain('Waybills & POD');
-      expect(canAccessPath(ROLES.FINANCIAL_MANAGER, '/rate-configuration')).toBe(true);
-      expect(canAccessPath(ROLES.FINANCIAL_MANAGER, '/waybills')).toBe(true);
+      expect(allLabels).not.toContain('Rate Configuration');
+      expect(allLabels).not.toContain('Waybills & POD');
+      expect(canAccessPath(ROLES.FINANCIAL_MANAGER, '/rate-configuration')).toBe(false);
+      expect(canAccessPath(ROLES.FINANCIAL_MANAGER, '/waybills')).toBe(false);
     });
   });
 
@@ -200,7 +221,7 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
     ];
 
     rolesToTest.forEach(({ role, name }) => {
-      it(`renders sections in exact order for ${name}: Banner -> KPIs -> Needs your attention -> AI section last`, async () => {
+      it(`renders sections in exact order for ${name}`, async () => {
         mockAuthUser({ role, fullName: `${name} User` });
         vi.spyOn(collectionService, 'getDashboardAlerts').mockResolvedValue(mockAlerts);
 
@@ -210,28 +231,32 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
           </MemoryRouter>
         );
 
-        // Wait for AI section to load
-        await waitFor(() => {
-          expect(screen.getByText(/AI Financial Insights & Intelligence/i)).toBeDefined();
-        });
+        const finalSectionTitle = role === ROLES.FINANCIAL_MANAGER
+          ? /Live Financial & Workflow Alerts/i
+          : /AI Financial Insights & Intelligence/i;
+        await waitFor(() => expect(screen.getByText(finalSectionTitle)).toBeDefined());
 
         // 1. Banner heading
         const bannerElement = screen.getByRole('heading', { level: 2 });
         // 2. Needs your attention
         const attentionElement = screen.getByText(/Needs your attention/i);
-        // 3. AI Section (last)
-        const aiSectionElement = screen.getByText(/AI Financial Insights & Intelligence/i);
+        // 3. Role-specific alert section
+        const alertSectionElement = screen.getByText(finalSectionTitle);
 
         expect(bannerElement).toBeDefined();
         expect(attentionElement).toBeDefined();
-        expect(aiSectionElement).toBeDefined();
+        expect(alertSectionElement).toBeDefined();
 
         // Verify document order: Banner is before Needs your attention, which is before AI section
         const bannerBeforeAttention = bannerElement.compareDocumentPosition(attentionElement);
         expect(bannerBeforeAttention & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-        const attentionBeforeAi = attentionElement.compareDocumentPosition(aiSectionElement);
-        expect(attentionBeforeAi & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        const attentionBeforeAlerts = attentionElement.compareDocumentPosition(alertSectionElement);
+        expect(attentionBeforeAlerts & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        if (role === ROLES.FINANCIAL_MANAGER) {
+          expect(screen.queryByText(/AI Financial Insights & Intelligence/i)).toBeNull();
+          expect(screen.getByText(/No open financial or workflow alerts/i)).toBeDefined();
+        }
       });
     });
   });
@@ -345,10 +370,10 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
   // ──────────────────────────────────────────────────────────────────────────
   describe('Sidebar Badge Removal: All 4 Roles render 0 badges and all menu items intact', () => {
     const rolesToTest = [
-      { role: ROLES.ACCOUNTANT, name: 'Accountant', expectedItemCount: 19 },
-      { role: ROLES.HEAD_ACCOUNTANT, name: 'Head Accountant', expectedItemCount: 16 },
-      { role: ROLES.ASSISTANT_FM, name: 'Assistant FM', expectedItemCount: 9 },
-      { role: ROLES.FINANCIAL_MANAGER, name: 'Financial Manager', expectedItemCount: 22 },
+      { role: ROLES.ACCOUNTANT, name: 'Accountant', expectedItemCount: 16 },
+      { role: ROLES.HEAD_ACCOUNTANT, name: 'Head Accountant', expectedItemCount: 15 },
+      { role: ROLES.ASSISTANT_FM, name: 'Assistant FM', expectedItemCount: 8 },
+      { role: ROLES.FINANCIAL_MANAGER, name: 'Financial Manager', expectedItemCount: 19 },
     ];
 
     rolesToTest.forEach(({ role, name, expectedItemCount }) => {
@@ -417,4 +442,3 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
     });
   });
 });
-

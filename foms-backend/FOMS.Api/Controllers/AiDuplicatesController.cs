@@ -759,7 +759,7 @@ public class AiDuplicatesController : ApiControllerBase
 
         var fileNameLower = Path.GetFileNameWithoutExtension(file.FileName).ToLowerInvariant();
 
-        var rejectedKeywords = new[] { "selfie", "person", "human", "food", "cat", "dog", "animal", "pet", "scenery", "landscape", "nature", "wallpaper", "meme", "beach", "vacation", "trip", "family", "avatar", "profile", "id", "school", "pic", "random", "photo", "image", "screenshot", "quiz", "exam", "test", "homework", "assignment", "presentation", "slide", "grade" };
+        var rejectedKeywords = new[] { "selfie", "food", "animal", "pet", "scenery", "landscape", "nature", "wallpaper", "meme", "beach", "vacation" };
         var financeKeywords = new[] { "or", "receipt", "invoice", "inv", "billing", "bill", "soa", "statement", "payment", "pay", "liquidation", "voucher", "waybill", "wb", "pod", "speedpay" };
 
         bool hasFinanceMarker = financeKeywords.Any(k => fileNameLower.Contains(k));
@@ -829,11 +829,6 @@ public class AiDuplicatesController : ApiControllerBase
         {
         }
 
-        if (!hasFinanceMarker)
-        {
-            return (false, "INVALID_OR_UNRELATED_IMAGE", 0.95, "The uploaded image does not contain invoice, official receipt, payment, or billing fields.", "INVALID_OR_UNRELATED_IMAGE", null, null);
-        }
-
         string detectedType = fileNameLower.Contains("or") || fileNameLower.Contains("receipt") ? "OFFICIAL_RECEIPT" :
                               fileNameLower.Contains("bill") || fileNameLower.Contains("soa") || fileNameLower.Contains("statement") ? "BILLING_STATEMENT" :
                               fileNameLower.Contains("liquid") || fileNameLower.Contains("voucher") ? "LIQUIDATION_RECEIPT" :
@@ -844,7 +839,8 @@ public class AiDuplicatesController : ApiControllerBase
 
     [HttpPost("validate")]
     [HttpPost("/api/ai/documents/validate")]
-    public async Task<IActionResult> ValidateDocument([FromForm] IFormFile? file, [FromForm] IFormFile? document)
+    [HttpPost("/ai/documents/validate")]
+    public async Task<IActionResult> ValidateDocument(IFormFile? file, IFormFile? document)
     {
         IFormFile? targetFile = file ?? document;
         if (targetFile == null && Request.HasFormContentType && Request.Form.Files.Count > 0)
@@ -904,8 +900,8 @@ public class AiDuplicatesController : ApiControllerBase
     }
 
     [HttpPost("scan")]
-    [HttpPost("/api/ai/duplicates/scan")]
-    public async Task<IActionResult> ScanDocument([FromForm] IFormFile? file, [FromForm] IFormFile? document, [FromQuery] string? scope)
+    [HttpPost("/api/ai/documents/scan")]
+    public async Task<IActionResult> ScanDocument(IFormFile? file, IFormFile? document, [FromQuery] string? scope)
     {
         IFormFile? targetFile = file ?? document;
         if (targetFile == null && Request.HasFormContentType && Request.Form.Files.Count > 0)

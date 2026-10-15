@@ -187,3 +187,231 @@ export const DonutWidget: React.FC<{
     </Card>
   );
 };
+
+export interface AgingBarItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export const AgingBarWidget: React.FC<{
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  data: AgingBarItem[];
+  totalAmount?: number | string;
+  totalLabel?: string;
+  defaultChartType?: 'bar' | 'donut';
+}> = ({
+  title,
+  subtitle,
+  icon = 'ti-chart-bar',
+  data,
+  totalAmount,
+  totalLabel = 'TOTAL AR',
+  defaultChartType = 'bar'
+}) => {
+  const [chartType, setChartType] = useState<'bar' | 'donut'>(defaultChartType);
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const displayTotal = totalAmount !== undefined ? totalAmount : `₱${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+  const activeDonutData = data.filter(d => d.value > 0);
+
+  return (
+    <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 360 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>{title}</h3>
+          {subtitle && <p style={{ margin: '6px 0 0', fontSize: '0.8125rem', color: '#64748B', lineHeight: 1.4 }}>{subtitle}</p>}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Chart View Switcher */}
+          <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '8px', padding: '3px', gap: '2px' }}>
+            <button
+              type="button"
+              onClick={() => setChartType('bar')}
+              style={{
+                border: 'none',
+                background: chartType === 'bar' ? '#FFFFFF' : 'transparent',
+                color: chartType === 'bar' ? '#0F766E' : '#64748B',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                boxShadow: chartType === 'bar' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: '12px',
+                fontWeight: 600,
+                transition: 'all 0.15s ease'
+              }}
+              title="Bar Chart"
+            >
+              <i className="ti ti-chart-bar" style={{ fontSize: '14px' }} />
+              <span>Bar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartType('donut')}
+              style={{
+                border: 'none',
+                background: chartType === 'donut' ? '#FFFFFF' : 'transparent',
+                color: chartType === 'donut' ? '#0F766E' : '#64748B',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                boxShadow: chartType === 'donut' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: '12px',
+                fontWeight: 600,
+                transition: 'all 0.15s ease'
+              }}
+              title="Donut Chart"
+            >
+              <i className="ti ti-chart-pie" style={{ fontSize: '14px' }} />
+              <span>Donut</span>
+            </button>
+          </div>
+
+          {/* Total Badge */}
+          {displayTotal && (
+            <div style={{
+              background: '#F0FDFA',
+              border: '1px solid #CCFBF1',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{totalLabel}:</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0D9488' }}>{displayTotal}</span>
+            </div>
+          )}
+
+          {icon && (
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: '8px',
+              background: '#F0FDFA',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#0D9488'
+            }}>
+              <i className={`ti ${icon}`} style={{ fontSize: '1.15rem' }} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Chart Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        {chartType === 'bar' ? (
+          <div style={{ width: '100%', height: 230, marginTop: 6 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 15, right: 15, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: '#64748B', fontWeight: 600 }}
+                  dy={8}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#94A3B8', fontWeight: 500 }}
+                  tickFormatter={(val) => `₱${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`}
+                  width={60}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(241, 245, 249, 0.6)', radius: 6 }}
+                  contentStyle={{
+                    borderRadius: '10px',
+                    border: 'none',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    padding: '10px 14px',
+                    background: '#FFFFFF'
+                  }}
+                  formatter={(value: any) => [
+                    `₱${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    'Outstanding Balance'
+                  ]}
+                  labelStyle={{ fontWeight: 700, color: '#0F172A', marginBottom: 4 }}
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                  {data.map((entry, index) => (
+                    <Cell key={`bar-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', width: 180, height: 180, margin: '20px auto' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={activeDonutData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={65}
+                  outerRadius={85}
+                  paddingAngle={4}
+                  dataKey="value"
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  {activeDonutData.map((entry, index) => (
+                    <Cell key={`donut-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  itemStyle={{ fontSize: '13px', fontWeight: 600 }}
+                  formatter={(value: any) => [
+                    `₱${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    'Outstanding Balance'
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', textAlign: 'center', padding: '0 8px' }}>
+              <span style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A', lineHeight: 1.1 }}>{displayTotal}</span>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{totalLabel}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Breakdown Legend Strip */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px 20px',
+          marginTop: 16,
+          paddingTop: 16,
+          borderTop: '1px solid #F1F5F9'
+        }}>
+          {data.map(item => (
+            <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
+              <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>{item.name}:</span>
+              <span style={{ fontSize: '12.5px', color: item.value > 0 ? '#0F172A' : '#94A3B8', fontWeight: item.value > 0 ? 700 : 500 }}>
+                ₱{item.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+};
+

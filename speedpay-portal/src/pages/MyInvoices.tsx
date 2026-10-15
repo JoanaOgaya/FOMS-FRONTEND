@@ -124,38 +124,16 @@ export const MyInvoices: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceNo: payInvoice.invoiceNumber, amount: payInvoice.amount, paymentMethod: 'qrph', returnUrl: window.location.origin + '/invoices' })
       });
-      if (fomsRes.ok) {
-        const d = await fomsRes.json();
-        setReferenceNo(d?.referenceOrNumber || d?.payMongoCheckoutId || `PAY-${Math.floor(1000000 + Math.random() * 9000000)}`);
-        setShowCheckoutModal(true);
-        setCheckoutStep(2);
-        return;
+      const data = await fomsRes.json();
+      if (!fomsRes.ok || !data?.checkoutUrl) {
+        throw new Error(data?.message || 'Unable to start the payment checkout.');
       }
-    } catch (_) {}
-    try {
-      const response = await fetch('/api/paymongo-link', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: { attributes: { amount: Math.round(payInvoice.amount * 100), description: `Payment for Invoice ${payInvoice.invoiceNumber}`, remarks: payInvoice.id } } })
-      });
-      const data = await response.json();
-      if (response.ok && data?.data?.attributes?.checkout_url) {
-        window.open(data.data.attributes.checkout_url, '_blank');
-        setReferenceNo(data.data.id || `PAY-${Math.floor(1000000 + Math.random() * 9000000)}`);
-        setShowCheckoutModal(true);
-        setCheckoutStep(3);
-      } else {
-        toast.info('PayMongo API key not found. Opening PayMongo demo page for testing.', 'Demo Mode');
-        window.open('https://developers.paymongo.com/docs/testing', '_blank');
-        setReferenceNo('');
-        setShowCheckoutModal(true);
-        setCheckoutStep(3);
-      }
-    } catch (_) {
-      toast.info('PayMongo API key not found. Opening PayMongo demo page for testing.', 'Demo Mode');
-      window.open('https://developers.paymongo.com/docs/testing', '_blank');
-      setReferenceNo('');
+
+      setReferenceNo(data.referenceOrNumber || data.payMongoCheckoutId || '');
       setShowCheckoutModal(true);
-      setCheckoutStep(3);
+      setCheckoutStep(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to start the payment checkout.', 'Payment Error');
     } finally {
       setIsLoading(false);
     }

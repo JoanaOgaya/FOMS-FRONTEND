@@ -117,10 +117,10 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = () => {
   const todayNotifications = useMemo(() => sortedFiltered.filter(n => n.isToday), [sortedFiltered]);
   const earlierNotifications = useMemo(() => sortedFiltered.filter(n => !n.isToday), [sortedFiltered]);
 
-  // Derive title and subtitle from the active route via the role-access config
-  const { title: currentTitle, subtitle: currentSubtitle } = useMemo(() => {
+  // Derive the title from the active route via the role-access config
+  const currentTitle = useMemo(() => {
     const m = getModuleForPath(location.pathname);
-    return m ? { title: moduleLabel(m, user?.role), subtitle: m.group } : { title: '', subtitle: '' };
+    return m ? moduleLabel(m, user?.role) : '';
   }, [location.pathname, user?.role]);
 
   // Derive profile display info from the user record
@@ -187,12 +187,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = () => {
             </button>
           )}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              <span>{profileRole}</span>
-              <ChevronRight size={12} strokeWidth={3} />
-              <span style={{ color: '#0F172A' }}>{currentTitle}</span>
-            </span>
-            <h1 className="header-title" style={{ margin: '2px 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+            <h1 className="header-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
               {currentTitle}
             </h1>
           </div>

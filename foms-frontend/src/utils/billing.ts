@@ -29,9 +29,13 @@ export interface FreightBreakdown {
   volumeWeight: number;
   chargeableWeight: number;
   weightBasis: 'Actual Weight' | 'Volume Weight';
+  minimumWeight: number;
   minimumRate: number;
   excessRate: number;
   excessKgs: number;
+  valuationRate: number;
+  vatRate: number;
+  fuelSurchargeRate: number;
   freightCost: number;
   declaredValue: number;
   valuation: number;        // declaredValue × valuationRate
@@ -108,6 +112,10 @@ export function computeFreightCost(waybill: any, clientRates: BillingRate[]): Fr
     actualWeight = parseFloat(waybill.itemWeight.replace(/[^0-9.]/g, '')) || 0;
   } else if (typeof waybill.itemWeight === 'number') {
     actualWeight = waybill.itemWeight;
+  } else if (typeof waybill.chargeableWeight === 'number') {
+    actualWeight = waybill.chargeableWeight;
+  } else if (typeof waybill.actualWeight === 'number') {
+    actualWeight = waybill.actualWeight;
   }
 
   // ── Compute volume weight: L × W × H × boxes / 3500 ─────────────────
@@ -157,9 +165,13 @@ export function computeFreightCost(waybill: any, clientRates: BillingRate[]): Fr
     volumeWeight,
     chargeableWeight,
     weightBasis,
+    minimumWeight: rateConfig.minimumWeight,
     minimumRate: rateConfig.minimumRate,
     excessRate: rateConfig.excessRate,
     excessKgs,
+    valuationRate: rateConfig.valuationRate ?? 0.01,
+    vatRate: rateConfig.vatRate ?? 0.12,
+    fuelSurchargeRate: rateConfig.fuelSurchargeRate ?? 0.15,
     freightCost,
     declaredValue,
     valuation,

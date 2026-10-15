@@ -41,32 +41,34 @@ export const DashboardBanner: React.FC<BannerProps> = ({ eyebrow, title, subtitl
       <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{title}</h2>
       {subtitle && <p style={{ margin: '6px 0 0', fontSize: '0.9rem', opacity: 0.85 }}>{subtitle}</p>}
     </div>
-    <div style={{ display: 'flex', gap: 10, position: 'relative', flexShrink: 0 }}>
-      {secondaryCta && (
-        <button
-          onClick={secondaryCta.onClick}
-          style={{
-            background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)',
-            padding: '10px 16px', borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-          }}
-        >
-          {secondaryCta.label}
-        </button>
-      )}
-      {cta && (
-        <button
-          onClick={cta.onClick}
-          style={{
-            background: '#fff', color: '#0F172A', border: 'none', padding: '10px 18px', borderRadius: 10,
-            fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}
-        >
-          {cta.icon && <i className={`ti ${cta.icon}`} style={{ fontSize: 16 }} />}
-          {cta.label}
-        </button>
-      )}
-    </div>
+    {(cta || secondaryCta) && (
+      <div style={{ display: 'flex', gap: 10, position: 'relative', flexShrink: 0 }}>
+        {secondaryCta && (
+          <button
+            onClick={secondaryCta.onClick}
+            style={{
+              background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)',
+              padding: '10px 16px', borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            {secondaryCta.label}
+          </button>
+        )}
+        {cta && (
+          <button
+            onClick={cta.onClick}
+            style={{
+              background: '#fff', color: '#0F172A', border: 'none', padding: '10px 18px', borderRadius: 10,
+              fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}
+          >
+            {cta.icon && <i className={`ti ${cta.icon}`} style={{ fontSize: 16 }} />}
+            {cta.label}
+          </button>
+        )}
+      </div>
+    )}
   </div>
 );
 

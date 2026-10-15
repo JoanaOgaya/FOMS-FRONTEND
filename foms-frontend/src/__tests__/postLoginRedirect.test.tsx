@@ -14,7 +14,7 @@ import { LANDING_PATH, DEFAULT_LANDING_ROUTE } from '../utils/roleAccess';
 
 // ── MSW Mock Server ─────────────────────────────────────────────────────────
 let currentApiUser = {
-  id: 'EMP-001',
+  id: 'STAFF-001',
   fullName: 'Alex Accountant',
   role: 'Accountant',
   email: 'alex@speedex.com',
@@ -116,7 +116,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
   rolesToTest.forEach(({ role, roleStr, name }) => {
     it(`Fresh login for ${name} (${role}) lands on /dashboard`, async () => {
       currentApiUser = {
-        id: `EMP-${role}`,
+        id: `STAFF-${role}`,
         fullName: name,
         role: roleStr,
         email: `${role.toLowerCase()}@speedex.com`,
@@ -130,7 +130,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
       // Fill and submit login form
       fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), {
-        target: { value: `EMP-${role}` },
+        target: { value: `STAFF-${role}` },
       });
       fireEvent.change(screen.getByPlaceholderText(/Enter Password/i), {
         target: { value: 'Secret123!' },
@@ -147,7 +147,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
   it('Login after requesting /for-review while logged out returns to /for-review for Head Accountant', async () => {
     currentApiUser = {
-      id: 'EMP-HA',
+      id: 'STAFF-HA',
       fullName: 'Hannah Head',
       role: 'Head Accountant',
       email: 'hannah@speedex.com',
@@ -162,7 +162,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
     // Sign in as Head Accountant
     fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), {
-      target: { value: 'EMP-HA' },
+      target: { value: 'STAFF-HA' },
     });
     fireEvent.change(screen.getByPlaceholderText(/Enter Password/i), {
       target: { value: 'Secret123!' },
@@ -177,7 +177,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
   it('Login after requesting /for-review while logged out shows 403 Forbidden for Accountant', async () => {
     currentApiUser = {
-      id: 'EMP-ACC',
+      id: 'STAFF-ACC',
       fullName: 'Alex Accountant',
       role: 'Accountant',
       email: 'alex@speedex.com',
@@ -192,7 +192,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
     // Sign in as Accountant
     fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), {
-      target: { value: 'EMP-ACC' },
+      target: { value: 'STAFF-ACC' },
     });
     fireEvent.change(screen.getByPlaceholderText(/Enter Password/i), {
       target: { value: 'Secret123!' },
@@ -216,7 +216,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
   it('Logging out from /for-review and logging in as another role lands on /dashboard (not previous user page)', async () => {
     // Step 1: Head Accountant logs in and visits /for-review
     currentApiUser = {
-      id: 'EMP-HA',
+      id: 'STAFF-HA',
       fullName: 'Hannah Head',
       role: 'Head Accountant',
       email: 'hannah@speedex.com',
@@ -228,7 +228,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
       expect(screen.getByPlaceholderText(/Enter Employee ID/i)).toBeDefined();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), { target: { value: 'EMP-HA' } });
+    fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), { target: { value: 'STAFF-HA' } });
     fireEvent.change(screen.getByPlaceholderText(/Enter Password/i), { target: { value: 'Secret123!' } });
     fireEvent.click(screen.getByRole('button', { name: /Sign In to FOMS/i }));
 
@@ -245,13 +245,13 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
 
     // Step 3: Switch user to Accountant and perform fresh login
     currentApiUser = {
-      id: 'EMP-ACC',
+      id: 'STAFF-ACC',
       fullName: 'Alex Accountant',
       role: 'Accountant',
       email: 'alex@speedex.com',
     };
 
-    fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), { target: { value: 'EMP-ACC' } });
+    fireEvent.change(screen.getByPlaceholderText(/Enter Employee ID/i), { target: { value: 'STAFF-ACC' } });
     fireEvent.change(screen.getByPlaceholderText(/Enter Password/i), { target: { value: 'Secret123!' } });
     fireEvent.click(screen.getByRole('button', { name: /Sign In to FOMS/i }));
 
@@ -267,7 +267,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
     // Authenticated session
     session.set({ accessToken: 'valid-token' });
     currentApiUser = {
-      id: 'EMP-HA',
+      id: 'STAFF-HA',
       fullName: 'Hannah Head',
       role: 'Head Accountant',
       email: 'hannah@speedex.com',

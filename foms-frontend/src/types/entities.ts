@@ -11,18 +11,22 @@ export { Role, ROLES } from './auth';
 
 export interface Client {
   id: string;
+  clientId?: string;
   clientCode?: string;
-  businessName?: string;
   name: string;
+  businessName?: string;
+  rateType?: string;
   contactPerson: string;
   email: string;
   phone: string;
   address: string;
+  creditLimit?: number;
+  tin?: string | null;
+  archived?: boolean;
   region: 'Luzon' | 'Visayas' | 'Mindanao' | 'Metro Manila';
   serviceArea?: string;
   billingSchedule: 'Monthly' | 'Semi-monthly' | 'Weekly';
   status: 'Active' | 'Inactive';
-  tin?: string;
   vatStatus: 'VATable' | 'Non-VATable';
   vatRate: number | null;
   createdAt: string;
@@ -92,6 +96,8 @@ export interface Waybill {
   encodedBy: string;
   encodedAt: string;
   destinationArea?: string;
+  clientId?: string;
+  clientName?: string;
   
   // Verification features
   pod_image_url?: string;
@@ -120,6 +126,8 @@ export interface Waybill {
   specialInstructions?: string;
   declaredValue?: number;
   isODA?: boolean; // Outside Delivery Area
+  actualWeight?: number;
+  chargeableWeight?: number;
 }
 
 
@@ -389,6 +397,7 @@ export interface CashFlowRecord {
   sourceReference: string;
   date: string;
   recordedBy: string;
+  category?: string;
 }
 
 
@@ -499,6 +508,42 @@ export interface DashboardSummary {
   statusTrend: { period: string; validated: number; pending: number; returned: number }[];
   duplicateDistribution: { label: string; value: number }[];
   recentActivity: AuditLog[];
+}
+
+export interface FinanceManagerDashboardSummary {
+  asOf: string;
+  period: 'weekly' | 'monthly';
+  clientId?: string;
+  totalInvoicesBilled: number;
+  totalInvoiceAmount: number;
+  totalCollected: number;
+  totalArOutstanding: number;
+  collectionRate: number;
+  cashInflowThisMonth: number;
+  duplicateAlerts: number;
+  accountsNearDueDate: number;
+  cashFlowAnalytics: { period: string; inflow: number; outflow: number; net: number }[];
+  agingBuckets: { label: string; value: number }[];
+  topPayingClients: { clientId: string; clientName: string; amount: number }[];
+  nearDueAccounts: {
+    clientId: string;
+    clientName: string;
+    invoiceNumber: string;
+    amountDue: number;
+    dueDate: string;
+    daysRemaining: number;
+  }[];
+  recentActivity: AuditLog[];
+  insights: {
+    id: string;
+    type: 'collection' | 'duplicate' | 'liquidation';
+    title: string;
+    message: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    entityId?: string;
+    targetRoute: string;
+    createdAt: string;
+  }[];
 }
 
 /** Sidebar badge counts keyed by module key (e.g. { invoiceReview: 4 }). */

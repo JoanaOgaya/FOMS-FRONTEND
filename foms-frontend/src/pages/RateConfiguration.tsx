@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../components/Buttons';
 import { DataTable } from '../components/DataTable';
@@ -7,8 +7,11 @@ import { ClientInfoCard } from '../components/ClientInfoCard';
 import { Card } from '../components/Card';
 import { useToast } from '../components/ToastContext';
 import { useQuery } from '../hooks/useQuery';
+import { useApiMutation } from '../hooks/useApiMutation';
+import { queryKeys } from '../services/queryKeys';
 import { ratesService } from '../services/ratesService';
 import { clientsService } from '../services/clientsService';
+import { getApiStatus, getRecordErrorMessage } from '../utils/apiErrors';
 import type { BillingRate, Client } from '../types/entities';
 
 export const RateConfiguration: React.FC = () => {
@@ -17,7 +20,7 @@ export const RateConfiguration: React.FC = () => {
   const selectedClientId = id;
   const { toast } = useToast();
 
-  const { data: ratesData, refetch: refetchRates } = useQuery('rates', () => ratesService.list({ pageSize: 100 }));
+  const { data: ratesData, refetch: refetchRates } = useQuery(queryKeys.rates.list({ pageSize: 100 }), () => ratesService.list({ pageSize: 100 }));
   const { data: clientsData } = useQuery('clients', () => clientsService.list({ pageSize: 100 }));
 
   const billingRates: BillingRate[] = ratesData?.items || [];
@@ -26,7 +29,27 @@ export const RateConfiguration: React.FC = () => {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<Partial<BillingRate>>({});
+  const [originalModalData, setOriginalModalData] = useState<Partial<BillingRate> | null>(null);
+  const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const rateDetailQuery = useQuery(
+    selectedRateId ? queryKeys.rates.detail(selectedRateId) : null,
+    () => ratesService.get(selectedRateId!),
+  );
+  const updateRateMutation = useApiMutation(
+    (rateId: string, payload: Partial<BillingRate>) => ratesService.update(rateId, payload),
+    { mutation: 'updateRate' },
+  );
+  const isRateDirty = Boolean(originalModalData && JSON.stringify(modalData) !== JSON.stringify(originalModalData));
+  const regionOptions = Array.from(new Set(billingRates.map(rate => rate.region).filter(Boolean)));
+
+  useEffect(() => {
+    if (isModalOpen && selectedRateId && rateDetailQuery.data) {
+      setModalData(rateDetailQuery.data);
+      setOriginalModalData(rateDetailQuery.data);
+    }
+  }, [isModalOpen, selectedRateId, rateDetailQuery.data]);
 
   // Combine Rates with Client Data for the top-level list
   let groupedClients: any[] = [];
@@ -66,12 +89,14 @@ export const RateConfiguration: React.FC = () => {
   const openModal = (rate?: BillingRate) => {
     setFormError(null);
     if (rate) {
+      setSelectedRateId(rate.id);
       setModalData(rate);
+      setOriginalModalData(rate);
     } else {
+      setSelectedRateId(null);
       const client = clients.find((c: Client) => c.id === selectedClientId);
-      setModalData({
+      const initialData: Partial<BillingRate> = {
         clientId: selectedClientId,
-        region: 'NCR',
         minimumWeight: 5,
         minimumRate: 100,
         excessRate: 25,
@@ -79,35 +104,45 @@ export const RateConfiguration: React.FC = () => {
         fuelSurchargeRate: 0.15,
         vatRate: client?.vatRate || 0.12,
         effectiveDate: new Date().toISOString().split('T')[0],
-        status: 'Active'
-      });
+      };
+      if (regionOptions.length === 1) initialData.region = regionOptions[0];
+      setModalData(initialData);
+      setOriginalModalData(initialData);
     }
     setIsModalOpen(true);
   };
 
   const handleSaveRate = async () => {
-    if (modalData.minimumRate === undefined || modalData.minimumRate < 0) {
-      setFormError('Minimum Rate must be a valid positive number.');
+    if (isSaving) return;
+    if (!modalData.region || (!regionOptions.includes(modalData.region) && modalData.region !== originalModalData?.region)) {
+      setFormError('A service area option returned by the API is required.');
       return;
     }
-    if (modalData.excessRate === undefined || modalData.excessRate < 0) {
-      setFormError('Excess Rate must be a valid positive number.');
+    if (![modalData.minimumWeight, modalData.minimumRate, modalData.excessRate].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
+      setFormError('Minimum weight, minimum rate, and excess rate must be valid non-negative numbers.');
       return;
     }
 
+    setIsSaving(true);
+    setFormError(null);
     try {
       const isExisting = billingRates.some((r: BillingRate) => r.id === modalData.id);
       if (isExisting && modalData.id) {
-        await ratesService.update(modalData.id, modalData);
+        await updateRateMutation.mutateAsync(modalData.id, modalData);
         toast.success('Billing Rate updated successfully.');
       } else {
         await ratesService.create(modalData);
+        await refetchRates();
         toast.success('New Billing Rate created successfully.');
       }
-      refetchRates();
       setIsModalOpen(false);
-    } catch {
-      toast.error('Failed to save rate configuration.');
+    } catch (error: unknown) {
+      setFormError(getRecordErrorMessage(error));
+      if (getApiStatus(error) === 409 && selectedRateId) {
+        await rateDetailQuery.refetch();
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -187,9 +222,20 @@ export const RateConfiguration: React.FC = () => {
                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0F172A' }}>
                   {billingRates.some((r: BillingRate) => r.id === modalData.id) ? 'Edit Client Billing Rate' : 'Add Client Billing Rate'}
                 </h2>
-                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: 20, color: '#64748B' }} onClick={() => setIsModalOpen(false)} />
+                <i className="ti ti-x" role="button" aria-label="Close billing rate editor" style={{ cursor: 'pointer', fontSize: 20, color: '#64748B' }} onClick={() => {
+                  if (!isRateDirty || window.confirm('Discard changes?')) setIsModalOpen(false);
+                }} />
               </div>
 
+              {selectedRateId && rateDetailQuery.isLoading && (
+                <div role="status" style={{ color: '#64748B', marginBottom: 12 }}>Refreshing billing rate details…</div>
+              )}
+              {selectedRateId && rateDetailQuery.error && (
+                <div role="alert" style={{ color: '#B91C1C', marginBottom: 12 }}>
+                  {getRecordErrorMessage(rateDetailQuery.error)}
+                  <Button variant="secondary" onClick={() => void rateDetailQuery.refetch()} title="Retry loading" />
+                </div>
+              )}
               {formError && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '12px', borderRadius: 8, fontSize: '0.85rem', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <i className="ti ti-alert-circle" style={{ fontSize: 16 }} />
@@ -201,16 +247,19 @@ export const RateConfiguration: React.FC = () => {
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: 6 }}>Service Area / Destination</label>
                   <select
-                    value={modalData.region || 'NCR'}
-                    onChange={e => setModalData({ ...modalData, region: e.target.value as any })}
+                    value={modalData.region || ''}
+                    onChange={e => setModalData({ ...modalData, region: e.target.value as BillingRate['region'] })}
                     style={inputStyle}
                   >
-                    <option value="NCR">NCR / Metro Manila</option>
-                    <option value="Luzon">Luzon</option>
-                    <option value="Visayas">Visayas</option>
-                    <option value="Mindanao">Mindanao</option>
-                    <option value="ODA">Outside Delivery Area (ODA)</option>
+                    <option value="">Select service area</option>
+                    {modalData.region && !regionOptions.includes(modalData.region) && (
+                      <option value={modalData.region}>{modalData.region} (not in current options)</option>
+                    )}
+                    {regionOptions.map(option => <option key={option} value={option}>{option}</option>)}
                   </select>
+                  {modalData.region && !regionOptions.includes(modalData.region) && (
+                    <span style={{ color: '#92400E', fontSize: '0.75rem' }}>This saved service area is not in the current API options.</span>
+                  )}
                 </div>
 
                 <div>
@@ -245,8 +294,10 @@ export const RateConfiguration: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-                <Button variant="secondary" onClick={() => setIsModalOpen(false)} title="Cancel" />
-                <Button variant="primary" onClick={handleSaveRate} title="Save Rate Configuration" />
+                <Button variant="secondary" onClick={() => {
+                  if (!isRateDirty || window.confirm('Discard changes?')) setIsModalOpen(false);
+                }} title="Cancel" />
+                <Button variant="primary" onClick={handleSaveRate} title="Save Rate Configuration" disabled={isSaving || (Boolean(selectedRateId) && !isRateDirty)} loading={isSaving} />
               </div>
             </div>
           </div>
@@ -259,7 +310,7 @@ export const RateConfiguration: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <TableContainer>
         <DataTable
-          title="Client Billing Configurations"
+          title=""
           data={groupedClients}
           columns={tableColumns}
           rowKey="id"

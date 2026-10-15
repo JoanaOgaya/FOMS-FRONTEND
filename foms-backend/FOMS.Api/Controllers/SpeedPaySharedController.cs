@@ -306,7 +306,11 @@ public class SpeedPaySharedController : ControllerBase
         var amount = req.Amount > 0 ? req.Amount : (invoice?.TotalAmount ?? 25000m);
         var clientId = invoice?.ClientId ?? 1;
 
-        var secretKey = _configuration["PayMongo:SecretKey"] ?? "sk_test_fyNzfY2nbwdhfgUcoMmWoZJq";
+        var secretKey = _configuration["PayMongo:SecretKey"];
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            return StatusCode(503, new { success = false, message = "Payment provider is not configured." });
+        }
         var returnUrl = req.ReturnUrl ?? "http://localhost:5174/pay-invoice";
         var successUrl = returnUrl.Contains("?") ? $"{returnUrl}&status=success" : $"{returnUrl}?status=success";
         var cancelUrl = returnUrl.Contains("?") ? $"{returnUrl}&status=cancelled" : $"{returnUrl}?status=cancelled";
@@ -352,22 +356,28 @@ public class SpeedPaySharedController : ControllerBase
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(sessionPayload), System.Text.Encoding.UTF8, "application/json");
             var response = await client.PostAsync("https://api.paymongo.com/v1/checkout_sessions", content);
 
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                var json = await response.Content.ReadAsStringAsync();
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                var data = doc.RootElement.GetProperty("data");
-                checkoutId = data.GetProperty("id").GetString() ?? checkoutId;
-                checkoutUrl = data.GetProperty("attributes").GetProperty("checkout_url").GetString() ?? successUrl;
+                return StatusCode(502, new { success = false, message = "Payment provider could not create a checkout session." });
             }
-            else
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var data = doc.RootElement.GetProperty("data");
+            checkoutId = data.GetProperty("id").GetString() ?? checkoutId;
+            checkoutUrl = data.GetProperty("attributes").GetProperty("checkout_url").GetString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(checkoutUrl))
             {
-                checkoutUrl = $"https://checkout.paymongo.com/{checkoutId}";
+                return StatusCode(502, new { success = false, message = "Payment provider returned incomplete checkout details." });
             }
         }
-        catch
+        catch (HttpRequestException)
         {
-            checkoutUrl = $"https://checkout.paymongo.com/{checkoutId}";
+            return StatusCode(503, new { success = false, message = "Payment provider is unavailable." });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return StatusCode(502, new { success = false, message = "Payment provider returned an invalid response." });
         }
 
         // Record pending payment in Payments table

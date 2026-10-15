@@ -231,7 +231,7 @@ export const AccountantDashboard: React.FC = () => {
         secondaryCta={{ label: 'Record Payment', onClick: () => navigate('/payments') }}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div className="kpi-grid">
         <KpiCard label="Ready to Bill" value={readyToBill.length} icon="ti-package" variant="new"
           trend={{ type: 'neutral', value: 'Waybills' }} periodText="validated, no invoice yet" onClick={() => navigate('/invoice-create')} />
         <KpiCard label="My Drafts" value={drafts.length} icon="ti-pencil" variant="info"

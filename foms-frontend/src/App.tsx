@@ -40,6 +40,7 @@ import ReviewHistory from './pages/ReviewHistory';
 import ForReview from './pages/ForReview';
 import Reports from './pages/Reports';
 import { AuditLogs } from './pages/AuditLogs';
+import DocumentExtraction from './pages/DocumentExtraction';
 import AIOutputHistory from './pages/AIOutputHistory';
 
 const PAGES: Record<ModuleKey, React.ComponentType> = {
@@ -64,6 +65,7 @@ const PAGES: Record<ModuleKey, React.ComponentType> = {
   uniqueDocuments: UniqueDocuments,
   flaggedDuplicates: FlaggedDuplicates,
   reviewHistory: ReviewHistory,
+  documentExtraction: DocumentExtraction,
   forReview: ForReview,
   reports: Reports,
   auditLogs: AuditLogs,

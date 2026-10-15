@@ -23,6 +23,14 @@ public class FinancialManagerBackendIntegrationTests
         return new FomsDbContext(options);
     }
 
+    private ApplicationDbContext CreateApplicationInMemoryDbContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
     private ClaimsPrincipal CreateFinancialManagerPrincipal(string employeeNumber = "EMP-001")
     {
         var claims = new[]
@@ -517,12 +525,34 @@ public class FinancialManagerBackendIntegrationTests
     public void TC023_CheckNoMockData_ShouldConfirmMockDataDisabled()
     {
         using var db = CreateInMemoryDbContext();
-        var controller = new DatabaseHealthController(db);
+        using var applicationDb = CreateApplicationInMemoryDbContext();
+        var controller = new DatabaseHealthController(db, applicationDb);
         var root = ToJsonElement(controller.CheckNoMockData());
 
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.False(root.GetProperty("mockDataEnabled").GetBoolean());
         Assert.False(root.GetProperty("seedDataFallbackEnabled").GetBoolean());
-        Assert.Equal("FOMS_DB", root.GetProperty("database").GetString());
+        Assert.Equal("InMemory", root.GetProperty("database").GetString());
+    }
+
+    [Fact]
+    public async Task CheckFinancialManagerAccess_UsesApplicationEmployeeSchema()
+    {
+        using var legacyDb = CreateInMemoryDbContext();
+        using var applicationDb = CreateApplicationInMemoryDbContext();
+        applicationDb.Employees.Add(new FOMS.Domain.Entities.Employee
+        {
+            Username = "EMP-001",
+            Role = "Finance Manager",
+            IsActive = true
+        });
+        await applicationDb.SaveChangesAsync();
+
+        var controller = new DatabaseHealthController(legacyDb, applicationDb);
+        var root = ToJsonElement(await controller.CheckFinancialManagerAccess());
+
+        Assert.True(root.GetProperty("canAccessFinancialManager").GetBoolean());
+        Assert.Equal("Finance Manager", root.GetProperty("role").GetString());
+        Assert.Equal("InMemory", root.GetProperty("database").GetString());
     }
 }

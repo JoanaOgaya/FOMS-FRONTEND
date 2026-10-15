@@ -26,15 +26,15 @@ pgdata/
 mongodata/
 
 # Local configuration and secret files
-.env
-.env.local
-.env.*
-.env.development
-.env.production
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 appsettings.Development.json
 appsettings.Production.json
+appsettings.Local.json
 secrets.json
+**/*service-account*.json
+**/*service_account*.json
 *.key
 *.pem
 *.pfx

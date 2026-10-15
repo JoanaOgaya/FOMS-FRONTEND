@@ -8,11 +8,15 @@ namespace FOMS.Api.Controllers;
 [Route("api/health")]
 public class DatabaseHealthController : ControllerBase
 {
-    private readonly FomsDbContext _dbContext;
+    private readonly FomsDbContext _legacyDbContext;
+    private readonly ApplicationDbContext _applicationDbContext;
 
-    public DatabaseHealthController(FomsDbContext dbContext)
+    public DatabaseHealthController(
+        FomsDbContext legacyDbContext,
+        ApplicationDbContext applicationDbContext)
     {
-        _dbContext = dbContext;
+        _legacyDbContext = legacyDbContext;
+        _applicationDbContext = applicationDbContext;
     }
 
     [HttpGet("database")]
@@ -20,37 +24,45 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            var canConnect = await _dbContext.Database.CanConnectAsync();
-            if (canConnect)
+            var legacyCanConnect = await _legacyDbContext.Database.CanConnectAsync();
+            var applicationCanConnect = await _applicationDbContext.Database.CanConnectAsync();
+            var legacyDatabase = GetDatabaseName(_legacyDbContext);
+            var applicationDatabase = GetDatabaseName(_applicationDbContext);
+            var sameDatabase = string.Equals(
+                legacyDatabase,
+                applicationDatabase,
+                StringComparison.OrdinalIgnoreCase);
+
+            var response = new
             {
-                return Ok(new
+                success = legacyCanConnect && applicationCanConnect,
+                database = applicationDatabase,
+                provider = _applicationDbContext.Database.ProviderName,
+                status = legacyCanConnect && applicationCanConnect ? "Connected" : "Connection Failed",
+                sameDatabase,
+                contexts = new
                 {
-                    success = true,
-                    database = "FOMS_DB",
-                    provider = "Microsoft SQL Server",
-                    server = @"localhost\SQLEXPRESS",
-                    status = "Connected"
-                });
-            }
-            else
-            {
-                return StatusCode(503, new
-                {
-                    success = false,
-                    database = "FOMS_DB",
-                    provider = "Microsoft SQL Server",
-                    status = "Connection Failed",
-                    message = @"Could not establish connection to localhost\SQLEXPRESS database FOMS_DB."
-                });
-            }
+                    application = new
+                    {
+                        database = applicationDatabase,
+                        connected = applicationCanConnect
+                    },
+                    legacy = new
+                    {
+                        database = legacyDatabase,
+                        connected = legacyCanConnect
+                    }
+                },
+                message = (string?)null
+            };
+
+            return response.success ? Ok(response) : StatusCode(503, response);
         }
         catch (Exception ex)
         {
             return StatusCode(500, new
             {
                 success = false,
-                database = "FOMS_DB",
-                provider = "Microsoft SQL Server",
                 status = "Connection Failed",
                 message = ex.Message
             });
@@ -62,22 +74,21 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            var user = await _dbContext.Users
+            var user = await _applicationDbContext.Employees
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.EmployeeNumber == "EMP-001");
+                .FirstOrDefaultAsync(u => u.Username == "EMP-001");
 
-            var role = user != null ? await _dbContext.Roles.FindAsync(user.RoleId) : null;
-            var isFm = (role != null && (role.RoleName == "Financial Manager" || role.RoleName == "Finance Manager"))
-                       || (user != null && user.RoleId == 1);
+            var isFm = user != null
+                && (user.Role == "Financial Manager" || user.Role == "Finance Manager");
 
             return Ok(new
             {
                 success = true,
                 employeeNumber = "EMP-001",
-                role = role?.RoleName ?? "Financial Manager",
-                isActive = user?.IsActive ?? true,
-                canAccessFinancialManager = isFm && (user?.IsActive ?? true),
-                database = "FOMS_DB"
+                role = user?.Role ?? "Unknown",
+                isActive = user?.IsActive ?? false,
+                canAccessFinancialManager = isFm && user?.IsActive == true,
+                database = GetDatabaseName(_applicationDbContext)
             });
         }
         catch (Exception ex)
@@ -95,22 +106,21 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            var user = await _dbContext.Users
+            var user = await _applicationDbContext.Employees
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.EmployeeNumber == "EMP-002");
+                .FirstOrDefaultAsync(u => u.Username == "EMP-002");
 
-            var role = user != null ? await _dbContext.Roles.FindAsync(user.RoleId) : null;
-            var isHa = (role != null && (role.RoleName == "Head Accountant" || role.RoleName == "HeadAccountant"))
-                       || (user != null && user.RoleId == 2);
+            var isHa = user != null
+                && (user.Role == "Head Accountant" || user.Role == "HeadAccountant");
 
             return Ok(new
             {
                 success = true,
                 employeeNumber = "EMP-002",
-                role = role?.RoleName ?? "Head Accountant",
-                isActive = user?.IsActive ?? true,
-                canAccessHeadAccountant = isHa && (user?.IsActive ?? true),
-                database = "FOMS_DB"
+                role = user?.Role ?? "Unknown",
+                isActive = user?.IsActive ?? false,
+                canAccessHeadAccountant = isHa && user?.IsActive == true,
+                database = GetDatabaseName(_applicationDbContext)
             });
         }
         catch (Exception ex)
@@ -128,22 +138,20 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            var user = await _dbContext.Users
+            var user = await _applicationDbContext.Employees
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.EmployeeNumber == "EMP-003");
+                .FirstOrDefaultAsync(u => u.Username == "EMP-003");
 
-            var role = user != null ? await _dbContext.Roles.FindAsync(user.RoleId) : null;
-            var isAcc = (role != null && role.RoleName == "Accountant")
-                        || (user != null && user.RoleId == 3);
+            var isAcc = user != null && user.Role == "Accountant";
 
             return Ok(new
             {
                 success = true,
                 employeeNumber = "EMP-003",
-                role = role?.RoleName ?? "Accountant",
-                isActive = user?.IsActive ?? true,
-                canAccessAccountant = isAcc && (user?.IsActive ?? true),
-                database = "FOMS_DB"
+                role = user?.Role ?? "Unknown",
+                isActive = user?.IsActive ?? false,
+                canAccessAccountant = isAcc && user?.IsActive == true,
+                database = GetDatabaseName(_applicationDbContext)
             });
         }
         catch (Exception ex)
@@ -161,22 +169,21 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            var user = await _dbContext.Users
+            var user = await _applicationDbContext.Employees
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.EmployeeNumber == "EMP-004");
+                .FirstOrDefaultAsync(u => u.Username == "EMP-004");
 
-            var role = user != null ? await _dbContext.Roles.FindAsync(user.RoleId) : null;
-            var isAfm = (role != null && (role.RoleName == "Assistant of Financial Manager" || role.RoleName == "Assistant Finance Manager"))
-                        || (user != null && user.RoleId == 4);
+            var isAfm = user != null
+                && (user.Role == "Assistant of Financial Manager" || user.Role == "Assistant Finance Manager");
 
             return Ok(new
             {
                 success = true,
                 employeeNumber = "EMP-004",
-                role = role?.RoleName ?? "Assistant of Financial Manager",
-                isActive = user?.IsActive ?? true,
-                canAccessAssistantFinanceManager = isAfm && (user?.IsActive ?? true),
-                database = "FOMS_DB"
+                role = user?.Role ?? "Unknown",
+                isActive = user?.IsActive ?? false,
+                canAccessAssistantFinanceManager = isAfm && user?.IsActive == true,
+                database = GetDatabaseName(_applicationDbContext)
             });
         }
         catch (Exception ex)
@@ -195,10 +202,16 @@ public class DatabaseHealthController : ControllerBase
         return Ok(new
         {
             success = true,
-            database = "FOMS_DB",
-            server = @"localhost\SQLEXPRESS",
+            database = GetDatabaseName(_legacyDbContext),
             mockDataEnabled = false,
             seedDataFallbackEnabled = false
         });
+    }
+
+    private static string GetDatabaseName(DbContext dbContext)
+    {
+        return dbContext.Database.IsRelational()
+            ? dbContext.Database.GetDbConnection().Database
+            : "InMemory";
     }
 }

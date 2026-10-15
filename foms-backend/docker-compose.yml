@@ -3,18 +3,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: foms_api
     ports:
       - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__FomsSqlServer=Server=host.docker.internal\\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;
-      - ConnectionStrings__DefaultConnection=Server=host.docker.internal\\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;
-      - JwtSettings__Secret=${JWT_SECRET:-FOMS_Capstone_JWT_SecureKey_2026!!}
+      - ConnectionStrings__FomsSqlServer=${ConnectionStrings__FomsSqlServer:?Set ConnectionStrings__FomsSqlServer in the .env file}
+      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection:?Set ConnectionStrings__DefaultConnection in the .env file}
+      - JwtSettings__Secret=${JWT_SECRET:?Set JWT_SECRET in the .env file}
       - JwtSettings__Issuer=FOMS.Api
       - JwtSettings__Audience=FOMS.Api
-      - PayMongo__SecretKey=${PAYMONGO_SECRET_KEY:-sk_test_fyNzfY2nbwdhfgUcoMmWoZJq}
+      - PayMongo__SecretKey=${PAYMONGO_SECRET_KEY:?Set PAYMONGO_SECRET_KEY in the .env file}
+      - PayMongo__WebhookSecret=${PAYMONGO_WEBHOOK_SECRET:?Set PAYMONGO_WEBHOOK_SECRET in the .env file}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
