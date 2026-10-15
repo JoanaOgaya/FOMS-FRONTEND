@@ -43,30 +43,75 @@ public class AdjustmentsController : ApiControllerBase
         return Ok(mapped);
     }
 
+    public class CreateAdjustmentDto
+    {
+        public string? InvoiceNo { get; set; }
+        public string? AffectedRecordId { get; set; }
+        public string? AdjustmentType { get; set; }
+        public string? Type { get; set; }
+        public decimal Amount { get; set; }
+        public string? Reason { get; set; }
+        public string? ReferenceNo { get; set; }
+        public string? ClientId { get; set; }
+        public string? AdjustedBy { get; set; }
+        public string? ApprovedBy { get; set; }
+    }
+
     /// <summary>
-    /// POST /api/v1/adjustments â€” Create a new pending adjustment request.
+    /// POST /api/v1/adjustments — Create a new pending adjustment request.
     /// Bookkeepers submit; Accountants also allowed to create.
     /// </summary>
     [Authorize]
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] AdjustmentFeatures.CreateAdjustmentCommand command)
+    public async Task<IActionResult> Create([FromBody] CreateAdjustmentDto dto)
     {
         var user = User.FindFirst("name")?.Value ?? User.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown User";
-        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+        var invoiceNo = !string.IsNullOrWhiteSpace(dto.InvoiceNo) ? dto.InvoiceNo : (dto.AffectedRecordId ?? string.Empty);
+        var rawType = !string.IsNullOrWhiteSpace(dto.AdjustmentType) ? dto.AdjustmentType : (dto.Type ?? "Credit");
 
-        // If Bookkeeper, override AdjustedBy with the current user
-        // If Accountant creating the adjustment, they are also the AdjustedBy
-        var updatedCommand = command with { AdjustedBy = user };
+        var command = new AdjustmentFeatures.CreateAdjustmentCommand(
+            InvoiceNo: invoiceNo,
+            AdjustmentType: rawType,
+            Amount: dto.Amount,
+            Reason: dto.Reason ?? string.Empty,
+            AdjustedBy: user,
+            ApprovedBy: dto.ApprovedBy ?? string.Empty
+        );
 
         try
         {
-            var result = await Mediator.Send(updatedCommand);
+            var result = await Mediator.Send(command);
             if (result == null)
-                return NotFound(new { message = "Invoice not found. Please check the invoice number." });
+                return NotFound(new { message = $"Invoice '{invoiceNo}' not found. Please check the invoice number." });
 
-            return Ok(result);
+            var response = new
+            {
+                id = result.Id,
+                type = result.AdjustmentType == "Credit" ? "Credit Memo" : "Adjustment",
+                amount = result.Amount,
+                reason = result.Reason,
+                referenceNo = !string.IsNullOrEmpty(dto.ReferenceNo) ? dto.ReferenceNo : result.Id,
+                status = result.Status == "Pending" ? "Pending Approval" : result.Status,
+                affectedRecordId = result.InvoiceNo,
+                clientId = dto.ClientId ?? "CA-001",
+                createdAt = result.DateRequested,
+                createdBy = result.AdjustedBy,
+                remarks = result.Reason
+            };
+
+            return Ok(response);
+        }
+        catch (FOMS.Application.Exceptions.ValidationException valEx)
+        {
+            var msg = string.Join("; ", valEx.Errors.SelectMany(e => e.Value));
+            if (string.IsNullOrWhiteSpace(msg)) msg = valEx.Message;
+            return BadRequest(new { message = msg, errors = valEx.Errors });
         }
         catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
         }

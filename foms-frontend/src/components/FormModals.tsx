@@ -141,6 +141,7 @@ export interface CalendarPickerProps {
   required?: boolean;
   id?: string;
   disablePastDates?: boolean;
+  disableFutureDates?: boolean;
   minDate?: string;
   maxDate?: string;
   variant?: 'default' | 'toolbar' | 'filter';
@@ -156,6 +157,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   required = false,
   id: customId,
   disablePastDates = false,
+  disableFutureDates = false,
   minDate,
   maxDate,
   variant = 'default',
@@ -167,6 +169,15 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   const reactId = useId();
   const pickerId = customId || reactId;
   const hintId = `${pickerId}-hint`;
+
+  const now = new Date();
+  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  todayDate.setHours(0, 0, 0, 0);
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const effectiveMaxDate = disableFutureDates
+    ? (maxDate && maxDate < todayStr ? maxDate : todayStr)
+    : maxDate;
 
   useEffect(() => {
     if (value) {
@@ -185,23 +196,20 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   }, []);
 
   const handleDaySelect = (day: number) => {
-    // If it's a disabled date, block selection
-    if (disablePastDates) {
-      const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const todayDate = new Date();
-      todayDate.setHours(0,0,0,0);
-      d.setHours(0,0,0,0);
-      if (d < todayDate) return;
-    }
-
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    d.setHours(0, 0, 0, 0);
+
+    // If it's a disabled date, block selection
+    if (disablePastDates && d < todayDate) return;
+    if (disableFutureDates && d > todayDate) return;
+
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
 
     if (minDate && dateStr < minDate) return;
-    if (maxDate && dateStr > maxDate) return;
+    if (effectiveMaxDate && dateStr > effectiveMaxDate) return;
 
     onChange(dateStr);
     setIsOpen(false);
@@ -212,13 +220,13 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
     if (minDate) {
       const minD = new Date(minDate);
       minD.setDate(1);
-      minD.setHours(0,0,0,0);
+      minD.setHours(0, 0, 0, 0);
       if (targetDate < minD) return;
     }
-    if (maxDate) {
-      const maxD = new Date(maxDate);
+    if (effectiveMaxDate) {
+      const maxD = new Date(effectiveMaxDate);
       maxD.setDate(1);
-      maxD.setHours(0,0,0,0);
+      maxD.setHours(0, 0, 0, 0);
       if (targetDate > maxD) return;
     }
     setCurrentDate(targetDate);
@@ -347,8 +355,8 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
                     if (year === parseInt(minParts[0], 10) && idx < parseInt(minParts[1], 10) - 1) disabled = true;
                     if (year < parseInt(minParts[0], 10)) disabled = true;
                   }
-                  if (maxDate) {
-                    const maxParts = maxDate.split('-');
+                  if (effectiveMaxDate) {
+                    const maxParts = effectiveMaxDate.split('-');
                     if (year === parseInt(maxParts[0], 10) && idx > parseInt(maxParts[1], 10) - 1) disabled = true;
                     if (year > parseInt(maxParts[0], 10)) disabled = true;
                   }
@@ -375,19 +383,34 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
                   outline: 'none'
                 }}
               >
-                {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i)
-                  .filter(y => y >= 2024 && y <= new Date().getFullYear())
+                {Array.from({ length: 25 }, (_, i) => new Date().getFullYear() - 10 + i)
                   .filter(y => {
-                    if (minDate && y < parseInt(minDate.split('-')[0], 10)) return false;
-                    if (maxDate && y > parseInt(maxDate.split('-')[0], 10)) return false;
-                    return true;
+                    const currentYear = new Date().getFullYear();
+                    const retentionMinYear = currentYear - 5;
+                    const effectiveMinYear = minDate ? parseInt(minDate.split('-')[0], 10) : retentionMinYear;
+                    const effectiveMaxYear = effectiveMaxDate ? parseInt(effectiveMaxDate.split('-')[0], 10) : (currentYear + 1);
+                    return y >= effectiveMinYear && y <= effectiveMaxYear;
                   })
                   .map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </div>
-            <button type="button" className="cal-nav-btn" onClick={() => navMonth(1)}><ChevronRight size={15} /></button>
+            <button
+              type="button"
+              className="cal-nav-btn"
+              onClick={() => navMonth(1)}
+              style={(() => {
+                if (!effectiveMaxDate) return undefined;
+                const nextMonth = new Date(year, month + 1, 1);
+                const maxD = new Date(effectiveMaxDate);
+                maxD.setDate(1);
+                maxD.setHours(0, 0, 0, 0);
+                return nextMonth > maxD ? { opacity: 0.3, cursor: 'not-allowed', pointerEvents: 'none' } : undefined;
+              })()}
+            >
+              <ChevronRight size={15} />
+            </button>
           </div>
           <div className="cal-weekdays">
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
@@ -399,9 +422,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
               if (day === null) return <div key={`e-${idx}`} className="cal-day empty" />;
               
               const d = new Date(year, month, day);
-              const todayDate = new Date();
-              todayDate.setHours(0,0,0,0);
-              d.setHours(0,0,0,0);
+              d.setHours(0, 0, 0, 0);
 
               const yyyy = d.getFullYear();
               const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -409,7 +430,12 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
               const dateStr = `${yyyy}-${mm}-${dd}`;
 
               const isPast = d < todayDate;
-              const isDisabled = (disablePastDates && isPast) || (minDate && dateStr < minDate) || (maxDate && dateStr > maxDate);
+              const isFuture = d > todayDate;
+              const isDisabled = 
+                (disablePastDates && isPast) || 
+                (disableFutureDates && isFuture) || 
+                (minDate && dateStr < minDate) || 
+                (effectiveMaxDate && dateStr > effectiveMaxDate);
 
               const isSel = value && new Date(value).getDate() === day &&
                             new Date(value).getMonth() === month &&

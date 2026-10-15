@@ -63,6 +63,42 @@ public static class AdjustmentFeatures
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
+            // Clean up any legacy GUID records into clean ADJ-00x records
+            var guidRecords = await _context.PaymentAdjustments
+                .Where(a => a.Id.Length > 15 && a.Id.Contains("-"))
+                .ToListAsync(cancellationToken);
+
+            if (guidRecords.Count > 0)
+            {
+                int nextNum = 3;
+                foreach (var g in guidRecords)
+                {
+                    var cleanId = $"ADJ-{nextNum:D3}";
+                    while (await _context.PaymentAdjustments.AnyAsync(x => x.Id == cleanId, cancellationToken))
+                    {
+                        nextNum++;
+                        cleanId = $"ADJ-{nextNum:D3}";
+                    }
+
+                    _context.PaymentAdjustments.Remove(g);
+                    _context.PaymentAdjustments.Add(new PaymentAdjustment
+                    {
+                        Id = cleanId,
+                        InvoiceNo = g.InvoiceNo,
+                        AdjustmentType = g.AdjustmentType,
+                        Amount = g.Amount,
+                        Reason = g.Reason,
+                        AdjustedBy = g.AdjustedBy,
+                        ApprovedBy = g.ApprovedBy,
+                        DateRequested = g.DateRequested,
+                        DateApproved = g.DateApproved,
+                        Status = g.Status
+                    });
+                    nextNum++;
+                }
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
             // Return newest first so the list is always up-to-date on screen
             return await _context.PaymentAdjustments
                 .OrderByDescending(a => a.DateRequested)
@@ -76,11 +112,11 @@ public static class AdjustmentFeatures
     // ─────────────────────────────────────────────────────────────────
     public record CreateAdjustmentCommand(
         string InvoiceNo,
-        string AdjustmentType,   // "Credit" | "Debit" | "Write-Off"
+        string AdjustmentType,   // "Credit" | "Debit" | "Write-Off" | "Credit Memo" | "Adjustment"
         decimal Amount,
         string Reason,
-        string AdjustedBy,       // Bookkeeper who submits the request
-        string ApprovedBy        // Accountant name (pre-filled; stored for reference)
+        string AdjustedBy = "",  // Submitter
+        string ApprovedBy = ""   // Approver (if pre-assigned)
     ) : IRequest<PaymentAdjustment?>;
 
     public class CreateAdjustmentCommandHandler : IRequestHandler<CreateAdjustmentCommand, PaymentAdjustment?>
@@ -98,27 +134,43 @@ public static class AdjustmentFeatures
             if (request.Amount <= 0m)
                 throw new InvalidOperationException("Adjustment amount must be greater than zero.");
 
-            // Validate adjustment type
+            // Normalize and validate adjustment type
+            var rawType = (request.AdjustmentType ?? "Credit").Trim();
+            var normalizedType = rawType.Equals("Credit Memo", StringComparison.OrdinalIgnoreCase) ? "Credit" :
+                                 rawType.Equals("Adjustment", StringComparison.OrdinalIgnoreCase) ? "Debit" :
+                                 rawType;
+
             var validTypes = new[] { "Credit", "Debit", "Write-Off" };
-            if (!validTypes.Contains(request.AdjustmentType, StringComparer.OrdinalIgnoreCase))
+            if (!validTypes.Contains(normalizedType, StringComparer.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Invalid adjustment type '{request.AdjustmentType}'. Allowed types: Credit, Debit, Write-Off.");
 
-            // Find the invoice
+            // Find the invoice (match by InvoiceNo or Id)
             var invoice = await _context.Invoices
-                .FirstOrDefaultAsync(i => i.InvoiceNo == request.InvoiceNo, cancellationToken);
+                .FirstOrDefaultAsync(i => i.InvoiceNo == request.InvoiceNo || i.Id == request.InvoiceNo, cancellationToken);
             if (invoice == null)
                 return null;
 
-            // Guard: Credit / Write-Off cannot exceed the current invoice balance
-            var adjTypeLower = request.AdjustmentType.ToLower();
-            if ((adjTypeLower == "credit" || adjTypeLower == "write-off") && request.Amount > invoice.Balance)
+            // Guard: Credit / Write-Off cannot exceed the current invoice balance / total amount
+            var adjTypeLower = normalizedType.ToLower();
+            var maxAllowable = invoice.Balance > 0 ? invoice.Balance : (invoice.TotalAmount > 0 ? invoice.TotalAmount : 0);
+            if ((adjTypeLower == "credit" || adjTypeLower == "write-off") && maxAllowable > 0 && request.Amount > maxAllowable)
                 throw new InvalidOperationException(
-                    $"Adjustment amount ({request.Amount:N2}) cannot exceed the current invoice balance ({invoice.Balance:N2}).");
+                    $"Adjustment amount (₱{request.Amount:N2}) cannot exceed the invoice amount (₱{maxAllowable:N2}).");
+
+            // Generate clean sequential ID: ADJ-001, ADJ-002, ADJ-003...
+            var count = await _context.PaymentAdjustments.CountAsync(cancellationToken);
+            var nextId = $"ADJ-{(count + 1):D3}";
+            while (await _context.PaymentAdjustments.AnyAsync(a => a.Id == nextId, cancellationToken))
+            {
+                count++;
+                nextId = $"ADJ-{(count + 1):D3}";
+            }
 
             var adjustment = new PaymentAdjustment
             {
-                InvoiceNo    = request.InvoiceNo,
-                AdjustmentType = request.AdjustmentType,
+                Id           = nextId,
+                InvoiceNo    = invoice.InvoiceNo,
+                AdjustmentType = normalizedType,
                 Amount       = request.Amount,
                 Reason       = request.Reason,
                 AdjustedBy   = request.AdjustedBy,

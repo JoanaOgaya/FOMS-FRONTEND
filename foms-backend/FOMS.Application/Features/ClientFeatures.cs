@@ -51,9 +51,30 @@ public static class ClientFeatures
 
         public async Task<Client> Handle(CreateClientCommand request, CancellationToken cancellationToken)
         {
+            var code = request.ClientCode;
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                var name = (request.Name ?? "").ToLowerInvariant();
+                string prefix = "CLI";
+                if (name.Contains("lazada")) prefix = "LZD";
+                else if (name.Contains("shopee")) prefix = "SHP";
+                else if (name.Contains("tiktok")) prefix = "TKT";
+                else if (name.Contains("zalora")) prefix = "ZAL";
+                else if (name.Contains("test")) prefix = "TST";
+                else if (!string.IsNullOrWhiteSpace(request.Name))
+                {
+                    var cleanLetters = new string(request.Name.Where(char.IsLetter).ToArray());
+                    prefix = cleanLetters.Length >= 3 ? cleanLetters[..3].ToUpperInvariant() : "CLI";
+                }
+
+                var count = await _context.Clients.CountAsync(c => c.ClientCode.StartsWith(prefix), cancellationToken);
+                code = $"{prefix}-{(count + 1):D3}";
+            }
+
             var client = new Client
             {
-                ClientCode = request.ClientCode,
+                Id = code,
+                ClientCode = code,
                 Name = request.Name,
                 BusinessName = request.BusinessName,
                 ContactPerson = request.ContactPerson,

@@ -206,14 +206,14 @@ public class UpdateInvoiceCommandValidator : AbstractValidator<InvoiceFeatures.U
 // ─────────────────────────────────────────────────────────────────────────────
 public class CreateAdjustmentCommandValidator : AbstractValidator<AdjustmentFeatures.CreateAdjustmentCommand>
 {
-    private static readonly string[] AllowedTypes = new[] { "Credit", "Debit", "Write-Off" };
+    private static readonly string[] AllowedTypes = new[] { "Credit", "Debit", "Write-Off", "Credit Memo", "Adjustment" };
 
     public CreateAdjustmentCommandValidator(IApplicationDbContext context)
     {
         RuleFor(x => x.InvoiceNo)
             .NotEmpty().WithMessage("Invoice is required.")
             .MustAsync(async (invNo, cancellationToken) =>
-                await context.Invoices.AnyAsync(i => i.InvoiceNo == invNo, cancellationToken))
+                await context.Invoices.AnyAsync(i => i.InvoiceNo == invNo || i.Id == invNo, cancellationToken))
             .WithMessage("Invoice does not exist.");
 
         RuleFor(x => x.Amount)
@@ -222,7 +222,7 @@ public class CreateAdjustmentCommandValidator : AbstractValidator<AdjustmentFeat
         RuleFor(x => x.AdjustmentType)
             .NotEmpty().WithMessage("Adjustment type is required.")
             .Must(type => AllowedTypes.Any(t => t.Equals(type, StringComparison.OrdinalIgnoreCase)))
-            .WithMessage("Invalid adjustment type. Allowed types: Credit, Debit, Write-Off.");
+            .WithMessage("Invalid adjustment type. Allowed types: Credit, Debit, Write-Off, Credit Memo, Adjustment.");
 
         RuleFor(x => x.Reason)
             .NotEmpty().WithMessage("Reason is required.")
@@ -231,9 +231,7 @@ public class CreateAdjustmentCommandValidator : AbstractValidator<AdjustmentFeat
             .Must(ValidationHelpers.NotContainHtml).WithMessage("Reason contains invalid characters.");
 
         RuleFor(x => x.AdjustedBy)
-            .NotEmpty().WithMessage("Adjusted by is required.")
-            .MaximumLength(100).WithMessage("Adjusted by cannot exceed 100 characters.")
-            .Must(ValidationHelpers.NotContainHtml).WithMessage("Adjusted by contains invalid characters.");
+            .MaximumLength(100).WithMessage("Adjusted by cannot exceed 100 characters.");
     }
 }
 

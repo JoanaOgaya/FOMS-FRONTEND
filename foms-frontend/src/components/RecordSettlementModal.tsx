@@ -8,9 +8,10 @@ import { useAuth } from '../context/AuthContext';
 interface RecordSettlementModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({ isOpen, onClose }) => {
+const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { triggerToast } = useToast();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'leftover' | 'overspending'>('leftover');
@@ -46,6 +47,7 @@ const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({ isOpen, o
       recordedBy: user?.fullName || '',
     }).then(() => {
       triggerToast('success', 'Success', 'Settlement record sent to Finance Manager for validation.');
+      onSuccess?.();
       onClose();
     }).catch((err) => {
       triggerToast('error', 'Error', err.message || 'Failed to submit settlement.');

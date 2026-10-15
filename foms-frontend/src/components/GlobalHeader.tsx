@@ -132,6 +132,23 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = () => {
     location.pathname.split('/').filter(Boolean).length > 1 || 
     location.search.length > 0;
 
+  const handleBack = () => {
+    // If there is an active search/query param on current route, clear it first
+    if (location.search) {
+      navigate(location.pathname, { replace: true });
+      return;
+    }
+
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (segments.length > 1) {
+      // Navigate to parent route (e.g. /receipts/CA-001 -> /receipts)
+      const parentPath = '/' + segments.slice(0, -1).join('/');
+      navigate(parentPath);
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <header className="site-header" style={{ position: 'sticky' }}>
       <nav className="nav-bar">
@@ -139,7 +156,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {isChildRoute && (
             <button
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               style={{
                 width: '36px',
                 height: '36px',

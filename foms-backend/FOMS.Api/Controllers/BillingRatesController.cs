@@ -51,8 +51,8 @@ public class BillingRatesController : ControllerBase
             {
                 _fomsDb.Clients.AddRange(new List<FOMS.Domain.Entities.SqlServer.Client>
                 {
-                    new() { ClientId = 1, ClientCode = "CA-001", CompanyName = "Lazada Philippines", ContactPerson = "John Doe", ContactNumber = "09171234567", Email = "contact@lazada.com", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new() { ClientId = 2, ClientCode = "CA-002", CompanyName = "Shopee Philippines", ContactPerson = "Jane Smith", ContactNumber = "09179876543", Email = "contact@shopee.com", IsActive = true, CreatedAt = DateTime.UtcNow }
+                    new() { ClientId = 1, ClientCode = "LZD-001", CompanyName = "Lazada Philippines", ContactPerson = "John Doe", ContactNumber = "09171234567", Email = "contact@lazada.com", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new() { ClientId = 2, ClientCode = "SHP-001", CompanyName = "Shopee Philippines", ContactPerson = "Jane Smith", ContactNumber = "09179876543", Email = "contact@shopee.com", IsActive = true, CreatedAt = DateTime.UtcNow }
                 });
                 await _fomsDb.SaveChangesAsync();
             }
@@ -90,12 +90,12 @@ public class BillingRatesController : ControllerBase
         var items = rates.Select(r =>
         {
             var c = clients.FirstOrDefault(cl => cl.ClientId == r.ClientId);
-            string clientCode = c?.ClientCode ?? (r.ClientId == 1 ? "CA-001" : r.ClientId == 2 ? "CA-002" : r.ClientId.ToString());
+            string clientCode = c?.ClientCode ?? (r.ClientId == 1 ? "LZD-001" : r.ClientId == 2 ? "SHP-001" : r.ClientId.ToString());
             return new
             {
                 id = r.RateId.ToString(),
                 clientId = clientCode,
-                clientName = c?.CompanyName ?? (clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "CA-002" ? "Shopee Philippines" : $"Client {r.ClientId}"),
+                clientName = c?.CompanyName ?? (clientCode == "LZD-001" || clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "SHP-001" || clientCode == "CA-002" ? "Shopee Philippines" : $"Client {r.ClientId}"),
                 region = r.DeliveryArea ?? "NCR",
                 minimumWeight = r.MinimumKg ?? 5m,
                 minimumRate = r.MinimumRate ?? 100m,
@@ -118,13 +118,13 @@ public class BillingRatesController : ControllerBase
         if (r == null) return NotFound(new { message = "Rate not found" });
 
         var c = await _fomsDb.Clients.FindAsync(r.ClientId);
-        string clientCode = c?.ClientCode ?? (r.ClientId == 1 ? "CA-001" : r.ClientId == 2 ? "CA-002" : r.ClientId.ToString());
+        string clientCode = c?.ClientCode ?? (r.ClientId == 1 ? "LZD-001" : r.ClientId == 2 ? "SHP-001" : r.ClientId.ToString());
 
         return Ok(new
         {
             id = r.RateId.ToString(),
             clientId = clientCode,
-            clientName = c?.CompanyName ?? (clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "CA-002" ? "Shopee Philippines" : $"Client {r.ClientId}"),
+            clientName = c?.CompanyName ?? (clientCode == "LZD-001" || clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "SHP-001" || clientCode == "CA-002" ? "Shopee Philippines" : $"Client {r.ClientId}"),
             region = r.DeliveryArea ?? "NCR",
             minimumWeight = r.MinimumKg ?? 5m,
             minimumRate = r.MinimumRate ?? 100m,
@@ -143,8 +143,8 @@ public class BillingRatesController : ControllerBase
         int targetClientId = 1;
         if (!string.IsNullOrEmpty(dto.ClientId))
         {
-            if (dto.ClientId.Equals("CA-001", StringComparison.OrdinalIgnoreCase)) targetClientId = 1;
-            else if (dto.ClientId.Equals("CA-002", StringComparison.OrdinalIgnoreCase)) targetClientId = 2;
+            if (dto.ClientId.Equals("LZD-001", StringComparison.OrdinalIgnoreCase) || dto.ClientId.Equals("CA-001", StringComparison.OrdinalIgnoreCase)) targetClientId = 1;
+            else if (dto.ClientId.Equals("SHP-001", StringComparison.OrdinalIgnoreCase) || dto.ClientId.Equals("CA-002", StringComparison.OrdinalIgnoreCase)) targetClientId = 2;
             else if (int.TryParse(dto.ClientId, out var parsed)) targetClientId = parsed;
             else
             {
@@ -194,7 +194,7 @@ public class BillingRatesController : ControllerBase
         });
         await _fomsDb.SaveChangesAsync();
 
-        string clientCode = targetClientId == 1 ? "CA-001" : targetClientId == 2 ? "CA-002" : targetClientId.ToString();
+        string clientCode = targetClientId == 1 ? "LZD-001" : targetClientId == 2 ? "SHP-001" : targetClientId.ToString();
 
         return CreatedAtAction(nameof(GetById), new { id = entity.RateId }, new
         {
@@ -220,8 +220,8 @@ public class BillingRatesController : ControllerBase
 
         if (!string.IsNullOrEmpty(dto.ClientId))
         {
-            if (dto.ClientId.Equals("CA-001", StringComparison.OrdinalIgnoreCase)) entity.ClientId = 1;
-            else if (dto.ClientId.Equals("CA-002", StringComparison.OrdinalIgnoreCase)) entity.ClientId = 2;
+            if (dto.ClientId.Equals("LZD-001", StringComparison.OrdinalIgnoreCase) || dto.ClientId.Equals("CA-001", StringComparison.OrdinalIgnoreCase)) entity.ClientId = 1;
+            else if (dto.ClientId.Equals("SHP-001", StringComparison.OrdinalIgnoreCase) || dto.ClientId.Equals("CA-002", StringComparison.OrdinalIgnoreCase)) entity.ClientId = 2;
             else if (int.TryParse(dto.ClientId, out var cId)) entity.ClientId = cId;
         }
 
