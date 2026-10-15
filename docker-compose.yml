@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the .env file}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-foms_ai_results}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -21,7 +21,7 @@ services:
     image: dpage/pgadmin4:latest
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@foms.com}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in the .env file}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin123_FOMS_2026}
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     depends_on:
@@ -34,7 +34,7 @@ services:
     image: mongo:6.0
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-root}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in the .env file}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-mongo_root_FOMS_2026}
       - MONGO_INITDB_DATABASE=${MONGO_DB:-foms_trends_db}
     ports:
       - "${MONGO_PORT:-27017}:27017"
@@ -57,13 +57,13 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__FomsSqlServer=${ConnectionStrings__FomsSqlServer:?Set ConnectionStrings__FomsSqlServer in the .env file}
-      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection:?Set ConnectionStrings__DefaultConnection in the .env file}
-      - JwtSettings__Secret=${JWT_SECRET:?Set JWT_SECRET in the .env file}
+      - ConnectionStrings__FomsSqlServer=${ConnectionStrings__FomsSqlServer:-Server=host.docker.internal\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;}
+      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection:-Server=host.docker.internal\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;}
+      - JwtSettings__Secret=${JWT_SECRET:-FOMS_Capstone_JWT_SecureKey_2026!!}
       - JwtSettings__Issuer=FOMS.Api
       - JwtSettings__Audience=FOMS.Api
-      - PayMongo__SecretKey=${PAYMONGO_SECRET_KEY:?Set PAYMONGO_SECRET_KEY in the .env file}
-      - PayMongo__WebhookSecret=${PAYMONGO_WEBHOOK_SECRET:?Set PAYMONGO_WEBHOOK_SECRET in the .env file}
+      - PayMongo__SecretKey=${PAYMONGO_SECRET_KEY:-sk_test_fyNzfY2nbwdhfgUcoMmWoZJq}
+      - PayMongo__WebhookSecret=${PAYMONGO_WEBHOOK_SECRET:-whsk_AhGd2fDaqcnLia9sJ79EHsL2}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
