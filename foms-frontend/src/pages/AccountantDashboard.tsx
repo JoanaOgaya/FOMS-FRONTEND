@@ -18,13 +18,15 @@ import { useQuery } from '../hooks/useQuery';
 import { invoicesService } from '../services/invoicesService';
 import { waybillsService } from '../services/waybillsService';
 import { clientsService } from '../services/clientsService';
+import { paymentsService } from '../services/paymentsService';
 import { auditLogsService } from '../services/auditLogsService';
 import { speedpayService } from '../services/speedpayService';
+import { accountantService } from '../services/accountantService';
 import { Card } from '../components/Card';
 import { KpiCard } from '../components/shared/KpiCard';
 import { RecentActivity } from '../components/RecentActivity';
 import { formatDate } from '../utils/format';
-import type { Invoice, Waybill, Client, AuditLog, SpeedPaySubmission } from '../types/entities';
+import type { Invoice, Waybill, Client, AuditLog, SpeedPaySubmission, Payment } from '../types/entities';
 import {
   DashboardBanner, WorkQueue, QuickActions, Pipeline, peso, QueueItem,
 } from '../components/DashboardWidgets';
@@ -34,20 +36,26 @@ import { DashboardAiAlerts } from '../components/ai/DashboardAiAlerts';
  * ACCOUNTANT DASHBOARD — "My Workspace"
  * The accountant PREPARES: bills validated waybills, drafts invoices, fixes
  * returned invoices, records payments and follows up on collections.
+ * Connected directly to SQL Server database records.
  */
 export const AccountantDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const { data: dashResponse } = useQuery('acc:dashboard_sql', () => accountantService.getDashboard());
+  const dashData = dashResponse?.data;
+
   const { data: invoicesData } = useQuery('acc:invoices', () => invoicesService.list({ pageSize: 100 }));
   const { data: waybillsData } = useQuery('acc:waybills', () => waybillsService.list({ pageSize: 100 }));
   const { data: clientsData } = useQuery('acc:clients', () => clientsService.list({ pageSize: 100 }));
+  const { data: paymentsData } = useQuery('acc:payments', () => paymentsService.list({ pageSize: 100 }));
   const { data: auditData } = useQuery('acc:audit', () => auditLogsService.list({ pageSize: 20 }));
   const { data: speedPayData } = useQuery('acc:speedpay', () => speedpayService.list({ pageSize: 100 }));
 
   const invoices: Invoice[] = invoicesData?.items || [];
   const waybills: Waybill[] = waybillsData?.items || [];
   const clients: Client[] = clientsData?.items || [];
+  const payments: Payment[] = paymentsData?.items || [];
   const auditLogs: AuditLog[] = auditData?.items || [];
   const speedPay: SpeedPaySubmission[] = speedPayData?.items || [];
 
@@ -67,7 +75,7 @@ export const AccountantDashboard: React.FC = () => {
     return days >= 0 && days <= 7;
   });
   const pendingApproval = invoices.filter((i: Invoice) => i.status === 'Pending Approval');
-  const toRecordPayment = invoices.filter((i: Invoice) => i.status === 'Sent' || i.status === 'Overdue' || i.status === 'Outstanding');
+  const toRecordPayment = invoices.filter((i: Invoice) => i.status === 'Sent' || i.status === 'Overdue' || i.status === 'Outstanding' || i.paymentStatus === 'Unpaid');
   const pendingSpeedPay = speedPay.filter((s: SpeedPaySubmission) => s.status === 'Pending Validation').length;
 
   // Work queue: things the accountant must act on, most urgent first
@@ -103,67 +111,101 @@ export const AccountantDashboard: React.FC = () => {
     { label: 'For Approval', value: pendingApproval.length, color: '#F59E0B' },
     { label: 'Returned', value: needsRevision.length, color: '#EF4444' },
     { label: 'Approved', value: invoices.filter((i: Invoice) => i.status === 'Approved').length, color: '#8B5CF6' },
-    { label: 'Sent / Unpaid', value: invoices.filter((i: Invoice) => i.status === 'Sent').length, color: '#3B82F6' },
-    { label: 'Paid', value: invoices.filter((i: Invoice) => i.status === 'Paid').length, color: '#10B981' },
+    { label: 'Sent / Unpaid', value: invoices.filter((i: Invoice) => i.status === 'Sent' || i.paymentStatus === 'Unpaid').length, color: '#3B82F6' },
+    { label: 'Paid', value: invoices.filter((i: Invoice) => (i.status || '').toLowerCase() === 'paid').length, color: '#10B981' },
   ];
 
-  const myActivity = auditLogs
+  const myActivity = (dashData?.recentActivities || auditLogs
     .filter((l: AuditLog) => l.userRole === 'Accountant' || l.action.includes('INVOICE') || l.action.includes('PAYMENT'))
-    .slice(0, 5);
+    .slice(0, 5)) as AuditLog[];
 
-  // ── Monthly & Weekly Trends Data ──
+  // ── Monthly & Weekly Trends Data (Strictly from SQL Database) ──
   const [chartViewMode, setChartViewMode] = useState<'monthly' | 'weekly'>('monthly');
 
   const monthlyTrendData = useMemo(() => {
     const months = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
     return months.map((m, idx) => {
-      const targetMonthIndex = 4 + idx;
+      const targetMonthIndex = 4 + idx; // May=4 to Oct=9
       const monthInvoices = invoices.filter(inv => {
-        if (!inv.createdAt) return false;
-        const d = new Date(inv.createdAt);
-        return d.getMonth() === targetMonthIndex;
+        const dateStr = (inv as any).billingDate || inv.createdAt;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        return !isNaN(d.getTime()) && d.getMonth() === targetMonthIndex;
+      });
+
+      const monthPayments = payments.filter(p => {
+        const dateStr = (p as any).paymentDate || p.recordedAt || (p as any).submittedAt;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        return !isNaN(d.getTime()) && d.getMonth() === targetMonthIndex;
       });
 
       const actualBilled = monthInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-      const actualCollected = monthInvoices
-        .filter(inv => (inv.status || '').toLowerCase() === 'paid')
-        .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-
-      const baselineBilled = [125000, 180000, 210000, 195000, 240000, 298500][idx];
-      const baselineCollected = [110000, 165000, 195000, 175000, 215000, 206000][idx];
+      const actualCollected = monthPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
       return {
         period: m,
-        Billed: actualBilled > 0 ? actualBilled : baselineBilled,
-        Collected: actualCollected > 0 ? actualCollected : baselineCollected,
+        Billed: actualBilled,
+        Collected: actualCollected,
       };
     });
-  }, [invoices]);
+  }, [invoices, payments]);
 
   const weeklyTrendData = useMemo(() => {
-    const days = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
-    const baselineBilled = [35000, 48000, 12000, 8000, 52000, 64000, 50000];
-    const baselineCollected = [28000, 40000, 10000, 5000, 45000, 55000, 42500];
+    const now = new Date();
+    const days: string[] = [];
+    const dateObjs: Date[] = [];
 
-    return days.map((d, idx) => ({
-      period: d,
-      Billed: baselineBilled[idx],
-      Collected: baselineCollected[idx],
-    }));
-  }, []);
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      dateObjs.push(d);
+      days.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+    }
+
+    return days.map((dayName, idx) => {
+      const targetDate = dateObjs[idx];
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const dayInvoices = invoices.filter(inv => {
+        const dateStr = (inv as any).billingDate || inv.createdAt;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        return !isNaN(d.getTime()) && d >= targetDate && d < nextDate;
+      });
+
+      const dayPayments = payments.filter(p => {
+        const dateStr = (p as any).paymentDate || p.recordedAt || (p as any).submittedAt;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        return !isNaN(d.getTime()) && d >= targetDate && d < nextDate;
+      });
+
+      const dayBilled = dayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+      const dayCollected = dayPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      return {
+        period: dayName,
+        Billed: dayBilled,
+        Collected: dayCollected,
+      };
+    });
+  }, [invoices, payments]);
 
   const activeTrendData = chartViewMode === 'monthly' ? monthlyTrendData : weeklyTrendData;
   const totalBilledSum = activeTrendData.reduce((sum, d) => sum + d.Billed, 0);
   const totalCollectedSum = activeTrendData.reduce((sum, d) => sum + d.Collected, 0);
 
-  // ── Status Distribution Data ──
+  // ── Status Distribution Data (Real SQL database figures) ──
   const statusChartData = useMemo(() => {
-    const draftCount = drafts.length || 1;
-    const pendingCount = pendingApproval.length || 2;
-    const returnedCount = needsRevision.length || 1;
-    const approvedCount = invoices.filter(i => i.status === 'Approved').length || 3;
-    const sentCount = invoices.filter(i => i.status === 'Sent' || i.status === 'Outstanding' || i.status === 'Overdue').length || 4;
-    const paidCount = invoices.filter(i => i.status === 'Paid').length || 8;
+    const draftCount = drafts.length;
+    const pendingCount = pendingApproval.length;
+    const returnedCount = needsRevision.length;
+    const approvedCount = invoices.filter(i => i.status === 'Approved').length;
+    const sentCount = invoices.filter(i => i.status === 'Sent' || i.status === 'Outstanding' || i.status === 'Overdue' || i.paymentStatus === 'Unpaid').length;
+    const paidCount = invoices.filter(i => (i.status || '').toLowerCase() === 'paid').length;
 
     return [
       { name: 'Paid', value: paidCount, color: '#10B981' },
