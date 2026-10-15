@@ -11,6 +11,8 @@ export { Role, ROLES } from './auth';
 
 export interface Client {
   id: string;
+  clientCode?: string;
+  businessName?: string;
   name: string;
   contactPerson: string;
   email: string;
@@ -126,12 +128,16 @@ export interface Waybill {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  invoiceNo?: string;
   clientId: string;
+  clientName?: string;
   waybillIds: string[];
   amount: number;
   vatAmount: number;
   surchargeAmount: number;
   totalAmount: number;
+  amountPaid?: number;
+  balance?: number;
   billingSchedule: 'Monthly' | 'Semi-monthly' | 'Weekly';
   billingPeriod: string;
   status: 'Draft' | 'Pending Approval' | 'Needs Revision' | 'Approved' | 'Sent' | 'Paid' | 'Overdue' | 'Outstanding';
@@ -390,7 +396,7 @@ export interface CashFlowRecord {
 
 export interface Settlement {
   id: string;
-  type: 'Leftover return' | 'Reimbursement';
+  type: 'Leftover return' | 'Reimbursement' | 'Expense liquidation' | string;
   courierName: string;
   tripRef: string;
   submittedAt: string;

@@ -201,7 +201,7 @@ public class AiOutputsController : ApiControllerBase
                 {
                     var matchedInv = invoices.FirstOrDefault(i =>
                         !string.IsNullOrEmpty(i.InvoiceNumber) && src.Contains(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase));
-                    if (matchedInv != null && clients.TryGetValue(matchedInv.ClientId, out var resolvedClient))
+                    if (matchedInv != null && matchedInv.ClientId.HasValue && clients.TryGetValue(matchedInv.ClientId.Value, out var resolvedClient))
                         clientName = resolvedClient;
                     else
                         clientName = "Billing Operations";

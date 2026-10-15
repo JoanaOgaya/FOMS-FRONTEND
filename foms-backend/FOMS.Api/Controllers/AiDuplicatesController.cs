@@ -166,7 +166,7 @@ public class AiDuplicatesController : ApiControllerBase
             else if (matchedInv != null || isInvDoc)
             {
                 docType = "Invoice";
-                clientName = (matchedInv != null && clientMap.TryGetValue(matchedInv.ClientId, out var resolvedName))
+                clientName = (matchedInv != null && matchedInv.ClientId.HasValue && clientMap.TryGetValue(matchedInv.ClientId.Value, out var resolvedName))
                     ? resolvedName
                     : $"Client {(matchedInv != null ? matchedInv.ClientId : 0)}";
                 amount = matchedInv?.TotalAmount ?? 0m;
@@ -315,7 +315,7 @@ public class AiDuplicatesController : ApiControllerBase
 
                 foreach (var i in invoices)
                 {
-                    string clientName = clientMap.TryGetValue(i.ClientId, out var resolvedName)
+                    string clientName = (i.ClientId.HasValue && clientMap.TryGetValue(i.ClientId.Value, out var resolvedName))
                         ? resolvedName
                         : $"Client {i.ClientId}";
 
@@ -675,7 +675,7 @@ public class AiDuplicatesController : ApiControllerBase
             else if (matchedInv != null || isInvDoc)
             {
                 docType = "Invoice";
-                clientName = (matchedInv != null && clientMap.TryGetValue(matchedInv.ClientId, out var resolvedName))
+                clientName = (matchedInv != null && matchedInv.ClientId.HasValue && clientMap.TryGetValue(matchedInv.ClientId.Value, out var resolvedName))
                     ? resolvedName
                     : $"Client {(matchedInv != null ? matchedInv.ClientId : 0)}";
             }

@@ -1274,7 +1274,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <RoleDashboard />
-      <DashboardAiAlerts />
+      {user.role !== 'ACCOUNTANT' && <DashboardAiAlerts />}
     </div>
   );
 };

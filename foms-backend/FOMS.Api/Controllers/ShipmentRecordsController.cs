@@ -70,7 +70,7 @@ public class ShipmentRecordsController : ApiControllerBase
         var items = waybills.Select(w =>
         {
             var c = clients.FirstOrDefault(cl => cl.ClientId == w.ClientId);
-            string clientCode = c?.ClientCode ?? (w.ClientId == 1 ? "CA-001" : w.ClientId == 2 ? "CA-002" : w.ClientId.ToString());
+            string clientCode = c?.ClientCode ?? (w.ClientId == 1 ? "LZD-001" : w.ClientId == 2 ? "SHP-001" : w.ClientId == 3 ? "TKT-001" : w.ClientId == 4 ? "ZAL-001" : w.ClientId.ToString());
             return new
             {
                 id = w.WaybillId.ToString(),
@@ -78,7 +78,7 @@ public class ShipmentRecordsController : ApiControllerBase
                 trackingNumber = w.WaybillNumber,
                 clientId = clientCode,
                 clientCode = clientCode,
-                clientName = c?.CompanyName ?? (clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "CA-002" ? "Shopee Philippines" : $"Client {w.ClientId}"),
+                clientName = c?.CompanyName ?? (clientCode == "LZD-001" || clientCode == "CA-001" ? "Lazada Philippines" : clientCode == "SHP-001" || clientCode == "CA-002" ? "Shopee Philippines" : clientCode == "TKT-001" || clientCode == "CA-003" ? "TikTok Shop Philippines" : clientCode == "ZAL-001" || clientCode == "CA-004" ? "Zalora Philippines" : $"Client {w.ClientId}"),
                 origin = w.Origin ?? "Manila",
                 destination = w.Destination ?? "Cebu",
                 deliveryArea = w.DeliveryArea ?? "NCR",
@@ -93,7 +93,8 @@ public class ShipmentRecordsController : ApiControllerBase
                 hasApprovedCTC = true,
                 ctcStatus = "Standard",
                 isBilled = w.IsBilled,
-                invoiceId = w.InvoiceId?.ToString(),
+                invoiceId = w.InvoiceNo ?? w.InvoiceId?.ToString(),
+                invoiceNo = w.InvoiceNo,
                 date = (w.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
                 deliveryDate = (w.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
                 encodedBy = "Operations",
@@ -126,7 +127,8 @@ public class ShipmentRecordsController : ApiControllerBase
             status = w.DeliveryStatus,
             podStatus = w.PodStatus,
             isBilled = w.IsBilled,
-            invoiceId = w.InvoiceId?.ToString()
+            invoiceId = w.InvoiceNo ?? w.InvoiceId?.ToString(),
+            invoiceNo = w.InvoiceNo
         });
     }
 
@@ -138,6 +140,59 @@ public class ShipmentRecordsController : ApiControllerBase
         _fomsDb.Waybills.Add(w);
         await _fomsDb.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = w.WaybillId }, w);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] System.Text.Json.JsonElement body)
+    {
+        FOMS.Domain.Entities.SqlServer.Waybill? w = null;
+        if (int.TryParse(id, out var intId))
+        {
+            w = await _fomsDb.Waybills.FindAsync(intId);
+        }
+        if (w == null)
+        {
+            w = await _fomsDb.Waybills.FirstOrDefaultAsync(x => x.WaybillNumber == id);
+        }
+        if (w == null) return NotFound(new { message = "Waybill not found" });
+
+        if (body.TryGetProperty("status", out var statusProp))
+        {
+            var s = statusProp.GetString();
+            if (s == "Billed")
+            {
+                w.IsBilled = true;
+                w.PodStatus = "Billed";
+            }
+            else if (!string.IsNullOrEmpty(s))
+            {
+                w.PodStatus = s;
+            }
+        }
+        if (body.TryGetProperty("isBilled", out var billedProp))
+        {
+            w.IsBilled = billedProp.GetBoolean();
+        }
+        if (body.TryGetProperty("invoiceNo", out var invNoProp))
+        {
+            w.InvoiceNo = invNoProp.GetString();
+        }
+        if (body.TryGetProperty("invoiceId", out var invProp))
+        {
+            if (invProp.TryGetInt32(out var invId))
+            {
+                w.InvoiceId = invId;
+            }
+            else
+            {
+                var strId = invProp.GetString();
+                if (!string.IsNullOrEmpty(strId)) w.InvoiceNo = strId;
+            }
+        }
+
+        w.UpdatedAt = DateTime.UtcNow;
+        await _fomsDb.SaveChangesAsync();
+        return Ok(w);
     }
 
     [HttpPost("{id}/{actionName}")]

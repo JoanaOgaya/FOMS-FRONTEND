@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DataTable from '../components/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { http } from '../services/apiClient';
+import { ManualReviewQueue } from './ManualReviewQueue';
 
 interface ReviewRecord {
   id: string;
@@ -20,6 +21,7 @@ const truncate = (str: string, n: number) => (str && str.length > n) ? str.slice
 
 const ForReview: React.FC = () => {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'DUPLICATES' | 'COLLECTIONS'>('DUPLICATES');
   const [selectedRecord, setSelectedRecord] = useState<ReviewRecord | null>(null);
   const [data, setData] = useState<ReviewRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,8 +148,56 @@ const ForReview: React.FC = () => {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* KPI Cards */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Top Tab Switcher */}
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('DUPLICATES')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            background: activeTab === 'DUPLICATES' ? '#0D9488' : '#F1F5F9',
+            color: activeTab === 'DUPLICATES' ? '#FFFFFF' : '#475569',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <i className="ti ti-scan" />
+          Duplicate Detection Manual Review Queue
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('COLLECTIONS')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            background: activeTab === 'COLLECTIONS' ? '#0D9488' : '#F1F5F9',
+            color: activeTab === 'COLLECTIONS' ? '#FFFFFF' : '#475569',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <i className="ti ti-report-money" />
+          Collection Decision Audit Log
+        </button>
+      </div>
+
+      {activeTab === 'DUPLICATES' ? (
+        <ManualReviewQueue />
+      ) : (
+        <>
+          {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
         {kpis.map((kpi, i) => (
           <div key={i} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column' }}>
@@ -270,6 +320,8 @@ const ForReview: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

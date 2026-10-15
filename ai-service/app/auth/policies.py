@@ -35,6 +35,23 @@ _VALID_ROLES = {
     "Client",
 }
 
+# Role-name variants used by the FOMS .NET API (dbo.Roles / JWT) and the AI gateway,
+# mapped to the canonical names above.
+_ROLE_ALIASES = {
+    "Financial Manager": "Finance Manager",
+    "Assistant of Financial Manager": "Assistant of Finance Manager",
+    "Assistant Financial Manager": "Assistant of Finance Manager",
+    "Assistant Finance Manager": "Assistant of Finance Manager",
+}
+
+
+def normalize_role(role: Optional[str]) -> Optional[str]:
+    """Return the canonical FOMS role name for a known alias."""
+    if not role:
+        return role
+    role = role.strip()
+    return _ROLE_ALIASES.get(role, role)
+
 
 def get_current_user(request: Request) -> dict:
     """Extract and validate the caller's identity.
@@ -50,7 +67,7 @@ def get_current_user(request: Request) -> dict:
     """
 
     # ── Strategy 1: Gateway-forwarded identity headers ───────────────
-    forwarded_role = request.headers.get("X-User-Role")
+    forwarded_role = normalize_role(request.headers.get("X-User-Role"))
     forwarded_username = request.headers.get("X-User-Username")
 
     if forwarded_role and forwarded_username:

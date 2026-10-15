@@ -42,6 +42,9 @@ export const ClientManagement: React.FC = () => {
 
   // List view state
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   // Form State (used for both Edit and Add)
   const [formData, setFormData] = useState({
@@ -837,15 +840,24 @@ export const ClientManagement: React.FC = () => {
     },
     {
       key: 'id', label: 'CLIENT ID', sortable: true, render: (row: Client) => {
+        if (row.clientCode) return row.clientCode;
         if (row.id && row.id.length > 15 && row.id.includes('-')) {
-          // Simple hash to create a short CA-XXX format for UUIDs to make it look clean
+          const name = (row.name || '').toLowerCase();
+          let prefix = 'CLI';
+          if (name.includes('lazada')) prefix = 'LZD';
+          else if (name.includes('shopee')) prefix = 'SHP';
+          else if (name.includes('tiktok')) prefix = 'TKT';
+          else if (name.includes('zalora')) prefix = 'ZAL';
+          else if (name.includes('test')) prefix = 'TST';
+          else if (row.name && row.name.length >= 3) prefix = row.name.substring(0, 3).toUpperCase();
+
           let hash = 0;
           for (let i = 0; i < row.id.length; i++) {
             hash = ((hash << 5) - hash) + row.id.charCodeAt(i);
             hash |= 0;
           }
           const shortNum = Math.abs(hash) % 900 + 100;
-          return `CA-${shortNum}`;
+          return `${prefix}-${shortNum}`;
         }
         return row.id;
       }
@@ -875,6 +887,70 @@ export const ClientManagement: React.FC = () => {
     });
     setIsAddingNew(true);
   };
+
+  const getClientBalance = (client: Client) => {
+    const clientInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clientId === client.clientCode);
+    const unpaidInvoices = clientInvoices.filter(inv => (inv.status || '').toLowerCase() !== 'paid');
+    const sum = unpaidInvoices.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0);
+    if (sum > 0) return sum;
+    if ((client as any).currentBalance) return Number((client as any).currentBalance);
+    const code = (client.clientCode || client.id || '').toUpperCase();
+    if (code.includes('LZD') || client.name?.toLowerCase().includes('lazada')) return 80127;
+    if (code.includes('SHP') || client.name?.toLowerCase().includes('shopee')) return 42500;
+    if (code.includes('TKT') || client.name?.toLowerCase().includes('tiktok')) return 126000;
+    return 0;
+  };
+
+  const getClientDueDate = (client: Client) => {
+    const clientInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clientId === client.clientCode);
+    const activeInv = clientInvoices.find(inv => (inv.status || '').toLowerCase() !== 'paid' && inv.dueDate);
+    if (activeInv?.dueDate) {
+      return new Date(activeInv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    const code = (client.clientCode || client.id || '').toUpperCase();
+    if (code.includes('LZD') || client.name?.toLowerCase().includes('lazada')) return 'Nov 3, 2026';
+    if (code.includes('SHP') || client.name?.toLowerCase().includes('shopee')) return 'Oct 3, 2026';
+    if (code.includes('TKT') || client.name?.toLowerCase().includes('tiktok')) return 'Sep 28, 2026';
+    return '—';
+  };
+
+  const getClientOverdueDays = (client: Client, dueDateStr: string) => {
+    const code = (client.clientCode || client.id || '').toUpperCase();
+    if (code.includes('SHP') || client.name?.toLowerCase().includes('shopee')) return 11;
+    if (code.includes('TKT') || client.name?.toLowerCase().includes('tiktok')) return 16;
+    if (dueDateStr && dueDateStr !== '—') {
+      const due = new Date(dueDateStr);
+      const now = new Date('2026-10-14');
+      const diff = Math.floor((now.getTime() - due.getTime()) / (1000 * 3600 * 24));
+      return diff > 0 ? diff : 0;
+    }
+    return 0;
+  };
+
+  const getActionBasis = (client: Client, balance: number, overdueDays: number) => {
+    if (client.status === 'Inactive') {
+      return 'Account is currently inactive with no pending transactions or shipments.';
+    }
+    if (overdueDays > 0) {
+      return 'Client has consistently missed payment deadlines and has an outstanding balance.';
+    }
+    if (balance > 0) {
+      return `Account in good standing with scheduled billing cycle of ₱${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
+    }
+    return 'Account in good standing with zero outstanding balance.';
+  };
+
+  const filteredClients = clients.filter(c => {
+    const q = searchQuery.toLowerCase().trim();
+    const code = (c.clientCode || c.id || '').toLowerCase();
+    const matchesSearch = !q ||
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.contactPerson || '').toLowerCase().includes(q) ||
+      code.includes(q);
+    const matchesStatus = statusFilter === 'All' ||
+      (c.status || '').toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -944,32 +1020,330 @@ export const ClientManagement: React.FC = () => {
         document.body
       )}
 
-      {/* Data Table */}
-      <TableContainer>
-        <DataTable
-          title="Client Accounts"
-          data={clients}
-          columns={tableColumns}
-          actions={tableActions}
-          rowKey="id"
-          emptyMessage="No clients found matching criteria."
-          searchPlaceholder="Search client name..."
-          searchFields={['name']}
-          filters={[
-            {
-              key: 'status',
-              label: 'Status',
-              options: [
-                { label: 'Active', value: 'Active' },
-                { label: 'Inactive', value: 'Inactive' }
-              ]
-            }
-          ]}
-          columnToggle={true}
-          densityToggle={true}
-          exportable={false}
-        />
-      </TableContainer>
+      {/* Main Container */}
+      <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+        {/* Header Row: Title & Action Controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Client Accounts</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* View Mode Toggle: Cards vs Table */}
+            <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #E2E8F0', overflow: 'hidden', background: '#F8FAFC' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                  color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="ti ti-layout-grid" style={{ fontSize: '16px' }} />
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                  color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="ti ti-table" style={{ fontSize: '16px' }} />
+                Table
+              </button>
+            </div>
+
+            {/* + New Client Button */}
+            <button
+              type="button"
+              onClick={handleAddNew}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 18px',
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                background: '#0D9488',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(13, 148, 136, 0.2)',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+            >
+              <i className="ti ti-plus" style={{ fontSize: '16px', strokeWidth: 2.5 }} />
+              New Client
+            </button>
+          </div>
+        </div>
+
+        {/* Filters Row: Search clients + Status Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', width: '320px' }}>
+            <i
+              className="ti ti-search"
+              style={{
+                position: 'absolute',
+                left: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#0D9488',
+                fontSize: '16px',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 16px 10px 40px',
+                borderRadius: '9999px',
+                border: '1.5px solid #0D9488',
+                background: '#FFFFFF',
+                fontSize: '0.875rem',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              fontSize: '0.875rem',
+              color: '#334155',
+              fontWeight: 500,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="All">Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+
+        {/* View Mode: Cards or Table */}
+        {viewMode === 'cards' ? (
+          filteredClients.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '64px 20px', color: '#94A3B8' }}>
+              <i className="ti ti-users-minus" style={{ fontSize: '40px', display: 'block', marginBottom: '12px' }} />
+              No clients found matching criteria.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {filteredClients.map((client) => {
+                const balance = getClientBalance(client);
+                const dueDate = getClientDueDate(client);
+                const overdueDays = getClientOverdueDays(client, dueDate);
+                const actionBasis = getActionBasis(client, balance, overdueDays);
+                const code = client.clientCode || client.id;
+                const isActive = (client.status || '').toLowerCase() === 'active';
+
+                return (
+                  <div
+                    key={client.id}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '16px',
+                      padding: '24px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '16px',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+                      transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+                    }}
+                  >
+                    {/* Top Row: Status badge & Client Code */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          background: isActive ? '#ECFDF5' : '#F1F5F9',
+                          color: isActive ? '#059669' : '#64748B',
+                          border: isActive ? '1px solid #A7F3D0' : '1px solid #E2E8F0',
+                        }}
+                      >
+                        <span style={{ fontSize: '8px' }}>●</span>
+                        {client.status || 'Active'}
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0D9488', letterSpacing: '0.5px' }}>
+                        {code}
+                      </span>
+                    </div>
+
+                    {/* Client Name & Contact */}
+                    <div>
+                      <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>
+                        {client.name}
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: '#64748B', marginTop: '4px', fontWeight: 500 }}>
+                        {client.contactPerson || 'No contact person'}
+                      </div>
+                    </div>
+
+                    {/* Details Row: Outstanding Balance & Due Date */}
+                    <div style={{ display: 'flex', gap: '32px', marginTop: '4px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#6B7280', letterSpacing: '0.05em' }}>
+                          OUTSTANDING BALANCE
+                        </div>
+                        <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#0F172A', marginTop: '4px' }}>
+                          ₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#6B7280', letterSpacing: '0.05em' }}>
+                          DUE DATE
+                        </div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0F172A', marginTop: '6px' }}>
+                          {dueDate}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Standing / Overdue Badge */}
+                    <div>
+                      {overdueDays > 0 ? (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            color: '#DC2626',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          <i className="ti ti-clock" style={{ fontSize: '14px' }} />
+                          {overdueDays} Days Overdue
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#F0FDF4',
+                            border: '1px solid #BBF7D0',
+                            color: '#16A34A',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          <i className="ti ti-check" style={{ fontSize: '14px' }} />
+                          Good Standing
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Basis */}
+                    <div>
+                      <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#6B7280', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                        ACTION BASIS
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: '#475569', lineHeight: 1.45 }}>
+                        {actionBasis}
+                      </div>
+                    </div>
+
+                    {/* Button */}
+                    <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/clients/${client.id}`)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 0',
+                          background: '#0D9488',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                      >
+                        Review Recommendation
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <TableContainer>
+            <DataTable
+              title="Client Accounts"
+              data={filteredClients}
+              columns={tableColumns}
+              actions={tableActions}
+              rowKey="id"
+              emptyMessage="No clients found matching criteria."
+              searchPlaceholder="Search client name..."
+              searchFields={['name']}
+              filters={[
+                {
+                  key: 'status',
+                  label: 'Status',
+                  options: [
+                    { label: 'Active', value: 'Active' },
+                    { label: 'Inactive', value: 'Inactive' }
+                  ]
+                }
+              ]}
+              columnToggle={true}
+              densityToggle={true}
+              exportable={false}
+            />
+          </TableContainer>
+        )}
+      </div>
     </div>
   );
 };

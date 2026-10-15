@@ -30,4 +30,5 @@ public class Invoice
     public string LastUpdated { get; set; } = string.Empty;
     public string UpdatedBy { get; set; } = string.Empty;
     public bool Archived { get; set; }
+    public string? WaybillIds { get; set; }
 }

@@ -57,40 +57,43 @@ public class Client
     [Column("client_id")]
     public int ClientId { get; set; }
 
-    [Column("dms_client_id")]
+    // NOTE: dbo.Clients is created by the InitialSqlServerCreate migration with PascalCase
+    // columns. Only client_id and company_name are snake_case (added by
+    // scripts/create_foms_missing_tables.sql), so the mappings below must match that schema.
+    [Column("DmsClientId")]
     public string? DmsClientId { get; set; }
 
-    [Column("client_code")]
+    [Column("ClientCode")]
     public string? ClientCode { get; set; }
 
     [Column("company_name")]
     public string CompanyName { get; set; } = string.Empty;
 
-    [Column("address")]
+    [Column("Address")]
     public string? Address { get; set; }
 
-    [Column("contact_person")]
+    [Column("ContactPerson")]
     public string? ContactPerson { get; set; }
 
-    [Column("contact_number")]
+    [Column("ContactNumber")]
     public string? ContactNumber { get; set; }
 
-    [Column("email")]
+    [Column("Email")]
     public string? Email { get; set; }
 
-    [Column("is_active")]
+    [Column("IsActive")]
     public bool? IsActive { get; set; }
 
-    [Column("synced_from_dms")]
+    [Column("SyncedFromDms")]
     public bool? SyncedFromDms { get; set; }
 
-    [Column("last_synced_at")]
+    [Column("LastSyncedAt")]
     public DateTime? LastSyncedAt { get; set; }
 
-    [Column("created_at")]
+    [Column("CreatedAt")]
     public DateTime? CreatedAt { get; set; }
 
-    [Column("updated_at")]
+    [Column("UpdatedAt")]
     public DateTime? UpdatedAt { get; set; }
 }
 
@@ -187,7 +190,7 @@ public class Invoice
     public string InvoiceNumber { get; set; } = string.Empty;
 
     [Column("client_id")]
-    public int ClientId { get; set; }
+    public int? ClientId { get; set; }
 
     [Column("billing_period")]
     public string? BillingPeriod { get; set; }
@@ -480,6 +483,9 @@ public class Waybill
 
     [Column("invoice_id")]
     public int? InvoiceId { get; set; }
+
+    [Column("invoice_no")]
+    public string? InvoiceNo { get; set; }
 
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }

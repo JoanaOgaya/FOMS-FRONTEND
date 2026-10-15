@@ -478,7 +478,7 @@
 }
 
 .dt-th {
-  padding: 10px 14px;
+  padding: 10px 10px;
   background: var(--s1, #F7F9FF);
   color: var(--tt, #6B7280);
   font-size: 11px;
@@ -488,9 +488,7 @@
   text-transform: uppercase;
   letter-spacing: 0.6px;
   border-bottom: 1px solid var(--border, #E2E8F0);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  position: static;
 }
 
 .dt-th--check  { width: 40px; }
@@ -546,9 +544,31 @@
 .dt-row--selected:hover { background: rgba(0, 169, 157, 0.09) !important; }
 
 .dt-td {
-  padding: 10px 14px;
+  padding: 10px 10px;
   color: var(--ts, #374151);
   vertical-align: middle;
+}
+
+/* Styled waybill number clickable link button */
+.dt-waybill-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #0D9488;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  font-family: inherit;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.dt-waybill-btn:hover,
+.dt-waybill-btn:focus-visible {
+  color: #0F766E;
+  text-decoration: underline;
+  outline: none;
 }
 
 .dt-td--check { width: 40px; }
@@ -784,4 +804,33 @@
 @keyframes dt-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.5; }
+}
+
+/* ── Invoicing Desk Toolbar Rebalancing ──────────────────────────────────── */
+
+
+/* ── Invoice Modal Print Rules ───────────────────────────────────────────── */
+
+@media print {
+  .invoice-modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .invoice-modal-header,
+  .invoice-modal-footer {
+    display: none !important;
+  }
+  .invoice-modal-container {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .invoice-modal-body {
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
 }

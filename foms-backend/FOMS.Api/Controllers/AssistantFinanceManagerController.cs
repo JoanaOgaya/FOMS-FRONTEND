@@ -795,7 +795,7 @@ public class AssistantFinanceManagerController : ControllerBase
             else if (matchedInv != null)
             {
                 docType = "Invoice";
-                clientOrEntity = clients.TryGetValue(matchedInv.ClientId, out var invClient) ? invClient : $"Client {matchedInv.ClientId}";
+                clientOrEntity = (matchedInv.ClientId.HasValue && clients.TryGetValue(matchedInv.ClientId.Value, out var invClient)) ? invClient : $"Client {matchedInv.ClientId}";
                 amount = matchedInv.TotalAmount;
                 if (matchedInv.CreatedAt.HasValue) txDate = matchedInv.CreatedAt.Value.ToString("yyyy-MM-dd");
             }
@@ -974,7 +974,7 @@ public class AssistantFinanceManagerController : ControllerBase
             else if (matchedInv != null)
             {
                 docType = "Invoice";
-                entityName = clients.TryGetValue(matchedInv.ClientId, out var invClient) ? invClient : $"Client {matchedInv.ClientId}";
+                entityName = (matchedInv.ClientId.HasValue && clients.TryGetValue(matchedInv.ClientId.Value, out var invClient)) ? invClient : $"Client {matchedInv.ClientId}";
                 amount = matchedInv.TotalAmount;
                 matchedDocNumber = matchedInv.InvoiceNumber ?? cleanNum;
             }

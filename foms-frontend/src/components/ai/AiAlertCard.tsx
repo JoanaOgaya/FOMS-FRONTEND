@@ -75,12 +75,12 @@ export const AiAlertCard: React.FC<AiAlertCardProps> = (props) => {
         ...style,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1, minWidth: 180 }}>
           <div
             style={{
-              width: 36,
-              height: 36,
+              width: 34,
+              height: 34,
               borderRadius: '8px',
               background: iconBg,
               display: 'flex',
@@ -94,18 +94,18 @@ export const AiAlertCard: React.FC<AiAlertCardProps> = (props) => {
               className={
                 isCritical ? 'ti ti-alert-triangle' : isMed ? 'ti ti-alert-circle' : 'ti ti-sparkles'
               }
-              style={{ fontSize: 18 }}
+              style={{ fontSize: 16 }}
             />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
+              <h4 style={{ margin: 0, fontSize: '0.90rem', fontWeight: 700, color: '#0F172A' }}>
                 {title}
               </h4>
               {score !== undefined && (
                 <span
                   style={{
-                    fontSize: '0.75rem',
+                    fontSize: '0.72rem',
                     fontWeight: 700,
                     color: iconColor,
                     background: iconBg,
@@ -117,13 +117,13 @@ export const AiAlertCard: React.FC<AiAlertCardProps> = (props) => {
                 </span>
               )}
             </div>
-            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
+            <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
               {message}
             </p>
           </div>
         </div>
 
-        <AiDisclaimer />
+        <AiDisclaimer style={{ flexShrink: 0, alignSelf: 'flex-start' }} />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: 10, fontSize: '0.8rem' }}>
