@@ -184,6 +184,9 @@ public class AiDuplicatesController : ApiControllerBase
         var invoices = await _fomsDb.Invoices.AsNoTracking().ToListAsync();
         var receipts = await _fomsDb.OfficialReceipts.AsNoTracking().ToListAsync();
         var liquidations = await _fomsDb.Liquidations.AsNoTracking().Where(l => l.IsDeleted != true).ToListAsync();
+        var appInvoices = await _context.Invoices.AsNoTracking().ToListAsync();
+        var appPayments = await _context.Payments.AsNoTracking().ToListAsync();
+        var appClients = await _context.Clients.AsNoTracking().ToListAsync();
 
         var items = new List<object>();
 
@@ -201,67 +204,83 @@ public class AiDuplicatesController : ApiControllerBase
                             docNum.Contains("fuel", StringComparison.OrdinalIgnoreCase) ||
                             docNum.Contains("liquidation", StringComparison.OrdinalIgnoreCase);
             bool isInvDoc = docNum.StartsWith("INV", StringComparison.OrdinalIgnoreCase) ||
-                            docNum.Contains("invoice", StringComparison.OrdinalIgnoreCase);
+                            docNum.StartsWith("LZD", StringComparison.OrdinalIgnoreCase) ||
+                            docNum.StartsWith("SHP", StringComparison.OrdinalIgnoreCase) ||
+                            docNum.StartsWith("BI", StringComparison.OrdinalIgnoreCase) ||
+                            docNum.Contains("invoice", StringComparison.OrdinalIgnoreCase) ||
+                            appInvoices.Any(i => !string.IsNullOrEmpty(i.InvoiceNo) && docNum.Contains(i.InvoiceNo, StringComparison.OrdinalIgnoreCase));
             bool isRecDoc = docNum.StartsWith("OR", StringComparison.OrdinalIgnoreCase) ||
                             docNum.Contains("receipt", StringComparison.OrdinalIgnoreCase) ||
-                            docNum.Contains("TX", StringComparison.OrdinalIgnoreCase);
+                            docNum.Contains("TX", StringComparison.OrdinalIgnoreCase) ||
+                            appPayments.Any(p => !string.IsNullOrEmpty(p.OrNumber) && docNum.Contains(p.OrNumber, StringComparison.OrdinalIgnoreCase));
 
             Liquidation? matchedLiq = null;
             Invoice? matchedInv = null;
             FomsOfficialReceipt? matchedRec = null;
 
+            var cleanDocNo = docNum.Replace("-DUP", "").Replace("-REV", "").Trim();
+
             if (isLiqDoc)
             {
                 matchedLiq = liquidations.FirstOrDefault(l =>
-                    (!string.IsNullOrEmpty(l.ReferenceNumber) && (docNum.Contains(l.ReferenceNumber, StringComparison.OrdinalIgnoreCase) || l.ReferenceNumber.Contains(docNum, StringComparison.OrdinalIgnoreCase))) ||
-                    (l.LiquidationId > 0 && (docNum.Contains($"LIQ-{l.LiquidationId:D4}", StringComparison.OrdinalIgnoreCase) || docNum.Contains($"LIQ-{l.LiquidationId}", StringComparison.OrdinalIgnoreCase))));
+                    (!string.IsNullOrEmpty(l.ReferenceNumber) && (l.ReferenceNumber.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(l.ReferenceNumber, StringComparison.OrdinalIgnoreCase))));
             }
             else if (isInvDoc)
             {
                 matchedInv = invoices.FirstOrDefault(i =>
-                    (!string.IsNullOrEmpty(i.InvoiceNumber) && (docNum.Contains(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase) || i.InvoiceNumber.Contains(docNum, StringComparison.OrdinalIgnoreCase))) ||
-                    (i.InvoiceId > 0 && (docNum.Contains($"INV-{i.InvoiceId:D4}", StringComparison.OrdinalIgnoreCase) || docNum.Contains($"INV-{i.InvoiceId}", StringComparison.OrdinalIgnoreCase))));
+                    (!string.IsNullOrEmpty(i.InvoiceNumber) && (i.InvoiceNumber.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase))));
             }
             else if (isRecDoc)
             {
                 matchedRec = receipts.FirstOrDefault(r =>
-                    (!string.IsNullOrEmpty(r.OrNumber) && (docNum.Contains(r.OrNumber, StringComparison.OrdinalIgnoreCase) || r.OrNumber.Contains(docNum, StringComparison.OrdinalIgnoreCase))) ||
-                    (r.OrId > 0 && (docNum.Contains($"OR-{r.OrId:D4}", StringComparison.OrdinalIgnoreCase) || docNum.Contains($"OR-{r.OrId}", StringComparison.OrdinalIgnoreCase))));
+                    (!string.IsNullOrEmpty(r.OrNumber) && (r.OrNumber.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(r.OrNumber, StringComparison.OrdinalIgnoreCase))));
             }
             else
             {
-                matchedInv = invoices.FirstOrDefault(i => !string.IsNullOrEmpty(i.InvoiceNumber) && docNum.Equals(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase));
-                matchedRec = receipts.FirstOrDefault(r => !string.IsNullOrEmpty(r.OrNumber) && docNum.Equals(r.OrNumber, StringComparison.OrdinalIgnoreCase));
-                matchedLiq = liquidations.FirstOrDefault(l => !string.IsNullOrEmpty(l.ReferenceNumber) && docNum.Equals(l.ReferenceNumber, StringComparison.OrdinalIgnoreCase));
+                matchedInv = invoices.FirstOrDefault(i => !string.IsNullOrEmpty(i.InvoiceNumber) && (docNum.Equals(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase) || cleanDocNo.Equals(i.InvoiceNumber, StringComparison.OrdinalIgnoreCase)));
+                matchedRec = receipts.FirstOrDefault(r => !string.IsNullOrEmpty(r.OrNumber) && (docNum.Equals(r.OrNumber, StringComparison.OrdinalIgnoreCase) || cleanDocNo.Equals(r.OrNumber, StringComparison.OrdinalIgnoreCase)));
+                matchedLiq = liquidations.FirstOrDefault(l => !string.IsNullOrEmpty(l.ReferenceNumber) && (docNum.Equals(l.ReferenceNumber, StringComparison.OrdinalIgnoreCase) || cleanDocNo.Equals(l.ReferenceNumber, StringComparison.OrdinalIgnoreCase)));
             }
+
+            var appInvMatch = appInvoices.FirstOrDefault(i => i.InvoiceNo.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(i.InvoiceNo, StringComparison.OrdinalIgnoreCase));
+            var appPayMatch = appPayments.FirstOrDefault(p => (!string.IsNullOrEmpty(p.OrNumber) && (p.OrNumber.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(p.OrNumber, StringComparison.OrdinalIgnoreCase))) ||
+                                                               (!string.IsNullOrEmpty(p.InvoiceNo) && (p.InvoiceNo.Equals(cleanDocNo, StringComparison.OrdinalIgnoreCase) || docNum.StartsWith(p.InvoiceNo, StringComparison.OrdinalIgnoreCase))));
 
             if (matchedLiq != null || isLiqDoc)
             {
                 docType = "Liquidation";
                 clientName = matchedLiq?.SubmittedByName ?? "Pedro Santos";
                 amount = matchedLiq?.TotalAmount ?? 1850m;
-                existingRecord = matchedLiq?.ReferenceNumber ?? (docNum.Replace("-DUP", ""));
+                existingRecord = matchedLiq?.ReferenceNumber ?? cleanDocNo;
                 createdBy = matchedLiq?.SubmittedByName ?? "Operations Courier";
             }
-            else if (matchedInv != null || isInvDoc)
+            else if (appInvMatch != null || matchedInv != null || isInvDoc)
             {
                 docType = "Invoice";
-                clientName = (matchedInv != null && matchedInv.ClientId.HasValue && clientMap.TryGetValue(matchedInv.ClientId.Value, out var resolvedName))
-                    ? resolvedName
-                    : $"Client {(matchedInv != null ? matchedInv.ClientId : 0)}";
-                amount = matchedInv?.TotalAmount ?? 0m;
-                existingRecord = matchedInv?.InvoiceNumber ?? docNum;
-                createdBy = matchedInv != null && !string.IsNullOrWhiteSpace(matchedInv.EncodedBy) ? matchedInv.EncodedBy : (matchedInv != null && !string.IsNullOrWhiteSpace(matchedInv.UpdatedBy) ? matchedInv.UpdatedBy : "Finance Billing");
+                clientName = appInvMatch != null && !string.IsNullOrWhiteSpace(appInvMatch.ClientName)
+                    ? appInvMatch.ClientName
+                    : ((matchedInv != null && matchedInv.ClientId.HasValue && clientMap.TryGetValue(matchedInv.ClientId.Value, out var resolvedName))
+                        ? resolvedName
+                        : "Lazada Philippines");
+                amount = appInvMatch != null ? appInvMatch.TotalAmount : (matchedInv?.TotalAmount ?? 0m);
+                existingRecord = appInvMatch != null ? appInvMatch.InvoiceNo : (matchedInv?.InvoiceNumber ?? cleanDocNo);
+                createdBy = appInvMatch != null && !string.IsNullOrWhiteSpace(appInvMatch.EncodedBy)
+                    ? appInvMatch.EncodedBy
+                    : (matchedInv != null && !string.IsNullOrWhiteSpace(matchedInv.EncodedBy) ? matchedInv.EncodedBy : "Maria Mariel Jane Anonuevo");
             }
-            else if (matchedRec != null || isRecDoc)
+            else if (appPayMatch != null || matchedRec != null || isRecDoc)
             {
                 docType = "Receipt";
-                clientName = (matchedRec != null && matchedRec.ClientId.HasValue && clientMap.TryGetValue(matchedRec.ClientId.Value, out var resolvedName))
-                    ? resolvedName
-                    : $"Client {(matchedRec != null ? matchedRec.ClientId : 0)}";
-                amount = matchedRec?.IssuedAmount ?? 0m;
-                existingRecord = matchedRec?.OrNumber ?? docNum;
-                createdBy = matchedRec != null && !string.IsNullOrWhiteSpace(matchedRec.IssuedBy) ? matchedRec.IssuedBy : "Cashier / Collection";
+                clientName = appPayMatch != null && !string.IsNullOrWhiteSpace(appPayMatch.ClientName)
+                    ? appPayMatch.ClientName
+                    : ((matchedRec != null && matchedRec.ClientId.HasValue && clientMap.TryGetValue(matchedRec.ClientId.Value, out var resolvedName))
+                        ? resolvedName
+                        : "Lazada Philippines");
+                amount = appPayMatch != null ? appPayMatch.Amount : (matchedRec?.IssuedAmount ?? 0m);
+                existingRecord = appPayMatch != null && !string.IsNullOrEmpty(appPayMatch.OrNumber) ? appPayMatch.OrNumber : (matchedRec?.OrNumber ?? cleanDocNo);
+                createdBy = appPayMatch != null && !string.IsNullOrWhiteSpace(appPayMatch.RecordedBy)
+                    ? appPayMatch.RecordedBy
+                    : (matchedRec != null && !string.IsNullOrWhiteSpace(matchedRec.IssuedBy) ? matchedRec.IssuedBy : "Cashier / Collection");
             }
 
             // Role Scope Filter

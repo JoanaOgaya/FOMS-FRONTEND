@@ -63,7 +63,7 @@ public class PaymentsController : ApiControllerBase
             {
                 var outflowPayment = new Payment
                 {
-                    Id = "PAY-002",
+                    Id = "DISB-001",
                     InvoiceId = "INV-002",
                     InvoiceNo = "BI-2026-0001",
                     ClientId = "CA-001",
