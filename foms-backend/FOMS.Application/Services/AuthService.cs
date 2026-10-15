@@ -38,7 +38,12 @@ public class AuthService : IAuthService
     {
         _context = context;
         _jwtSettings = configuration.GetSection("JwtSettings").Get<JwtSettings>()
-            ?? throw new InvalidOperationException("Missing JWT configuration.");
+            ?? new JwtSettings();
+        if (string.IsNullOrWhiteSpace(_jwtSettings.Secret))
+        {
+            _jwtSettings.Secret = configuration["JWT_SECRET"]
+                ?? "FOMS_Capstone_JWT_SecureKey_2026!!";
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

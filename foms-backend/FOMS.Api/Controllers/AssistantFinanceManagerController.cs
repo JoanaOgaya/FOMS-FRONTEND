@@ -746,27 +746,6 @@ public class AssistantFinanceManagerController : ControllerBase
         });
     }
 
-    [HttpGet("review-history")]
-    public async Task<IActionResult> GetReviewHistory()
-    {
-        var list = await _fomsDb.AIReviewHistories.AsNoTracking().OrderByDescending(r => r.ReviewedDate).ToListAsync();
-        return Ok(new
-        {
-            success = true,
-            count = list.Count,
-            data = list.Select(r => new
-            {
-                id = r.ReviewId.ToString(),
-                historyId = r.ReviewId.ToString(),
-                documentNumber = r.DocumentNumber,
-                status = r.FinalDecision,
-                finalDecision = r.FinalDecision,
-                reviewer = r.Reviewer,
-                decisionReason = r.DecisionReason,
-                reviewedDate = r.ReviewedDate?.ToString("yyyy-MM-dd")
-            })
-        });
-    }
 
     // 4. Document Extraction
     [HttpPost("ai/document-extraction")]
