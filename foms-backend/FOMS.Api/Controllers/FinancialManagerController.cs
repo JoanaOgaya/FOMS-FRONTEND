@@ -404,7 +404,7 @@ public class FinancialManagerController : ControllerBase
         _fomsDb.AccountsReceivable.Add(new AccountsReceivable
         {
             InvoiceId = invoice.InvoiceId,
-            ClientId = invoice.ClientId ?? 0,
+            ClientId = invoice.ClientId,
             InvoiceAmount = invoice.TotalAmount,
             PaidAmount = 0m,
             OutstandingBalance = invoice.TotalAmount,

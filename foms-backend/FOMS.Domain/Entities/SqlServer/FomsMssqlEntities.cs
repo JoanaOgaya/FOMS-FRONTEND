@@ -481,6 +481,9 @@ public class Waybill
     [Column("invoice_id")]
     public int? InvoiceId { get; set; }
 
+    [Column("invoice_no")]
+    public string? InvoiceNo { get; set; }
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
 
