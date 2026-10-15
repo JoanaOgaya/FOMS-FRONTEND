@@ -200,8 +200,27 @@ export const SpeedPayValidation: React.FC = () => {
     },
   ];
 
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+
   const filteredData = useMemo(() => {
     let result = allEnriched;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        (r.clientName || '').toLowerCase().includes(q) ||
+        (r.invoiceNumber || '').toLowerCase().includes(q) ||
+        (r.referenceNumber || '').toLowerCase().includes(q)
+      );
+    }
+    if (selectedMethod !== 'All') {
+      result = result.filter(r => r.paymentMethod === selectedMethod);
+    }
+    if (selectedStatus !== 'All') {
+      result = result.filter(r => r.status === selectedStatus);
+    }
     if (dateFrom) {
       const fromD = new Date(dateFrom);
       result = result.filter(r => new Date(r.submittedAt) >= fromD);
@@ -212,7 +231,7 @@ export const SpeedPayValidation: React.FC = () => {
       result = result.filter(r => new Date(r.submittedAt) <= toD);
     }
     return result;
-  }, [allEnriched, dateFrom, dateTo]);
+  }, [allEnriched, searchQuery, selectedMethod, selectedStatus, dateFrom, dateTo]);
 
   const methodFilterOptions = [
     { label: 'GCash', value: 'GCash' },
@@ -297,54 +316,322 @@ export const SpeedPayValidation: React.FC = () => {
         ))}
       </div>
 
-      <TableContainer>
-        <DataTable
-          title="SpeedPay Validations"
-          subtitle={
-            <span style={{ color: '#92400E', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <i className="ti ti-info-circle" style={{ color: '#F59E0B', fontSize: 16 }} />
-              <span><strong>Validation Policy:</strong> Confirm that the submitted amount matches the invoice total and that the payment has been received in the company account before approving.</span>
-            </span>
-          }
-          data={filteredData}
-          columns={columns}
-          actions={actions}
-          rowKey="id"
-          searchPlaceholder="Search by client, invoice, or reference..."
-          filters={dtFilters}
-          customFilters={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#64748B' }}>From:</span>
-              <div style={{ width: 140 }}>
-                <CalendarPicker
-                  label=""
-                  value={dateFrom}
-                  onChange={setDateFrom}
-                  placeholder="Start date..."
-                  variant="filter"
-                  maxDate="2026-12-31"
-                />
-              </div>
+      {/* Unified Main Container Card */}
+      <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+        
+        {/* Header Row: Title & View Mode Toggle */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>SpeedPay Validations</h2>
+            <div style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#92400E', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <i className="ti ti-info-circle" style={{ color: '#F59E0B', fontSize: 15 }} />
+              <span><strong>Validation Policy:</strong> Confirm that the submitted amount matches invoice total before approving.</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#64748B' }}>To:</span>
-              <div style={{ width: 140 }}>
-                <CalendarPicker
-                  label=""
-                  value={dateTo}
-                  onChange={setDateTo}
-                  placeholder="End date..."
-                  variant="filter"
-                  minDate={dateFrom}
-                  maxDate="2026-12-31"
-                />
-              </div>
-              </div>
+          </div>
+
+          {/* Cards vs Table View Switcher */}
+          <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #E2E8F0', overflow: 'hidden', background: '#F8FAFC' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-layout-grid" style={{ fontSize: '15px' }} />
+              Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-table" style={{ fontSize: '15px' }} />
+              Table
+            </button>
+          </div>
+        </div>
+
+        {/* Filters Row */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '300px' }}>
+              <i className="ti ti-search" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#0D9488', fontSize: '16px' }} />
+              <input
+                type="text"
+                placeholder="Search by client, invoice, or ref..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 16px 9px 40px',
+                  borderRadius: '9999px',
+                  border: '1.5px solid #0D9488',
+                  background: '#FFFFFF',
+                  fontSize: '0.85rem',
+                  color: '#0F172A',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
-          }
-        />
-      </TableContainer>
+
+            <select
+              value={selectedMethod}
+              onChange={(e) => setSelectedMethod(e.target.value)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                fontSize: '0.85rem',
+                color: '#334155',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="All">All Methods</option>
+              <option value="Maya">Maya</option>
+              <option value="GCash">GCash</option>
+            </select>
+
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                fontSize: '0.85rem',
+                color: '#334155',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending Validation">Pending Validation</option>
+              <option value="Validated">Validated</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+
+          {/* Date Row Below Search */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <CalendarPicker
+              label="From:"
+              placeholder="Start date..."
+              value={dateFrom}
+              onChange={setDateFrom}
+              variant="toolbar"
+              disableFutureDates={true}
+              maxDate={dateTo}
+            />
+
+            <CalendarPicker
+              label="To:"
+              placeholder="End date..."
+              value={dateTo}
+              onChange={setDateTo}
+              variant="toolbar"
+              disableFutureDates={true}
+              minDate={dateFrom}
+            />
+
+            {(searchQuery || selectedMethod !== 'All' || selectedStatus !== 'All' || dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedMethod('All');
+                  setSelectedStatus('All');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #FCA5A5',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                <i className="ti ti-x" style={{ marginRight: 4 }} />Clear Filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* View Mode: Cards or Table */}
+        {viewMode === 'cards' ? (
+          filteredData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '64px 20px', color: '#94A3B8' }}>
+              <i className="ti ti-receipt-off" style={{ fontSize: '42px', display: 'block', marginBottom: '12px', color: '#CBD5E1' }} />
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#334155' }}>No SpeedPay records found</div>
+              <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748B' }}>Try adjusting your search query or filter options.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
+              {filteredData.map((row: any) => (
+                <div
+                  key={row.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.02)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  {/* Top: Method Tag & Status Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      background: '#F1F5F9',
+                      color: '#334155',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                    }}>
+                      <i className={row.paymentMethod === 'Maya' ? 'ti ti-brand-mastercard' : 'ti ti-device-mobile'} style={{ color: '#0D9488' }} />
+                      {row.paymentMethod}
+                    </div>
+                    <StatusBadge status={row.status} />
+                  </div>
+
+                  {/* Client Info */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>
+                        {row.clientName || 'Unknown Client'}
+                      </h3>
+                      {row.clientId && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0D9488', background: '#F0FDFA', padding: '2px 8px', borderRadius: '6px' }}>
+                          {row.clientId}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="ti ti-file-invoice" />
+                      Invoice Ref: <strong style={{ color: '#0F172A' }}>{row.invoiceNumber}</strong>
+                    </div>
+                  </div>
+
+                  {/* Amount Block */}
+                  <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '12px 14px', border: '1px solid #F1F5F9' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>
+                      SUBMITTED PAYMENT
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10B981', marginTop: '2px' }}>
+                      {formatCurrency(Number(row.amountPaid))}
+                    </div>
+                    {row.proofFileName && (
+                      <div style={{ fontSize: '0.75rem', color: '#0284C7', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <i className="ti ti-photo" />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.proofFileName}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Footer: Metadata & Validate Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: '12px', fontSize: '0.75rem', color: '#94A3B8' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>
+                        #{row.referenceNumber || row.id}
+                      </span>
+                      <span>{new Date(row.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubmission(row)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        background: '#0D9488',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                    >
+                      <i className="ti ti-eye" />
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <TableContainer style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
+            <DataTable
+              title=""
+              data={filteredData}
+              columns={columns}
+              actions={actions}
+              rowKey="id"
+              hideSearch={true}
+              columnToggle={true}
+              densityToggle={true}
+              exportable={false}
+              emptyMessage="No SpeedPay records found."
+            />
+          </TableContainer>
+        )}
+      </div>
 
       {/* SpeedPay Details Modal */}
       {selectedSubmission && (

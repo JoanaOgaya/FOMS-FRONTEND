@@ -167,7 +167,7 @@ public class FinancialManagerController : ControllerBase
         var data = clients.Select(c => new
         {
             clientId = c.ClientId,
-            clientCode = c.ClientCode ?? $"CA-{c.ClientId:D3}",
+            clientCode = ResolveClientCode(c.ClientCode, c.CompanyName, c.ClientId),
             companyName = c.CompanyName,
             status = (c.IsActive ?? true) ? "Active" : "Inactive",
             isActive = c.IsActive ?? true
@@ -404,7 +404,7 @@ public class FinancialManagerController : ControllerBase
         _fomsDb.AccountsReceivable.Add(new AccountsReceivable
         {
             InvoiceId = invoice.InvoiceId,
-            ClientId = invoice.ClientId,
+            ClientId = invoice.ClientId ?? 0,
             InvoiceAmount = invoice.TotalAmount,
             PaidAmount = 0m,
             OutstandingBalance = invoice.TotalAmount,
@@ -1127,6 +1127,27 @@ public class FinancialManagerController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
+    private static string ResolveClientCode(string? clientCode, string? companyName, int? clientId)
+    {
+        if (!string.IsNullOrWhiteSpace(clientCode) && !clientCode.StartsWith("CA-", StringComparison.OrdinalIgnoreCase))
+            return clientCode;
+
+        var name = (companyName ?? "").ToLowerInvariant();
+        string prefix = "CLI";
+        if (name.Contains("lazada")) prefix = "LZD";
+        else if (name.Contains("shopee")) prefix = "SHP";
+        else if (name.Contains("tiktok")) prefix = "TKT";
+        else if (name.Contains("zalora")) prefix = "ZAL";
+        else if (name.Contains("test")) prefix = "TST";
+        else if (!string.IsNullOrWhiteSpace(companyName))
+        {
+            var cleanLetters = new string(companyName.Where(char.IsLetter).ToArray());
+            prefix = cleanLetters.Length >= 3 ? cleanLetters[..3].ToUpperInvariant() : "CLI";
+        }
+
+        return $"{prefix}-{(clientId ?? 1):D3}";
+    }
+
     private async Task LogAuditAsync(string action, string module, string recordId, string remarks)
     {
         try

@@ -116,6 +116,7 @@ const PaymentsContent: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [globalFilter, setGlobalFilter] = useState<'all' | 'inflow' | 'outflow'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // --- Expense state (local) ---
   const [expenses, setExpenses] = useState<Array<{
@@ -146,7 +147,7 @@ const PaymentsContent: React.FC = () => {
   });
 
   // --- Filters state ---
-  const [filterType, setFilterType] = useState<string>('All');
+  const [filterMethod, setFilterMethod] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
@@ -413,26 +414,31 @@ const PaymentsContent: React.FC = () => {
     },
   ];
 
+  const getActionUrl = (row: any, action: string) => {
+    const targetId = row.paymentId || row.id;
+    return clientIdParam
+      ? `/payments/${clientIdParam}?paymentId=${targetId}&action=${action}`
+      : `/payments?paymentId=${targetId}&action=${action}`;
+  };
+
   const fmActions = [
     {
       label: 'Final Approve',
       icon: 'ti-shield-check',
-      onClick: (row: any) => {
-        navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=view`);
-      },
-      hidden: (row: any) => row.status !== 'Validated',
+      onClick: (row: any) => navigate(getActionUrl(row, 'view')),
+      hidden: (row: any) => row.status !== 'Validated' || row.type === 'Outflow',
     },
     {
       label: 'View Receipt',
       icon: 'ti-receipt',
-      onClick: (row: any) => navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=receipt`),
-      hidden: (row: any) => row.status !== 'Approved',
+      onClick: (row: any) => navigate(getActionUrl(row, 'receipt')),
+      hidden: (row: any) => row.status !== 'Approved' || row.type === 'Outflow',
     },
     {
       label: 'View Details',
       icon: 'ti-eye',
-      onClick: (row: any) => navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=view`),
-      hidden: (row: any) => row.status !== 'Rejected',
+      onClick: (row: any) => navigate(getActionUrl(row, 'view')),
+      hidden: (row: any) => row.status !== 'Rejected' && row.type !== 'Outflow',
     }
   ];
 
@@ -440,21 +446,19 @@ const PaymentsContent: React.FC = () => {
     {
       label: 'View Details',
       icon: 'ti-eye',
-      onClick: (row: any) => {
-        navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=view`);
-      },
-      hidden: (row: any) => row.status !== 'Pending Validation',
+      onClick: (row: any) => navigate(getActionUrl(row, 'view')),
+      hidden: (row: any) => row.status !== 'Pending Validation' && row.type !== 'Outflow',
     },
     {
       label: 'View Receipt',
       icon: 'ti-receipt',
-      onClick: (row: any) => navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=receipt`),
-      hidden: (row: any) => row.status !== 'Validated' && row.status !== 'Approved',
+      onClick: (row: any) => navigate(getActionUrl(row, 'receipt')),
+      hidden: (row: any) => (row.status !== 'Validated' && row.status !== 'Approved') || row.type === 'Outflow',
     },
     {
       label: 'View Details',
       icon: 'ti-eye',
-      onClick: (row: any) => navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=view`),
+      onClick: (row: any) => navigate(getActionUrl(row, 'view')),
       hidden: (row: any) => row.status !== 'Rejected',
     }
   ];
@@ -463,7 +467,7 @@ const PaymentsContent: React.FC = () => {
     {
       label: 'Payment Details',
       icon: 'ti-eye',
-      onClick: (row: any) => navigate(`/payments/${clientIdParam || row.clientId}?paymentId=${row.paymentId || row.id}&action=view`)
+      onClick: (row: any) => navigate(getActionUrl(row, 'view'))
     }
   ];
 
@@ -644,33 +648,102 @@ const PaymentsContent: React.FC = () => {
     let viewPaymentRaw: any = allowedPayments.find((p: Payment) => p.id === paymentIdParam);
     if (!viewPaymentRaw && paymentIdParam.startsWith('SP-')) {
       const spId = paymentIdParam.replace('SP-', '');
-      const sp = speedPay.find((s: SpeedPaySubmission) => s.id === spId);
+      const sp = speedPay.find((s: SpeedPaySubmission) => s.id === spId || `SP-${s.id}` === paymentIdParam);
       if (sp) {
         viewPaymentRaw = {
           ...sp,
           id: paymentIdParam,
           amount: sp.amountPaid,
           recordedAt: sp.submittedAt,
-          proofOfPaymentUrl: sp.proofFileUrl
+          proofOfPaymentUrl: sp.proofFileUrl,
+          type: 'Inflow',
+          classification: 'SpeedPay Collection',
+          status: sp.status || 'Validated',
+        };
+      }
+    }
+
+    if (!viewPaymentRaw) {
+      const exp = expenses.find((e) => e.id === paymentIdParam || e.referenceNo === paymentIdParam);
+      if (exp) {
+        viewPaymentRaw = {
+          id: exp.id,
+          clientId: '',
+          clientName: exp.category,
+          invoiceId: '',
+          invoiceNumber: exp.referenceNo || '—',
+          amount: exp.amount,
+          paymentMethod: 'Internal',
+          referenceNumber: exp.referenceNo || '—',
+          recordedAt: exp.date ? (exp.date.includes('T') ? exp.date : `${exp.date}T00:00:00Z`) : new Date().toISOString(),
+          status: 'Validated',
+          type: 'Outflow',
+          classification: exp.description,
+          description: exp.description,
+          recordedBy: exp.recordedBy || 'Finance Team',
+          notes: exp.description,
+        };
+      }
+    }
+
+    if (!viewPaymentRaw && cashFlowRecords) {
+      const cf = cashFlowRecords.find((c) => c.id === paymentIdParam || c.sourceReference === paymentIdParam);
+      if (cf) {
+        viewPaymentRaw = {
+          id: cf.id,
+          clientId: '',
+          clientName: cf.type === 'Outflow' ? 'Operating Disbursement' : 'Cash Flow Inflow',
+          invoiceId: '',
+          invoiceNumber: cf.sourceReference || '—',
+          amount: cf.amount,
+          paymentMethod: cf.type === 'Outflow' ? 'Bank Transfer' : 'Cash',
+          referenceNumber: cf.sourceReference || '—',
+          recordedAt: cf.date ? (cf.date.includes('T') ? cf.date : `${cf.date}T00:00:00Z`) : new Date().toISOString(),
+          status: 'Validated',
+          type: cf.type || 'Outflow',
+          classification: cf.sourceReference || cf.type,
+          description: cf.sourceReference,
+          recordedBy: 'Finance Team',
+          notes: cf.sourceReference,
+        };
+      }
+    }
+
+    if (!viewPaymentRaw && payments) {
+      const p = payments.find((item: Payment) => item.id === paymentIdParam);
+      if (p) {
+        viewPaymentRaw = {
+          ...p,
+          type: 'Inflow',
+          classification: 'Client Collection',
         };
       }
     }
 
     if (viewPaymentRaw) {
-      const client = clients.find((c: Client) => c.id === viewPaymentRaw.clientId);
-      const invoice = invoices.find((i: Invoice) => i.id === viewPaymentRaw.invoiceId);
+      const client = clients.find((c: Client) => c.id === viewPaymentRaw.clientId || (c as any).accountNumber === viewPaymentRaw.clientId || (c as any).clientCode === viewPaymentRaw.clientId);
+      const invoice = invoices.find((i: Invoice) => i.id === viewPaymentRaw.invoiceId || i.invoiceNumber === viewPaymentRaw.invoiceNumber);
       viewPayment = {
         ...viewPaymentRaw,
-        clientName: client?.name ?? viewPaymentRaw.clientName ?? 'Unknown',
-        invoiceNumber: invoice?.invoiceNumber ?? viewPaymentRaw.invoiceNumber ?? viewPaymentRaw.invoiceId
+        clientName: client?.name ?? viewPaymentRaw.clientName ?? (viewPaymentRaw.type === 'Outflow' ? (viewPaymentRaw.classification || 'Internal Disbursement') : 'Unknown'),
+        invoiceNumber: invoice?.invoiceNumber ?? viewPaymentRaw.invoiceNumber ?? viewPaymentRaw.invoiceId ?? '—'
       };
     }
   }
 
   // --- Client Detail View ---
   if (clientIdParam) {
-    const client = clients.find((c: Client) => c.id === clientIdParam);
-    if (!client) return <div>Client not found</div>;
+    const client = clients.find((c: Client) => c.id === clientIdParam || (c as any).accountNumber === clientIdParam || (c as any).clientCode === clientIdParam);
+    if (!client) {
+      return (
+        <div style={{ padding: '24px' }}>
+          <button onClick={() => navigate('/payments')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, color: '#334155', marginBottom: '16px' }}>
+            <i className="ti ti-arrow-left" /> Back to Payments
+          </button>
+          <div style={{ color: '#64748B' }}>Client record not found for "{clientIdParam}".</div>
+        </div>
+      );
+    }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
@@ -782,6 +855,7 @@ const PaymentsContent: React.FC = () => {
                     value={form.datePaid}
                     onChange={v => setForm(f => ({ ...f, datePaid: v }))}
                     required={true}
+                    disableFutureDates={true}
                   />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
@@ -999,12 +1073,8 @@ const PaymentsContent: React.FC = () => {
     );
   }
 
-  // --- List View — Cash Flow Table ---
-  // Only VALIDATED payments count as confirmed cash inflows
-  const validatedPayments = payments.filter((p: Payment) => p.status === 'Validated' || p.status === 'Approved');
-  const pendingPayments = payments.filter((p: Payment) => p.status === 'Pending Validation');
-
-  const cashFlowRows = validatedPayments.map((p: Payment) => {
+  // --- List View — Payment Collections Table ---
+  const paymentRows = payments.map((p: Payment) => {
     const cli = clients.find((c: Client) => c.id === p.clientId);
     const invoice = invoices.find((i: Invoice) => i.id === p.invoiceId);
     return {
@@ -1012,83 +1082,54 @@ const PaymentsContent: React.FC = () => {
       clientName: (p as any).clientName || cli?.name || p.clientId || '—',
       invoiceNumber: (p as any).invoiceNumber || invoice?.invoiceNumber || p.invoiceId || '—',
       recordedAt: p.recordedAt || (p as any).paymentDate || (p as any).dateRecorded || (p as any).submittedAt || (p as any).createdAt,
-      type: 'Inflow' as const,
       classification: 'Client Collection',
     };
   });
 
-  // Validated SpeedPay submissions as inflow rows
-  const speedPayRows = speedPay
-    .filter((s: SpeedPaySubmission) => s.status === 'Validated')
-    .map((s: SpeedPaySubmission) => {
-      const invoice = invoices.find((i: Invoice) => i.id === s.invoiceId);
-      const cli = clients.find((c: Client) => c.id === (s as any).clientId);
-      return {
-        id: `SP-${s.id}`,
-        clientId: (s as any).clientId ?? '',
-        clientName: cli?.name ?? s.clientName ?? '—',
-        invoiceId: s.invoiceId,
-        invoiceNumber: s.invoiceNumber ?? invoice?.invoiceNumber ?? s.invoiceId ?? '—',
-        amount: s.amountPaid ?? 0,
-        paymentMethod: s.paymentMethod,
-        referenceNumber: s.referenceNumber,
-        recordedAt: s.submittedAt,
-        status: 'Validated' as const,
-        type: 'Inflow' as const,
-        classification: 'SpeedPay Collection',
-        proofOfPaymentUrl: s.proofFileUrl,
-      };
-    });
+  // SpeedPay submissions as collection rows
+  const speedPayRows = speedPay.map((s: SpeedPaySubmission) => {
+    const invoice = invoices.find((i: Invoice) => i.id === s.invoiceId);
+    const cli = clients.find((c: Client) => c.id === (s as any).clientId);
+    return {
+      id: `SP-${s.id}`,
+      clientId: (s as any).clientId ?? '',
+      clientName: cli?.name ?? s.clientName ?? '—',
+      invoiceId: s.invoiceId,
+      invoiceNumber: s.invoiceNumber ?? invoice?.invoiceNumber ?? s.invoiceId ?? '—',
+      amount: s.amountPaid ?? 0,
+      paymentMethod: s.paymentMethod,
+      referenceNumber: s.referenceNumber,
+      recordedAt: s.submittedAt,
+      status: s.status || 'Validated',
+      classification: 'SpeedPay Collection',
+      proofOfPaymentUrl: s.proofFileUrl,
+    };
+  });
 
-  // Map expenses as Outflow rows
-  const expenseRows = expenses.map(exp => ({
-    id: exp.id,
-    clientId: '',
-    clientName: exp.category,
-    invoiceId: '',
-    invoiceNumber: exp.referenceNo || '—',
-    amount: exp.amount,
-    paymentMethod: 'Internal',
-    referenceNumber: exp.referenceNo || '—',
-    recordedAt: exp.date + 'T00:00:00Z',
-    status: 'Validated' as const,
-    type: 'Outflow' as const,
-    classification: exp.description,
-  }));
-
-  const dbOutflowRows = (cashFlowRecords || [])
-    .filter(c => c.type === 'Outflow')
-    .map(c => ({
-      id: c.id,
-      clientId: '',
-      clientName: 'Operating Disbursement',
-      invoiceId: '',
-      invoiceNumber: c.sourceReference || '—',
-      amount: c.amount,
-      paymentMethod: 'Bank Transfer',
-      referenceNumber: c.sourceReference || '—',
-      recordedAt: c.date ? (c.date.includes('T') ? c.date : `${c.date}T00:00:00Z`) : new Date().toISOString(),
-      status: 'Validated' as const,
-      type: 'Outflow' as const,
-      classification: c.sourceReference || 'Disbursement',
-    }));
-
-  const allCashFlowRows = [...cashFlowRows, ...speedPayRows, ...expenseRows, ...dbOutflowRows]
+  const allPaymentRows = [...paymentRows, ...speedPayRows]
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
 
-  const totalInflow = allCashFlowRows
-    .filter(r => r.type === 'Inflow')
+  const totalCollections = allPaymentRows
+    .filter(r => (r.status as string) === 'Validated' || (r.status as string) === 'Approved')
     .reduce((sum: number, r) => sum + r.amount, 0);
 
-  const totalOutflow = allCashFlowRows
-    .filter(r => r.type === 'Outflow')
-    .reduce((sum: number, e) => sum + e.amount, 0);
-  const netCashFlow = totalInflow - totalOutflow;
+  const pendingRows = allPaymentRows.filter(r => r.status === 'Pending Validation');
+  const pendingAmount = pendingRows.reduce((sum: number, r) => sum + r.amount, 0);
 
-  const pendingInflowAmt = pendingPayments.reduce((s: number, p: Payment) => s + p.amount, 0);
+  const speedPayTotal = speedPayRows
+    .filter(r => (r.status as string) === 'Validated' || (r.status as string) === 'Approved')
+    .reduce((sum: number, r) => sum + r.amount, 0);
 
-  const filteredCashFlow = allCashFlowRows.filter(r => {
-    if (filterType !== 'All' && r.type !== filterType) return false;
+  const filteredPaymentsList = allPaymentRows.filter(r => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchClient = (r.clientName || '').toLowerCase().includes(q);
+      const matchInvoice = (r.invoiceNumber || '').toLowerCase().includes(q);
+      const matchRef = (r.referenceNumber || '').toLowerCase().includes(q);
+      const matchMethod = (r.paymentMethod || '').toLowerCase().includes(q);
+      if (!matchClient && !matchInvoice && !matchRef && !matchMethod) return false;
+    }
+    if (filterMethod !== 'All' && r.paymentMethod !== filterMethod) return false;
     if (filterStatus !== 'All' && r.status !== filterStatus) return false;
     if (filterDateFrom) {
       const from = new Date(filterDateFrom);
@@ -1237,6 +1278,7 @@ const PaymentsContent: React.FC = () => {
                   value={form.datePaid}
                   onChange={v => setForm(f => ({ ...f, datePaid: v }))}
                   required={true}
+                  disableFutureDates={true}
                 />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -1454,146 +1496,490 @@ const PaymentsContent: React.FC = () => {
       {/* KPI Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {[
-          { label: 'Total Cash Inflow', value: `₱${Number(totalInflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#10B981', bgColor: '#F0FDF4', textColor: '#15803D', icon: 'ti-trending-up', sub: 'Validated payments only' },
-          { label: 'Total Cash Outflow', value: `₱${Number(totalOutflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#EF4444', bgColor: '#FEF2F2', textColor: '#B91C1C', icon: 'ti-trending-down', sub: 'Approved outgoing transactions' },
-          { label: 'Net Cash Flow', value: `₱${Number(netCashFlow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: netCashFlow >= 0 ? '#6366F1' : '#EF4444', bgColor: netCashFlow >= 0 ? '#EEF2FF' : '#FEF2F2', textColor: netCashFlow >= 0 ? '#4338CA' : '#B91C1C', icon: 'ti-currency-peso', sub: 'Total Inflow minus Outflow' },
-          { label: 'Pending Validation', value: `₱${Number(pendingInflowAmt || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', icon: 'ti-clock', sub: `${pendingPayments.length} payment(s) awaiting` },
+          { label: 'Total Collections', value: `₱${Number(totalCollections || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#10B981', bgColor: '#F0FDF4', textColor: '#15803D', icon: 'ti-cash', sub: 'Confirmed client payments' },
+          { label: 'Pending Validation', value: `₱${Number(pendingAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', icon: 'ti-clock', sub: `${pendingRows.length} payment(s) awaiting` },
+          { label: 'SpeedPay Online', value: `₱${Number(speedPayTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#6366F1', bgColor: '#EEF2FF', textColor: '#4338CA', icon: 'ti-device-mobile-message', sub: `${speedPayRows.length} online transaction(s)` },
+          { label: 'Official Receipts', value: `${receipts.length}`, color: '#0D9488', bgColor: '#F0FDFA', textColor: '#0F766E', icon: 'ti-receipt', sub: 'Issued tax receipts' },
         ].map(kpi => (
           <PaymentsKpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
 
-      {/* Cash Flow Table */}
-      <TableContainer>
-        <DataTable
-          data={filteredCashFlow}
-          customFilters={
-            <>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>
-                <option value="All">All Types</option>
-                <option value="Inflow">Inflow</option>
-                <option value="Outflow">Outflow</option>
-              </select>
+      {/* Main Container Card */}
+      <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+        {/* Title & Toolbar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Payment Transactions</h2>
+          <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#64748B' }}>Verified client payments, online SpeedPay transactions, and receipts</p>
+        </div>
 
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>
-                <option value="All">All Statuses</option>
-                <option value="Validated">Validated</option>
-                <option value="Approved">Approved</option>
-                <option value="Pending Validation">Pending Validation</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* View Mode Toggle: Cards vs Table */}
+          <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #E2E8F0', overflow: 'hidden', background: '#F8FAFC' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-layout-grid" style={{ fontSize: '15px' }} />
+              Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-table" style={{ fontSize: '15px' }} />
+              Table
+            </button>
+          </div>
 
-              <CalendarPicker
-                label="From:"
-                placeholder="Start date..."
-                value={filterDateFrom}
-                onChange={date => setFilterDateFrom(date)}
-                maxDate={filterDateTo || "2024-12-31"}
-                variant="toolbar"
-              />
+          {isAccountant && (
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 18px',
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                background: '#0D9488',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(13, 148, 136, 0.2)',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+            >
+              <i className="ti ti-plus" style={{ fontSize: '16px' }} />
+              Record Payment
+            </button>
+          )}
+        </div>
+      </div>
 
-              <CalendarPicker
-                label="To:"
-                placeholder="End date..."
-                value={filterDateTo}
-                onChange={date => setFilterDateTo(date)}
-                minDate={filterDateFrom}
-                maxDate="2024-12-31"
-                variant="toolbar"
-              />
+      {/* Filters Bar */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Top Row: Search & Status / Method Dropdowns */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', width: '320px' }}>
+            <i
+              className="ti ti-search"
+              style={{
+                position: 'absolute',
+                left: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#0D9488',
+                fontSize: '16px',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search by client, invoice, or ref..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 16px 9px 40px',
+                borderRadius: '9999px',
+                border: '1.5px solid #0D9488',
+                background: '#FFFFFF',
+                fontSize: '0.85rem',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
 
-              {(filterType !== 'All' || filterStatus !== 'All' || filterDateFrom || filterDateTo) && (
-                <button onClick={() => { setFilterType('All'); setFilterStatus('All'); setFilterDateFrom(''); setFilterDateTo(''); }}
-                  style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>
-                  <i className="ti ti-x" style={{ marginRight: 4 }} />Clear Filters
-                </button>
-              )}
-            </>
-          }
-          columns={[
-            {
-              key: 'type', label: 'TYPE',
-              render: (row: any) => (
-                <span style={{
-                  padding: '3px 12px', borderRadius: 9999, fontWeight: 700, fontSize: '0.75rem',
-                  background: row.type === 'Inflow' ? '#DCFCE7' : '#FEE2E2',
-                  color: row.type === 'Inflow' ? '#15803D' : '#DC2626',
-                }}>
-                  <i className={`ti ${row.type === 'Inflow' ? 'ti-arrow-down-left' : 'ti-arrow-up-right'}`} style={{ marginRight: 4 }} />
-                  {row.type}
-                </span>
-              )
-            },
-            {
-              key: 'clientName', label: 'CLIENT', sortable: true,
-              render: (row: any) => (
-                <div>
-                  <div
-                    onClick={() => navigate(`/payments/${row.clientId}`)}
-                    style={{ fontWeight: 700, color: '#0F172A', cursor: 'pointer' }}
-                  >
-                    {row.clientName}
-                  </div>
-                  {row.clientId && <div style={{ fontSize: 11, color: '#94A3B8' }}>{row.clientId}</div>}
-                </div>
-              )
-            },
-            {
-              key: 'invoiceNumber', label: 'REFERENCE / INVOICE',
-              render: (row: any) => (
-                <div>
-                  <div style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 12, color: '#0F172A' }}>{row.invoiceNumber}</div>
-                  <span style={{
-                    display: 'inline-block', marginTop: 2,
-                    fontSize: 10, fontWeight: 700,
-                    color: '#000000',
+          <select
+            value={filterMethod}
+            onChange={(e) => setFilterMethod(e.target.value)}
+            style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              fontSize: '0.85rem',
+              color: '#334155',
+              fontWeight: 600,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="All">All Methods</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Maya">Maya</option>
+            <option value="GCash">GCash</option>
+            <option value="Check">Check</option>
+            <option value="Cash">Cash</option>
+          </select>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              background: '#FFFFFF',
+              fontSize: '0.85rem',
+              color: '#334155',
+              fontWeight: 600,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            <option value="All">All Statuses</option>
+            <option value="Validated">Validated</option>
+            <option value="Approved">Approved</option>
+            <option value="Pending Validation">Pending Validation</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+
+        {/* Bottom Row: Date Pickers & Clear Button (placed cleanly below search) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <CalendarPicker
+            label="From:"
+            placeholder="Start date..."
+            value={filterDateFrom}
+            onChange={(date) => setFilterDateFrom(date)}
+            disableFutureDates={true}
+            maxDate={filterDateTo}
+            variant="toolbar"
+          />
+
+          <CalendarPicker
+            label="To:"
+            placeholder="End date..."
+            value={filterDateTo}
+            onChange={(date) => setFilterDateTo(date)}
+            disableFutureDates={true}
+            minDate={filterDateFrom}
+            variant="toolbar"
+          />
+
+          {(searchQuery || filterMethod !== 'All' || filterStatus !== 'All' || filterDateFrom || filterDateTo) && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterMethod('All');
+                setFilterStatus('All');
+                setFilterDateFrom('');
+                setFilterDateTo('');
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: '1px solid #FCA5A5',
+                background: '#FEF2F2',
+                color: '#DC2626',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              <i className="ti ti-x" style={{ marginRight: 4 }} />Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* View Mode: Cards or Table */}
+      {viewMode === 'cards' ? (
+        filteredPaymentsList.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '64px 20px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', color: '#94A3B8' }}>
+            <i className="ti ti-receipt-off" style={{ fontSize: '42px', display: 'block', marginBottom: '12px', color: '#CBD5E1' }} />
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#334155' }}>No payment records found</div>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748B' }}>Try adjusting your search query or filter options.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
+            {filteredPaymentsList.map((payment) => (
+              <div
+                key={payment.id}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.02)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                {/* Card Top: Method Tag & Status Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    background: '#F1F5F9',
+                    color: '#334155',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
                   }}>
-                    {row.classification}
-                  </span>
+                    <i className={
+                      payment.paymentMethod === 'Maya' ? 'ti ti-brand-mastercard' :
+                      payment.paymentMethod === 'GCash' ? 'ti ti-device-mobile' :
+                      payment.paymentMethod === 'Bank Transfer' ? 'ti ti-building-bank' :
+                      payment.paymentMethod === 'Check' ? 'ti ti-file-certificate' : 'ti ti-cash'
+                    } style={{ fontSize: '14px', color: '#0D9488' }} />
+                    {payment.paymentMethod || 'Manual'}
+                  </div>
+
+                  <StatusBadge status={payment.status} />
                 </div>
-              )
-            },
-            {
-              key: 'amount', label: 'AMOUNT', sortable: true,
-              render: (row: any) => (
-                <span style={{ fontWeight: 800, color: row.type === 'Inflow' ? '#10B981' : '#EF4444', fontSize: 14 }}>
-                  {row.type === 'Inflow' ? '' : '-'}₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </span>
-              )
-            },
-            {
-              key: 'paymentMethod', label: 'METHOD',
-              render: (row: any) => {
-                return <span style={{ color: '#000000', fontWeight: 'normal', fontSize: 13 }}>{row.paymentMethod || '—'}</span>;
-              }
-            },
-            {
-              key: 'referenceNumber', label: 'REFERENCE NO.',
-              render: (row: any) => <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>{row.referenceNumber || '—'}</span>
-            },
-            {
-              key: 'recordedAt', label: 'DATE', sortable: true,
-              render: (row: any) => safeFormatDate(row.recordedAt || row.paymentDate || row.dateRecorded || row.submittedAt || row.createdAt || row.date)
-            },
-            {
-              key: 'status', label: 'STATUS',
-              render: (row: any) => <StatusBadge status={row.status} />
-            },
-          ]}
-          rowKey="id"
-          title="Cash Flow — Payment Transactions"
-          searchPlaceholder="Search by client, invoice, or reference..."
-          searchFields={['clientName', 'invoiceNumber', 'referenceNumber'] as any}
-          emptyMessage="No cash flow records found. Adjust your filters or wait for validated payments."
-          columnToggle={true} densityToggle={true} exportable={false}
-          actions={actions}
-          createButtons={[
-            ...(isAccountant ? [{ label: '+ Record Payment', variant: 'primary' as const, onClick: () => setShowForm(true) }] : []),
-          ]}
-        />
-      </TableContainer>
+
+                {/* Client Info & Classification */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span
+                      onClick={() => payment.clientId && navigate(`/payments/${payment.clientId}`)}
+                      style={{
+                        fontSize: '1.05rem',
+                        fontWeight: 800,
+                        color: '#0F172A',
+                        lineHeight: 1.3,
+                        cursor: payment.clientId ? 'pointer' : 'default',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={(e) => { if (payment.clientId) e.currentTarget.style.color = '#0D9488'; }}
+                      onMouseLeave={(e) => { if (payment.clientId) e.currentTarget.style.color = '#0F172A'; }}
+                    >
+                      {payment.clientName}
+                    </span>
+                    {payment.clientId && (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0D9488', background: '#F0FDFA', border: '1px solid #CCFBF1', padding: '2px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                        {payment.clientId}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0D9488', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <i className="ti ti-check" style={{ fontSize: '12px' }} />
+                    {payment.classification || 'Client Collection'}
+                  </div>
+                </div>
+
+                {/* Amount & Invoice Breakdown */}
+                <div style={{
+                  background: '#F8FAFC',
+                  borderRadius: '12px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  border: '1px solid #E2E8F0',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.05em' }}>
+                      COLLECTED AMOUNT
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#059669', marginTop: '2px' }}>
+                      ₱{Number(payment.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.05em' }}>
+                      INVOICE REF
+                    </div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {payment.invoiceNumber}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details Meta: Reference No & Date */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B', borderTop: '1px dashed #E2E8F0', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-hash" style={{ color: '#94A3B8' }} />
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#334155' }}>
+                      {payment.referenceNumber || '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <i className="ti ti-calendar" style={{ color: '#94A3B8' }} />
+                    {safeFormatDate(payment.recordedAt)}
+                  </div>
+                </div>
+
+                {/* Card Footer: Action Buttons */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(getActionUrl(payment, 'view'))}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '9px 14px',
+                      background: '#0D9488',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                  >
+                    <i className="ti ti-eye" style={{ fontSize: '15px' }} />
+                    Payment Details
+                  </button>
+
+                  {(payment.status === 'Validated' || payment.status === 'Approved') && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(getActionUrl(payment, 'receipt'))}
+                      title="View Official Receipt"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '9px 14px',
+                        background: '#F0FDFA',
+                        color: '#0D9488',
+                        border: '1px solid #99F6E4',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#CCFBF1')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#F0FDFA')}
+                    >
+                      <i className="ti ti-receipt" style={{ fontSize: '15px' }} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <TableContainer>
+          <DataTable
+            data={filteredPaymentsList}
+            hideSearch={true}
+            columns={[
+              {
+                key: 'clientName', label: 'CLIENT', sortable: true,
+                render: (row: any) => (
+                  <div>
+                    <div
+                      onClick={() => row.clientId && navigate(`/payments/${row.clientId}`)}
+                      style={{ fontWeight: 700, color: '#0F172A', cursor: row.clientId ? 'pointer' : 'default' }}
+                    >
+                      {row.clientName}
+                    </div>
+                    {row.clientId && <div style={{ fontSize: 11, color: '#94A3B8' }}>{row.clientId}</div>}
+                  </div>
+                )
+              },
+              {
+                key: 'invoiceNumber', label: 'REFERENCE / INVOICE',
+                render: (row: any) => (
+                  <div>
+                    <div style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 12, color: '#0F172A' }}>{row.invoiceNumber}</div>
+                    <span style={{
+                      display: 'inline-block', marginTop: 2,
+                      fontSize: 10, fontWeight: 700,
+                      color: '#0D9488',
+                    }}>
+                      {row.classification || 'Client Collection'}
+                    </span>
+                  </div>
+                )
+              },
+              {
+                key: 'amount', label: 'AMOUNT', sortable: true,
+                render: (row: any) => (
+                  <span style={{ fontWeight: 800, color: '#10B981', fontSize: 14 }}>
+                    ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                )
+              },
+              {
+                key: 'paymentMethod', label: 'METHOD',
+                render: (row: any) => {
+                  return <span style={{ color: '#000000', fontWeight: 'normal', fontSize: 13 }}>{row.paymentMethod || '—'}</span>;
+                }
+              },
+              {
+                key: 'referenceNumber', label: 'REFERENCE NO.',
+                render: (row: any) => <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>{row.referenceNumber || '—'}</span>
+              },
+              {
+                key: 'recordedAt', label: 'DATE', sortable: true,
+                render: (row: any) => safeFormatDate(row.recordedAt || row.paymentDate || row.dateRecorded || row.submittedAt || row.createdAt || row.date)
+              },
+              {
+                key: 'status', label: 'STATUS',
+                render: (row: any) => <StatusBadge status={row.status} />
+              },
+            ]}
+            rowKey="id"
+            searchPlaceholder="Search by client, invoice, or reference..."
+            searchFields={['clientName', 'invoiceNumber', 'referenceNumber'] as any}
+            emptyMessage="No payment records found. Adjust your filters or wait for client payments."
+            columnToggle={true} densityToggle={true} exportable={false}
+            actions={actions}
+          />
+        </TableContainer>
+      )}
+      </div>
 
       {/* Full Screen Image Preview Modal */}
       {fullScreenPreview && previewDocUrl && createPortal(
@@ -1780,19 +2166,21 @@ const PaymentsContent: React.FC = () => {
       )}
 
       {actionParam === 'view' && viewPayment && createPortal(
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99990, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => navigate('/payments')}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99990, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => navigate(clientIdParam ? `/payments/${clientIdParam}` : '/payments')}>
           <div style={{ background: '#F8FAFC', borderRadius: '12px', width: '100%', maxWidth: '750px', maxHeight: '95vh', overflowY: 'auto', padding: '32px', color: '#334155', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '20px' }} onClick={e => e.stopPropagation()}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-              {/* TOP COLUMN (was left) */}
+              {/* TOP COLUMN */}
               <Card style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px dashed #E2E8F0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <button onClick={() => navigate('/payments')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', padding: 0 }}>
+                    <button onClick={() => navigate(clientIdParam ? `/payments/${clientIdParam}` : '/payments')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', padding: 0 }}>
                       <i className="ti ti-arrow-left" style={{ fontSize: '20px' }} />
                     </button>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0F172A', fontWeight: 800 }}>Payment Information</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0F172A', fontWeight: 800 }}>
+                      {viewPayment.type === 'Outflow' ? 'Disbursement Information' : 'Payment Information'}
+                    </h3>
                   </div>
                   <span style={{ background: viewPayment.status === 'Validated' ? '#DCFCE7' : viewPayment.status === 'Pending Validation' ? '#FEF3C7' : '#F1F5F9', color: viewPayment.status === 'Validated' ? '#15803D' : viewPayment.status === 'Pending Validation' ? '#B45309' : '#475569', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <i className={viewPayment.status === 'Validated' ? "ti ti-lock" : "ti ti-clock"} /> {viewPayment.status}
@@ -1801,16 +2189,22 @@ const PaymentsContent: React.FC = () => {
                 
                 <div style={{ fontSize: '13px', color: '#0F172A', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ti ti-info-circle" style={{ fontSize: '16px', color: '#0F172A' }} />
-                  <span><strong>Notice:</strong> Please ensure all payment details are correct. Verification actions are available in the summary section on the right.</span>
+                  <span>
+                    <strong>Notice:</strong> {viewPayment.type === 'Outflow' ? 'Disbursement record logged for company cash outflow.' : 'Please ensure all payment details are correct. Verification actions are available in the summary section on the right.'}
+                  </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Client Name <span style={{ color: '#EF4444' }}>*</span></label>
-                    <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B' }}>{viewPayment.clientName}</div>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+                      {viewPayment.type === 'Outflow' ? 'Category / Department' : 'Client Name'} <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B', fontWeight: 600 }}>{viewPayment.clientName}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Invoice Ref No.</label>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+                      {viewPayment.type === 'Outflow' ? 'Reference / Voucher No.' : 'Invoice Ref No.'}
+                    </label>
                     <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B' }}>
                       {viewPayment.invoiceNumber}
                     </div>
@@ -1820,7 +2214,7 @@ const PaymentsContent: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Payment Method <span style={{ color: '#EF4444' }}>*</span></label>
-                    <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B' }}>{viewPayment.paymentMethod}</div>
+                    <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B' }}>{viewPayment.paymentMethod || 'Internal'}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Reference Number <span style={{ color: '#EF4444' }}>*</span></label>
@@ -1831,8 +2225,16 @@ const PaymentsContent: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Amount <span style={{ color: '#EF4444' }}>*</span></label>
-                    <div style={{ padding: '10px 14px', background: '#ECFDF5', border: '1px solid #10B981', borderRadius: '8px', fontSize: '15px', color: '#047857', fontWeight: 800 }}>
-                      ₱{Number(viewPayment.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    <div style={{
+                      padding: '10px 14px',
+                      background: viewPayment.type === 'Outflow' ? '#FEF2F2' : '#ECFDF5',
+                      border: viewPayment.type === 'Outflow' ? '1px solid #FCA5A5' : '1px solid #10B981',
+                      borderRadius: '8px',
+                      fontSize: '15px',
+                      color: viewPayment.type === 'Outflow' ? '#DC2626' : '#047857',
+                      fontWeight: 800
+                    }}>
+                      {viewPayment.type === 'Outflow' ? '-₱' : '₱'}{Number(viewPayment.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1844,31 +2246,44 @@ const PaymentsContent: React.FC = () => {
                   </div>
                 </div>
 
+                {viewPayment.description && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Description / Purpose</label>
+                    <div style={{ padding: '10px 14px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '14px', color: '#1E293B' }}>
+                      {viewPayment.description}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '12px', marginTop: '16px' }}>
-                  <Button
-                    title="View Invoice"
-                    variant="secondary"
-                    icon="ti-file-invoice"
-                    style={{ background: '#ffffff', color: '#475569', borderColor: '#E2E8F0' }}
-                    onClick={() => {
-                      const found = invoices.find((i: Invoice) => i.id === viewPayment.invoiceId || i.invoiceNumber === viewPayment.invoiceId || i.invoiceNumber === viewPayment.invoiceNumber);
-                      if (found) {
-                        setSelectedInvoiceForModal(found);
-                      } else {
-                        toast.info('No corresponding invoice record found in the database.');
-                      }
-                    }}
-                  />
+                  {viewPayment.type !== 'Outflow' && (
+                    <Button
+                      title="View Invoice"
+                      variant="secondary"
+                      icon="ti-file-invoice"
+                      style={{ background: '#ffffff', color: '#475569', borderColor: '#E2E8F0' }}
+                      onClick={() => {
+                        const found = invoices.find((i: Invoice) => i.id === viewPayment.invoiceId || i.invoiceNumber === viewPayment.invoiceId || i.invoiceNumber === viewPayment.invoiceNumber);
+                        if (found) {
+                          setSelectedInvoiceForModal(found);
+                        } else {
+                          toast.info('No corresponding invoice record found in the database.');
+                        }
+                      }}
+                    />
+                  )}
 
-                  <Button
-                    title="Proof of Payment"
-                    variant="secondary"
-                    icon="ti-photo"
-                    style={{ background: '#EFF6FF', color: '#2563EB', borderColor: '#BFDBFE' }}
-                    onClick={() => setShowProofModal(true)}
-                  />
+                  {viewPayment.proofOfPaymentUrl && (
+                    <Button
+                      title="Proof of Payment"
+                      variant="secondary"
+                      icon="ti-photo"
+                      style={{ background: '#EFF6FF', color: '#2563EB', borderColor: '#BFDBFE' }}
+                      onClick={() => setShowProofModal(true)}
+                    />
+                  )}
 
-                  {isAccountant && (
+                  {isAccountant && viewPayment.type !== 'Outflow' && (
                     <div style={{ marginLeft: 'auto' }}>
                       <Button
                         title="Save OR"
@@ -1888,14 +2303,22 @@ const PaymentsContent: React.FC = () => {
                 {/* Summary Card */}
                 <Card style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0F172A', fontWeight: 800 }}>Payment Summary</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0F172A', fontWeight: 800 }}>
+                      {viewPayment.type === 'Outflow' ? 'Disbursement Summary' : 'Payment Summary'}
+                    </h3>
                     <StatusBadge status={viewPayment.status} />
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2E8F0', paddingBottom: '12px' }}>
-                      <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 600 }}>Payment ID</span>
+                      <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 600 }}>Reference ID</span>
                       <span style={{ fontSize: '13px', color: '#0D9488', fontWeight: 800 }}>{viewPayment.id}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2E8F0', paddingBottom: '12px' }}>
+                      <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 600 }}>Flow Type</span>
+                      <span style={{ fontSize: '13px', color: viewPayment.type === 'Outflow' ? '#EF4444' : '#10B981', fontWeight: 800 }}>
+                        {viewPayment.type || 'Inflow'}
+                      </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2E8F0', paddingBottom: '12px' }}>
                       <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 600 }}>Recorded By</span>

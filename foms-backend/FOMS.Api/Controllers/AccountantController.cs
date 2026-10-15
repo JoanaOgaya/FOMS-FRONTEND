@@ -13,6 +13,12 @@ using FOMS.Infrastructure.Persistence;
 
 namespace FOMS.Api.Controllers;
 
+public class AccountantDuplicateScanDto
+{
+    public IFormFile? File { get; set; }
+    public string? DocumentType { get; set; }
+}
+
 [Authorize]
 [ApiController]
 [Route("api/accountant")]
@@ -105,19 +111,23 @@ public class AccountantController : ControllerBase
         {
             success = true,
             count = clients.Count,
-            data = clients.Select(c => new
+            data = clients.Select(c =>
             {
-                clientId = c.ClientId,
-                id = c.ClientCode ?? $"CA-{c.ClientId:D3}",
-                name = c.CompanyName,
-                companyName = c.CompanyName,
-                clientCode = c.ClientCode ?? $"CA-{c.ClientId:D3}",
-                contactPerson = c.ContactPerson,
-                contactNumber = c.ContactNumber,
-                email = c.Email,
-                address = c.Address,
-                isActive = c.IsActive ?? true,
-                status = (c.IsActive ?? true) ? "Active" : "Inactive"
+                var code = ResolveClientCode(c.ClientCode, c.CompanyName, c.ClientId);
+                return new
+                {
+                    clientId = c.ClientId,
+                    id = code,
+                    name = c.CompanyName,
+                    companyName = c.CompanyName,
+                    clientCode = code,
+                    contactPerson = c.ContactPerson,
+                    contactNumber = c.ContactNumber,
+                    email = c.Email,
+                    address = c.Address,
+                    isActive = c.IsActive ?? true,
+                    status = (c.IsActive ?? true) ? "Active" : "Inactive"
+                };
             })
         });
     }
@@ -140,7 +150,7 @@ public class AccountantController : ControllerBase
             data = clients.Select(c => new
             {
                 clientId = c.ClientId,
-                clientCode = c.ClientCode ?? $"CA-{c.ClientId:D3}",
+                clientCode = ResolveClientCode(c.ClientCode, c.CompanyName, c.ClientId),
                 companyName = c.CompanyName,
                 unbilledWaybillCount = unbilledWaybills.Count(w => w.ClientId == c.ClientId)
             })
@@ -614,8 +624,10 @@ public class AccountantController : ControllerBase
 
     // 11. AI Duplicate Scan (Finance documents only, rejects random/selfie/food)
     [HttpPost("ai/duplicate-scan")]
-    public async Task<IActionResult> DuplicateScan([FromForm] IFormFile? file, [FromForm] string? documentType)
+    public async Task<IActionResult> DuplicateScan([FromForm] AccountantDuplicateScanDto request)
     {
+        var file = request.File;
+        var documentType = request.DocumentType;
         if (file == null || file.Length == 0)
             return BadRequest(new { success = false, message = "File is required for duplicate scanning." });
 
@@ -856,5 +868,26 @@ public class AccountantController : ControllerBase
                 warning = "AI output database unavailable or no records found."
             });
         }
+    }
+
+    private static string ResolveClientCode(string? clientCode, string? companyName, int? clientId)
+    {
+        if (!string.IsNullOrWhiteSpace(clientCode) && !clientCode.StartsWith("CA-", StringComparison.OrdinalIgnoreCase))
+            return clientCode;
+
+        var name = (companyName ?? "").ToLowerInvariant();
+        string prefix = "CLI";
+        if (name.Contains("lazada")) prefix = "LZD";
+        else if (name.Contains("shopee")) prefix = "SHP";
+        else if (name.Contains("tiktok")) prefix = "TKT";
+        else if (name.Contains("zalora")) prefix = "ZAL";
+        else if (name.Contains("test")) prefix = "TST";
+        else if (!string.IsNullOrWhiteSpace(companyName))
+        {
+            var cleanLetters = new string(companyName.Where(char.IsLetter).ToArray());
+            prefix = cleanLetters.Length >= 3 ? cleanLetters[..3].ToUpperInvariant() : "CLI";
+        }
+
+        return $"{prefix}-{(clientId ?? 1):D3}";
     }
 }

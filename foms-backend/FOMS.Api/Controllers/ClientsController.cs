@@ -186,8 +186,8 @@ public class ClientsController : ApiControllerBase
             {
                 var inactiveClient = new FOMS.Domain.Entities.Client
                 {
-                    Id = "CA-004",
-                    ClientCode = "CA-004",
+                    Id = "ZAL-001",
+                    ClientCode = "ZAL-001",
                     Name = "Zalora Philippines",
                     BusinessName = "Zalora PH",
                     ContactPerson = "Robert Tan",
@@ -236,7 +236,7 @@ public class ClientsController : ApiControllerBase
                 status = c.Status ?? "Active",
                 vatStatus = "VATable",
                 vatRate = 0.12m,
-                billingSchedule = (code == "CA-002" || c.Name.Contains("Shopee") || code == "CA-003" || c.Name.Contains("TikTok")) ? "Weekly" : "Monthly",
+                billingSchedule = (code == "SHP-001" || code == "CA-002" || c.Name.Contains("Shopee") || code == "TKT-001" || code == "CA-003" || c.Name.Contains("TikTok")) ? "Weekly" : "Monthly",
                 createdAt = c.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
                 dateRegistered = c.DateRegistered,
                 lastTransaction = c.LastTransaction,

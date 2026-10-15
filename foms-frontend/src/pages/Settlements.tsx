@@ -6,6 +6,7 @@ import { KpiCard } from '../components/shared/KpiCard';
 import Dropdown from '../components/Dropdown';
 import { useToast } from '../components/ToastContext';
 import { CalendarPicker } from '../components/FormModals';
+import RecordSettlementModal from '../components/RecordSettlementModal';
 import { createPortal } from 'react-dom';
 import { settlementsService } from '../services/settlementsService';
 import { cashFlowService } from '../services/cashFlowService';
@@ -17,6 +18,8 @@ import { formatCurrency } from '../utils/format';
 const Settlements: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const isManagerOrHead = ['HEAD_ACCOUNTANT', 'FINANCIAL_MANAGER', 'ADMIN', 'Head Accountant', 'Financial Manager'].includes(user?.role || '');
 
   const {
     data: fetchedSettlements,
@@ -30,6 +33,8 @@ const Settlements: React.FC = () => {
   const [localSettlements, setLocalSettlements] = useState<Settlement[] | null>(null);
   const settlements = localSettlements ?? fetchedSettlements ?? [];
 
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [filterTab, setFilterTab] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showRecent, setShowRecent] = useState(false);
@@ -166,7 +171,7 @@ const Settlements: React.FC = () => {
           value={pendingCount} 
           icon="ti-clock-hour-4" 
           variant="warning" 
-          periodText="waiting for you" 
+          periodText="waiting for validation" 
         />
         <KpiCard 
           label="Leftover Cash" 
@@ -184,15 +189,94 @@ const Settlements: React.FC = () => {
         />
       </div>
 
-      {/* Table Section */}
+      {/* Settlements Content Section */}
       <Card style={{ padding: '24px' }}>
-        <div>
-          <h2 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Settlements</h2>
-          <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#64748B' }}>Review and validate leftover cash returns and reimbursement requests submitted by couriers.</p>
+        {/* Header with Title, Switcher and Record Settlement Button */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>Settlements</h2>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>
+              {isManagerOrHead 
+                ? 'Review and validate leftover cash returns and reimbursement requests submitted by couriers.' 
+                : 'Track leftover cash returns, liquidation submissions, and courier trip settlements.'}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* Cards vs Table View Switcher */}
+            <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #E2E8F0', overflow: 'hidden', background: '#F8FAFC' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                  color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="ti ti-layout-grid" style={{ fontSize: '15px' }} />
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                  color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="ti ti-table" style={{ fontSize: '15px' }} />
+                Table
+              </button>
+            </div>
+
+            {/* Record Settlement Button */}
+            <button
+              type="button"
+              onClick={() => setIsRecordModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '8px',
+                border: 'none',
+                background: '#0D9488',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0F766E'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0D9488'}
+            >
+              <i className="ti ti-plus" style={{ fontSize: '15px' }} />
+              Record Settlement
+            </button>
+          </div>
         </div>
         
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', width: '280px' }}>
             <i className="ti ti-search" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748B', fontSize: '16px' }} />
             <input 
@@ -248,6 +332,7 @@ const Settlements: React.FC = () => {
           >
             <option value="">Filter by Type</option>
             <option value="Leftover return">Leftover return</option>
+            <option value="Expense liquidation">Expense liquidation</option>
             <option value="Reimbursement">Reimbursement</option>
           </select>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -279,94 +364,262 @@ const Settlements: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {(searchQuery || filterTab || typeFilter || dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setFilterTab('');
+                setTypeFilter('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: '1px solid #FCA5A5',
+                background: '#FEF2F2',
+                color: '#DC2626',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <i className="ti ti-x" /> Clear Filters
+            </button>
+          )}
         </div>
 
-        {/* Custom Table to exactly match the requested design */}
-        <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'visible' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                <th style={thStyle}>RECORD ID</th>
-                <th style={thStyle}>TYPE</th>
-                <th style={thStyle}>COURIER / TRIP</th>
-                <th style={thStyle}>SUBMITTED</th>
-                <th style={thStyle}>AMOUNT</th>
-                <th style={thStyle}>STATUS</th>
-                <th style={thStyle}>ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
-                    No settlements found.
-                  </td>
-                </tr>
-              ) : filteredData.map((row: Settlement) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                  <td style={{ ...tdStyle, fontWeight: 700 }}>{row.id}</td>
-                  <td style={tdStyle}>
-                    <span style={{ 
-                      padding: '4px 10px', 
-                      borderRadius: '20px', 
-                      fontSize: '11px', 
-                      fontWeight: 700,
-                      background: row.type === 'Leftover return' ? '#ECFDF5' : '#FFFBEB',
-                      color: row.type === 'Leftover return' ? '#065F46' : '#92400E'
-                    }}>
-                      {row.type}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600, color: '#1E293B', marginBottom: '2px' }}>{row.courierName}</div>
-                    <div style={{ fontSize: '12px', color: '#64748B' }}>{row.tripRef}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600, color: '#1E293B', marginBottom: '2px' }}>
-                      {new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      , {new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 800, color: row.type === 'Leftover return' ? '#10B981' : '#3B82F6' }}>
-                      {formatCurrency(row.amount)}
-                    </div>
-                    {Boolean(row.discrepancy && row.discrepancy !== 0) && (
-                      <div style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600, marginTop: '2px' }}>
-                        Discrepancy {formatCurrency(row.discrepancy)}
+        {/* View Mode Switching: Cards vs Table */}
+        {viewMode === 'cards' ? (
+          filteredData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '64px 20px', color: '#94A3B8' }}>
+              <i className="ti ti-receipt-off" style={{ fontSize: '42px', display: 'block', marginBottom: '12px', color: '#CBD5E1' }} />
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#334155' }}>No settlements found</div>
+              <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748B' }}>No settlement submissions match your filter criteria.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {filteredData.map((row: Settlement) => {
+                const isLeftover = row.type === 'Leftover return';
+                const isLiquidation = row.type === 'Expense liquidation';
+                const typeBg = isLeftover ? '#ECFDF5' : isLiquidation ? '#FFFBEB' : '#EFF6FF';
+                const typeColor = isLeftover ? '#065F46' : isLiquidation ? '#92400E' : '#1E40AF';
+                const statusBg = row.status === 'For validation' ? '#FFFBEB' : row.status === 'Validated' ? '#ECFDF5' : '#FEF2F2';
+                const statusColor = row.status === 'For validation' ? '#B45309' : row.status === 'Validated' ? '#047857' : '#991B1B';
+                const amountColor = isLeftover ? '#10B981' : '#3B82F6';
+
+                return (
+                  <div
+                    key={row.id}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '16px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '16px',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 12px 24px -6px rgba(0, 0, 0, 0.08)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.02)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    {/* Top: Record ID & Type Badge & Status Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A', background: '#F1F5F9', padding: '3px 10px', borderRadius: '6px' }}>
+                          #{row.id}
+                        </span>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '20px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          background: typeBg,
+                          color: typeColor,
+                        }}>
+                          {row.type}
+                        </span>
                       </div>
-                    )}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ 
-                      padding: '4px 10px', 
-                      borderRadius: '20px', 
-                      fontSize: '11px', 
-                      fontWeight: 700,
-                      background: row.status === 'For validation' ? '#FFFBEB' : row.status === 'Validated' ? '#ECFDF5' : '#FEF2F2',
-                      color: row.status === 'For validation' ? '#B45309' : row.status === 'Validated' ? '#047857' : '#991B1B'
-                    }}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <Dropdown
-                      align="right"
-                      items={[
-                        {
-                          key: 'review',
-                          label: row.status === 'For validation' ? 'Review Details' : 'View Details',
-                          icon: row.status === 'For validation' ? 'ti-file-search' : 'ti-eye',
-                          onClick: () => handleReviewClick(row)
-                        }
-                      ]}
-                    />
-                  </td>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: statusBg,
+                        color: statusColor,
+                      }}>
+                        {row.status}
+                      </span>
+                    </div>
+
+                    {/* Courier & Trip Information */}
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
+                        {row.courierName}
+                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#64748B', marginTop: '6px', flexWrap: 'wrap' }}>
+                        <i className="ti ti-truck" style={{ fontSize: '14px', color: '#0D9488' }} />
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{row.tripRef}</span>
+                        <span>•</span>
+                        <span>
+                          {new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Amount & Discrepancy Box */}
+                    <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '12px 14px', border: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>
+                          {isLeftover ? 'LEFTOVER RETURN' : 'SETTLEMENT AMOUNT'}
+                        </div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: amountColor, marginTop: '2px' }}>
+                          {formatCurrency(row.amount)}
+                        </div>
+                      </div>
+                      {Boolean(row.discrepancy && row.discrepancy !== 0) && (
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#EA580C' }}>DISCREPANCY</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#EA580C', marginTop: '2px' }}>
+                            {formatCurrency(row.discrepancy)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Action Footer */}
+                    <div style={{ paddingTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleReviewClick(row)}
+                        style={{
+                          width: '100%',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          padding: '9px 16px',
+                          borderRadius: '8px',
+                          border: '1px solid #0D9488',
+                          background: (isManagerOrHead && row.status === 'For validation') ? '#0D9488' : '#F0FDFA',
+                          color: (isManagerOrHead && row.status === 'For validation') ? '#FFFFFF' : '#0D9488',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <i className={(isManagerOrHead && row.status === 'For validation') ? 'ti ti-file-search' : 'ti ti-eye'} />
+                        {(isManagerOrHead && row.status === 'For validation') ? 'Review Details' : 'View Details'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          /* Custom Table to exactly match the requested design */
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'visible' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                  <th style={thStyle}>RECORD ID</th>
+                  <th style={thStyle}>TYPE</th>
+                  <th style={thStyle}>COURIER / TRIP</th>
+                  <th style={thStyle}>SUBMITTED</th>
+                  <th style={thStyle}>AMOUNT</th>
+                  <th style={thStyle}>STATUS</th>
+                  <th style={thStyle}>ACTION</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                      No settlements found.
+                    </td>
+                  </tr>
+                ) : filteredData.map((row: Settlement) => (
+                  <tr key={row.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                    <td style={{ ...tdStyle, fontWeight: 700 }}>{row.id}</td>
+                    <td style={tdStyle}>
+                      <span style={{ 
+                        padding: '4px 10px', 
+                        borderRadius: '20px', 
+                        fontSize: '11px', 
+                        fontWeight: 700,
+                        background: row.type === 'Leftover return' ? '#ECFDF5' : '#FFFBEB',
+                        color: row.type === 'Leftover return' ? '#065F46' : '#92400E'
+                      }}>
+                        {row.type}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: 600, color: '#1E293B', marginBottom: '2px' }}>{row.courierName}</div>
+                      <div style={{ fontSize: '12px', color: '#64748B' }}>{row.tripRef}</div>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: 600, color: '#1E293B', marginBottom: '2px' }}>
+                        {new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        , {new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: 800, color: row.type === 'Leftover return' ? '#10B981' : '#3B82F6' }}>
+                        {formatCurrency(row.amount)}
+                      </div>
+                      {Boolean(row.discrepancy && row.discrepancy !== 0) && (
+                        <div style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600, marginTop: '2px' }}>
+                          Discrepancy {formatCurrency(row.discrepancy)}
+                        </div>
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ 
+                        padding: '4px 10px', 
+                        borderRadius: '20px', 
+                        fontSize: '11px', 
+                        fontWeight: 700,
+                        background: row.status === 'For validation' ? '#FFFBEB' : row.status === 'Validated' ? '#ECFDF5' : '#FEF2F2',
+                        color: row.status === 'For validation' ? '#B45309' : row.status === 'Validated' ? '#047857' : '#991B1B'
+                      }}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <Dropdown
+                        align="right"
+                        items={[
+                          {
+                            key: 'review',
+                            label: (isManagerOrHead && row.status === 'For validation') ? 'Review Details' : 'View Details',
+                            icon: (isManagerOrHead && row.status === 'For validation') ? 'ti-file-search' : 'ti-eye',
+                            onClick: () => handleReviewClick(row)
+                          }
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       {/* Review Modal */}
@@ -378,7 +631,9 @@ const Settlements: React.FC = () => {
                 {selectedRecord.id} • {selectedRecord.type}
               </h2>
               <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#64748B' }}>
-                Submitted by the Accountant. Review the details, then choose a decision.
+                {isManagerOrHead 
+                  ? 'Submitted by the Accountant. Review the details, then choose a decision.'
+                  : 'Settlement details recorded by the Accountant.'}
               </p>
 
               {/* Box 1 */}
@@ -444,65 +699,77 @@ const Settlements: React.FC = () => {
               </div>
 
               {selectedRecord.status === 'For validation' ? (
-                <>
-                  <div style={{ marginBottom: decision ? '16px' : '24px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Decision</label>
-                    <select 
-                      value={decision}
-                      onChange={(e) => setDecision(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none' }}
-                    >
-                      <option value="">Select decision...</option>
-                      <option value="approve">✓ Validate</option>
-                      <option value="reject">✕ Reject</option>
-                    </select>
-                  </div>
+                isManagerOrHead ? (
+                  <>
+                    <div style={{ marginBottom: decision ? '16px' : '24px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Decision</label>
+                      <select 
+                        value={decision}
+                        onChange={(e) => setDecision(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none' }}
+                      >
+                        <option value="">Select decision...</option>
+                        <option value="approve">✓ Validate</option>
+                        <option value="reject">✕ Reject</option>
+                      </select>
+                    </div>
 
-                  {decision === 'reject' && (
-                    <>
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Reason for rejection</label>
-                        <select 
-                          value={rejectionReason}
-                          onChange={(e) => setRejectionReason(e.target.value)}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none' }}
-                        >
-                          <option value="">Select a reason...</option>
-                          <option value="Cash short / over not explained">Cash short / over not explained</option>
-                          <option value="Wrong computation (advance / expenses)">Wrong computation (advance / expenses)</option>
-                          <option value="Envelope not received / wrong envelope no.">Envelope not received / wrong envelope no.</option>
-                          <option value="Missing original receipts">Missing original receipts</option>
-                          <option value="No prior supervisor approval">No prior supervisor approval</option>
-                          <option value="Duplicate record">Duplicate record</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
+                    {decision === 'reject' && (
+                      <>
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Reason for rejection</label>
+                          <select 
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none' }}
+                          >
+                            <option value="">Select a reason...</option>
+                            <option value="Cash short / over not explained">Cash short / over not explained</option>
+                            <option value="Wrong computation (advance / expenses)">Wrong computation (advance / expenses)</option>
+                            <option value="Envelope not received / wrong envelope no.">Envelope not received / wrong envelope no.</option>
+                            <option value="Missing original receipts">Missing original receipts</option>
+                            <option value="No prior supervisor approval">No prior supervisor approval</option>
+                            <option value="Duplicate record">Duplicate record</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div style={{ marginBottom: '24px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Details for the Accountant</label>
+                          <textarea 
+                            placeholder="What should be corrected?"
+                            value={remarks}
+                            onChange={(e) => setRemarks(e.target.value)}
+                            rows={3}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none', resize: 'none' }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {decision === 'approve' && (
                       <div style={{ marginBottom: '24px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Details for the Accountant</label>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Remarks (optional)</label>
                         <textarea 
-                          placeholder="What should be corrected?"
+                          placeholder="Sent to Asst. Finance Manager for approval"
                           value={remarks}
                           onChange={(e) => setRemarks(e.target.value)}
-                          rows={3}
+                          rows={2}
                           style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none', resize: 'none' }}
                         />
                       </div>
-                    </>
-                  )}
-
-                  {decision === 'approve' && (
-                    <div style={{ marginBottom: '24px' }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>Remarks (optional)</label>
-                      <textarea 
-                        placeholder="Sent to Asst. Finance Manager for approval"
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        rows={2}
-                        style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '14px', outline: 'none', resize: 'none' }}
-                      />
+                    )}
+                  </>
+                ) : (
+                  <div style={{ marginBottom: '24px', padding: '16px', background: '#FFFBEB', borderRadius: '8px', border: '1px solid #FDE68A' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: '#92400E' }}>
+                      <i className="ti ti-clock-hour-4" style={{ fontSize: '18px' }} />
+                      <span>Pending Validation</span>
                     </div>
-                  )}
-                </>
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#B45309' }}>
+                      This settlement has been submitted and is currently awaiting review and validation by the Head Accountant.
+                    </p>
+                  </div>
+                )
               ) : (
                 <div style={{ marginBottom: '24px', padding: '16px', background: selectedRecord.status === 'Validated' ? '#ECFDF5' : '#FEF2F2', borderRadius: '8px', border: `1px solid ${selectedRecord.status === 'Validated' ? '#A7F3D0' : '#FECACA'}` }}>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: selectedRecord.status === 'Validated' ? '#065F46' : '#991B1B' }}>
@@ -513,7 +780,7 @@ const Settlements: React.FC = () => {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <Button title="Close" variant="secondary" onClick={() => setSelectedRecord(null)} />
-                {selectedRecord.status === 'For validation' && (
+                {isManagerOrHead && selectedRecord.status === 'For validation' && (
                   <button 
                     onClick={handleConfirmDecision}
                     style={{ 
@@ -538,6 +805,13 @@ const Settlements: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* Record Settlement Modal */}
+      <RecordSettlementModal 
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        onSuccess={() => refetch()}
+      />
 
     </div>
   );

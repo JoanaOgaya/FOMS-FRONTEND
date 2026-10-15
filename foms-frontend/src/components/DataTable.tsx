@@ -186,6 +186,7 @@ export function DataTable<T>({
   emptyMessage = "No records found.",
   selectable = false,
   hideBulkActionBar = false,
+  selectedKeys,
   onSelectionChange,
   className = "",
   loading = false,
@@ -243,8 +244,15 @@ export function DataTable<T>({
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
-  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [selected, setSelected] = useState<Set<string | number>>(() => new Set(selectedKeys || []));
   const [selectAllMatching, setSelectAllMatching] = useState(false);
+
+  // Sync controlled selectedKeys prop into internal selected state
+  useEffect(() => {
+    if (selectedKeys !== undefined) {
+      setSelected(new Set(selectedKeys));
+    }
+  }, [selectedKeys]);
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
     const h = new Set<string>();
     columns.forEach((c) => {
@@ -934,12 +942,20 @@ export function DataTable<T>({
                     style={{ cursor: onRowClick ? 'pointer' : 'default' }}
                   >
                     {selectable && (
-                      <td className="dt-td dt-td--check dt-td--sticky-left">
+                      <td
+                        className="dt-td dt-td--check dt-td--sticky-left"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isRowSelectable && !isRowSelectable(row)) return;
+                          toggleRow(key);
+                        }}
+                      >
                         <input
                           type="checkbox"
                           className="dt-checkbox"
                           checked={isSelected}
                           disabled={isRowSelectable ? !isRowSelectable(row) : false}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={() => {
                             if (isRowSelectable && !isRowSelectable(row)) return;
                             toggleRow(key);
@@ -955,6 +971,7 @@ export function DataTable<T>({
                           .filter(Boolean)
                           .join(" ")}
                         style={{
+                          width: col.width,
                           textAlign: col.align ?? "left",
                           ...(col.frozen ? { left: selectable ? "40px" : "0" } : {}),
                         }}
