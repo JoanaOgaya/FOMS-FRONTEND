@@ -71,6 +71,86 @@ public class AiDuplicatesController : ApiControllerBase
         _configuration = configuration;
     }
 
+    private async Task EnsureSeededAsync()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("ENABLE_DUPLICATE_SAMPLE_DATA"),
+                "true",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!await _fomsDb.AIReviewHistories.AnyAsync())
+        {
+            var samples = new List<AIReviewHistory>
+            {
+                new()
+                {
+                    DocumentNumber = "INV-2026-0042",
+                    FinalDecision = "Verified Unique",
+                    Reviewer = "Crystalyn Joyce C. Fajardo",
+                    DecisionReason = "Document analyzed against 1,240 existing invoices. 0% similarity detected.",
+                    ReviewedDate = DateTime.UtcNow.AddHours(-2),
+                    CreatedAt = DateTime.UtcNow.AddHours(-2)
+                },
+                new()
+                {
+                    DocumentNumber = "SPEEDPAY-TX-9901",
+                    FinalDecision = "Confirmed Duplicate",
+                    Reviewer = "Crystalyn Joyce C. Fajardo",
+                    DecisionReason = "Confirmed duplicate transaction hash matching verified record TX-9844.",
+                    ReviewedDate = DateTime.UtcNow.AddHours(-4),
+                    CreatedAt = DateTime.UtcNow.AddHours(-4)
+                },
+                new()
+                {
+                    DocumentNumber = "OR-2026-0099",
+                    FinalDecision = "Dismissed",
+                    Reviewer = "Crystalyn Joyce C. Fajardo",
+                    DecisionReason = "Dismissed flagged alert: Verified separate branch delivery receipt.",
+                    ReviewedDate = DateTime.UtcNow.AddHours(-6),
+                    CreatedAt = DateTime.UtcNow.AddHours(-6)
+                },
+                new()
+                {
+                    DocumentNumber = "WB-NCR-88491",
+                    FinalDecision = "Resolved",
+                    Reviewer = "Crystalyn Joyce C. Fajardo",
+                    DecisionReason = "Resolved OCR mismatch: Courier signature and CTC validated.",
+                    ReviewedDate = DateTime.UtcNow.AddDays(-1),
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
+                }
+            };
+            _fomsDb.AIReviewHistories.AddRange(samples);
+            await _fomsDb.SaveChangesAsync();
+        }
+        else
+        {
+            var neededDecisions = new[] { "Confirmed Duplicate", "Dismissed", "Resolved" };
+            var toAdd = new List<AIReviewHistory>();
+            foreach (var dec in neededDecisions)
+            {
+                if (!await _fomsDb.AIReviewHistories.AnyAsync(h => h.FinalDecision == dec))
+                {
+                    toAdd.Add(new AIReviewHistory
+                    {
+                        DocumentNumber = dec == "Confirmed Duplicate" ? "SPEEDPAY-TX-9901" : dec == "Dismissed" ? "OR-2026-0099" : "WB-NCR-88491",
+                        FinalDecision = dec,
+                        Reviewer = "Crystalyn Joyce C. Fajardo",
+                        DecisionReason = $"Review completed with decision: {dec}.",
+                        ReviewedDate = DateTime.UtcNow.AddHours(-3),
+                        CreatedAt = DateTime.UtcNow.AddHours(-3)
+                    });
+                }
+            }
+            if (toAdd.Any())
+            {
+                _fomsDb.AIReviewHistories.AddRange(toAdd);
+                await _fomsDb.SaveChangesAsync();
+            }
+        }
+    }
     [HttpGet]
     [HttpGet("flagged")]
     public async Task<IActionResult> GetFlaggedDuplicates(
