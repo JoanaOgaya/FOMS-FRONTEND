@@ -41,7 +41,7 @@ export const MODULES: readonly ModuleDef[] = [
 
   { key: 'clients', label: 'Client Accounts', group: 'Client Management', icon: 'ti ti-users', path: '/clients', detailPath: '/clients/:id', nav: true, roles: { [ACC]: ['view', 'create', 'edit'], [FM]: ['view'] } },
   { key: 'rates', label: 'Rate Configuration', group: 'Client Management', icon: 'ti ti-adjustments-dollar', path: '/rate-configuration', detailPath: '/rate-configuration/:id', nav: false, roles: {} },
-  { key: 'waybills', label: 'Waybills & POD', group: 'Client Management', icon: 'ti ti-truck-delivery', path: '/waybills', detailPath: '/waybills/:id', nav: true, roles: { [ACC]: ['view'] } },
+  { key: 'waybills', label: 'Waybills & POD', group: 'Client Management', icon: 'ti ti-truck-delivery', path: '/waybills', detailPath: '/waybills/:id', nav: false, roles: {} },
 
   { key: 'invoiceCreate', label: 'Create Invoice', group: 'Invoicing', icon: 'ti ti-file-plus', path: '/invoice-create', nav: true, roles: { [ACC]: ['view', 'create'] } },
   { key: 'invoicingDesk', label: 'Invoice List', group: 'Invoicing', icon: 'ti ti-file-invoice', path: '/invoicing-desk', detailPath: '/invoicing-desk/:id', nav: true, roles: { [ACC]: ['view', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
