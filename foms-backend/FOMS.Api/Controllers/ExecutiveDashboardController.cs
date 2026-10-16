@@ -146,7 +146,8 @@ public class ExecutiveDashboardController : ControllerBase
 
         var duplicateAlerts = await _fomsDb.AIReviewHistories
             .AsNoTracking()
-            .CountAsync(review => review.FinalDecision == "Duplicate" || review.FinalDecision == "Flagged");
+            .CountAsync(review => review.IsDeleted != true && review.FinalDecision != null &&
+                (review.FinalDecision.Contains("Duplicate") || review.FinalDecision.Contains("Flagged") || review.FinalDecision.Contains("FLAGGED") || review.FinalDecision.Contains("PENDING_REVIEW")));
 
         var recentLogs = await _context.AuditLogs
             .AsNoTracking()

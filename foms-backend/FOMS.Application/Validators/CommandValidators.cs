@@ -550,7 +550,121 @@ public class VerifyValidationCommandValidator : AbstractValidator<ValidationFeat
             .WithMessage("Invalid verification status. Allowed statuses: Pending, Approved, Rejected.");
     }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK 11 — EMPLOYEE / USER VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+public class UserCreateDtoValidator : AbstractValidator<FOMS.Application.DTOs.UserCreateDto>
+{
+    private static readonly string[] AllowedRoles = new[]
+    {
+        "Financial Manager", "Head Accountant", "Accountant", "Assistant Financial Manager",
+        "Finance Manager", "Assistant of Financial Manager", "Employee"
+    };
 
+    public UserCreateDtoValidator(IApplicationDbContext context)
+    {
+        RuleFor(x => x.EmployeeId)
+            .NotEmpty().WithMessage("Employee ID is required.")
+            .MaximumLength(10).WithMessage("Employee ID cannot exceed 10 characters.")
+            .Matches(@"^EMP-\d{3}$").WithMessage("Employee ID must follow the pattern EMP-### (e.g., EMP-001).")
+            .MustAsync(async (empId, ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(empId)) return true;
+                var trimmed = empId.Trim();
+                return !await context.Employees.AnyAsync(e => e.Id == trimmed, ct);
+            }).WithMessage("Employee ID is already registered in the system.");
 
+        RuleFor(x => x.Username)
+            .NotEmpty().WithMessage("Username is required.")
+            .MaximumLength(100).WithMessage("Username cannot exceed 100 characters.")
+            .MustAsync(async (u, ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(u)) return true;
+                var trimmed = u.Trim();
+                return !await context.Employees.AnyAsync(e => e.Username == trimmed, ct);
+            }).WithMessage("Username is already taken.");
+
+        RuleFor(x => x.FullName)
+            .NotEmpty().WithMessage("Full Name is required.")
+            .MaximumLength(200).WithMessage("Full Name cannot exceed 200 characters.")
+            .Matches(@"^[a-zA-Z\s\.\-]+$").WithMessage("Full Name contains invalid characters.")
+            .Must(ValidationHelpers.NotContainHtml).WithMessage("Full Name contains invalid characters.");
+
+        RuleFor(x => x.Email)
+            .NotEmpty().WithMessage("Email address is required.")
+            .MaximumLength(255).WithMessage("Email cannot exceed 255 characters.")
+            .EmailAddress().WithMessage("Email format is invalid.")
+            .Matches(@"^[^@\s]+@[^@\s]+\.[^@\s]+$").WithMessage("Email format is invalid.")
+            .MustAsync(async (email, ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(email)) return true;
+                var trimmed = email.Trim().ToLowerInvariant();
+                return !await context.Employees.AnyAsync(e => e.Email.ToLower() == trimmed, ct);
+            }).WithMessage("Email address is already in use.");
+
+        RuleFor(x => x.Role)
+            .NotEmpty().WithMessage("Role is required.")
+            .MaximumLength(100).WithMessage("Role cannot exceed 100 characters.")
+            .Must(r => AllowedRoles.Contains(r.Trim()))
+            .WithMessage("Invalid role specified.");
+
+        RuleFor(x => x.Password)
+            .NotEmpty().WithMessage("Password is required.")
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters long.")
+            .MaximumLength(100).WithMessage("Password cannot exceed 100 characters.");
+
+        RuleFor(x => x.Phone)
+            .MaximumLength(20).WithMessage("Phone cannot exceed 20 characters.")
+            .Matches(@"^(\+63|0)?[0-9]{10,11}$").When(x => !string.IsNullOrWhiteSpace(x.Phone))
+            .WithMessage("Phone format is invalid (e.g., 09171234567 or +639171234567).");
+
+        RuleFor(x => x.SalaryRate)
+            .GreaterThanOrEqualTo(0m).When(x => x.SalaryRate.HasValue)
+            .WithMessage("Salary rate cannot be negative.")
+            .LessThanOrEqualTo(10000000m).When(x => x.SalaryRate.HasValue)
+            .WithMessage("Salary rate exceeds maximum permitted threshold.");
+    }
+}
+
+public class UserUpdateDtoValidator : AbstractValidator<FOMS.Application.DTOs.UserUpdateDto>
+{
+    private static readonly string[] AllowedRoles = new[]
+    {
+        "Financial Manager", "Head Accountant", "Accountant", "Assistant Financial Manager",
+        "Finance Manager", "Assistant of Financial Manager", "Employee"
+    };
+
+    public UserUpdateDtoValidator()
+    {
+        RuleFor(x => x.FullName)
+            .NotEmpty().WithMessage("Full Name is required.")
+            .MaximumLength(200).WithMessage("Full Name cannot exceed 200 characters.")
+            .Matches(@"^[a-zA-Z\s\.\-]+$").WithMessage("Full Name contains invalid characters.")
+            .Must(ValidationHelpers.NotContainHtml).WithMessage("Full Name contains invalid characters.");
+
+        RuleFor(x => x.Email)
+            .NotEmpty().WithMessage("Email address is required.")
+            .MaximumLength(255).WithMessage("Email cannot exceed 255 characters.")
+            .EmailAddress().WithMessage("Email format is invalid.")
+            .Matches(@"^[^@\s]+@[^@\s]+\.[^@\s]+$").WithMessage("Email format is invalid.");
+
+        RuleFor(x => x.Role)
+            .NotEmpty().WithMessage("Role is required.")
+            .MaximumLength(100).WithMessage("Role cannot exceed 100 characters.")
+            .Must(r => AllowedRoles.Contains(r.Trim()))
+            .WithMessage("Invalid role specified.");
+
+        RuleFor(x => x.Phone)
+            .MaximumLength(20).WithMessage("Phone cannot exceed 20 characters.")
+            .Matches(@"^(\+63|0)?[0-9]{10,11}$").When(x => !string.IsNullOrWhiteSpace(x.Phone))
+            .WithMessage("Phone format is invalid (e.g., 09171234567 or +639171234567).");
+
+        RuleFor(x => x.SalaryRate)
+            .GreaterThanOrEqualTo(0m).When(x => x.SalaryRate.HasValue)
+            .WithMessage("Salary rate cannot be negative.")
+            .LessThanOrEqualTo(10000000m).When(x => x.SalaryRate.HasValue)
+            .WithMessage("Salary rate exceeds maximum permitted threshold.");
+    }
+}
 
 }

@@ -227,8 +227,6 @@ export const AccountantDashboard: React.FC = () => {
         subtitle={`${readyToBill.length} validated waybill(s) are waiting to be billed.`}
         gradient="linear-gradient(135deg, #0D9488 0%, #0F766E 55%, #115E59 100%)"
         icon="ti-file-invoice"
-        cta={{ label: 'Create Invoice', icon: 'ti-file-plus', onClick: () => navigate('/invoice-create') }}
-        secondaryCta={{ label: 'Record Payment', onClick: () => navigate('/payments') }}
       />
 
       <div className="kpi-grid">

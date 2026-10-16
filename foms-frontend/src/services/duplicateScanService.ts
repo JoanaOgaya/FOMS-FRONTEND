@@ -19,7 +19,7 @@ const STORAGE_KEY_ALERTS = 'foms_duplicate_alerts_v2';
 const STORAGE_KEY_NOTIFS = 'foms_notifications';
 const STORAGE_KEY_AUDIT = 'foms_audit_logs';
 
-/* Initial mock alerts to populate the Financial Manager's Manual Review Queue and Accountant's My Submissions */
+/* Initial mock alerts to populate the Financial Manager's Manual Review Queue, Accountant's (EMP-003), and Asst. FM's (EMP-004) My Submissions */
 const SEED_ALERTS: DuplicateAlert[] = [
   {
     alertId: 'ALT-2026-081',
@@ -33,7 +33,7 @@ const SEED_ALERTS: DuplicateAlert[] = [
     conflictReason: null,
     lowExtractionQuality: false,
     submittedBy: 'Maria Mariel Jane Anonuevo',
-    submittedById: 'EMP-004',
+    submittedById: 'EMP-003',
     submittedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
     submissionNote: 'Invoice number and amount match existing billing record in the system. Needs verification for potential duplicate payout.',
     uploadedDocument: {
@@ -87,7 +87,7 @@ const SEED_ALERTS: DuplicateAlert[] = [
     conflictReason: 'Invoice ID mismatch with existing client master record (CLI-0089 vs CLI-0091).',
     lowExtractionQuality: false,
     submittedBy: 'Maria Mariel Jane Anonuevo',
-    submittedById: 'EMP-004',
+    submittedById: 'EMP-003',
     submittedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
     submissionNote: 'Official receipt reference matches previous fuel disbursement, but invoice ID belongs to a sub-account.',
     uploadedDocument: {
@@ -141,7 +141,7 @@ const SEED_ALERTS: DuplicateAlert[] = [
     conflictReason: null,
     lowExtractionQuality: false,
     submittedBy: 'Maria Mariel Jane Anonuevo',
-    submittedById: 'EMP-004',
+    submittedById: 'EMP-003',
     submittedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
     submissionNote: 'Submitted for duplicate verification against fleet expenses.',
     reviewedBy: 'Crystalyn Joyce C. Fajardo',
@@ -188,6 +188,60 @@ const SEED_ALERTS: DuplicateAlert[] = [
       { fieldKey: 'waybillNumber', fieldLabel: 'Waybill Number', uploadedValue: null, uploadedConfidence: 0, existingValue: null, matchResult: 'NOT_READ', weight: 5 },
     ],
   },
+  {
+    alertId: 'ALT-2026-085',
+    scanId: 'SCN-10990',
+    documentNo: 'LIQ-2026-0019',
+    documentType: 'Liquidation',
+    clientName: 'Speedex Operations Fleet',
+    matchScore: 78,
+    status: 'Pending Review',
+    conflictFlag: false,
+    conflictReason: null,
+    lowExtractionQuality: false,
+    submittedBy: 'Joana Marie Ogaya',
+    submittedById: 'EMP-004',
+    submittedAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString(),
+    submissionNote: 'Field driver toll and fuel reimbursement liquidation expense receipt.',
+    uploadedDocument: {
+      fileName: 'fleet_fuel_liq_0019.png',
+      fileSize: 1024 * 420,
+      previewUrl: '/mock-receipt.png',
+      extracted: {
+        documentType: { value: 'Liquidation Report', confidence: 0.95 },
+        orInvoiceNumber: { value: 'LIQ-2026-0019', confidence: 0.94 },
+        clientName: { value: 'Speedex Operations Fleet', confidence: 0.91 },
+        amount: { value: 38400.0, confidence: 0.96 },
+        transactionDate: { value: '2026-10-15', confidence: 0.92 },
+        referenceNumber: { value: 'REF-FLT-882', confidence: 0.88 },
+        waybillNumber: { value: null, confidence: 0.0 },
+      },
+    },
+    existingRecord: {
+      recordId: 'REC-38400',
+      documentType: 'Liquidation Report',
+      orInvoiceNumber: 'LIQ-2026-0019',
+      clientName: 'Speedex Operations Fleet',
+      amount: 38400.0,
+      transactionDate: '2026-10-14',
+      referenceNumber: 'REF-FLT-882',
+      waybillNumber: null,
+      dueDate: '2026-10-28',
+      clientId: 'CLI-FLEET',
+      invoiceId: 'INV-2026-38400',
+      updatedAt: '2026-10-15 08:30:00',
+      previewUrl: '/mock-receipt.png',
+    },
+    matrix: [
+      { fieldKey: 'documentType', fieldLabel: 'Document Type', uploadedValue: 'Liquidation Report', uploadedConfidence: 0.95, existingValue: 'Liquidation Report', matchResult: 'EXACT_MATCH', weight: 5 },
+      { fieldKey: 'orInvoiceNumber', fieldLabel: 'OR / Invoice Number', uploadedValue: 'LIQ-2026-0019', uploadedConfidence: 0.94, existingValue: 'LIQ-2026-0019', matchResult: 'EXACT_MATCH', weight: 35 },
+      { fieldKey: 'clientName', fieldLabel: 'Client Name', uploadedValue: 'Speedex Operations Fleet', uploadedConfidence: 0.91, existingValue: 'Speedex Operations Fleet', matchResult: 'EXACT_MATCH', weight: 15 },
+      { fieldKey: 'amount', fieldLabel: 'Amount', uploadedValue: 38400.0, uploadedConfidence: 0.96, existingValue: 38400.0, matchResult: 'EXACT_MATCH', weight: 20 },
+      { fieldKey: 'transactionDate', fieldLabel: 'Transaction Date', uploadedValue: '2026-10-15', uploadedConfidence: 0.92, existingValue: '2026-10-14', matchResult: 'PARTIAL_MATCH', weight: 10 },
+      { fieldKey: 'referenceNumber', fieldLabel: 'Reference Number', uploadedValue: 'REF-FLT-882', uploadedConfidence: 0.88, existingValue: 'REF-FLT-882', matchResult: 'EXACT_MATCH', weight: 10 },
+      { fieldKey: 'waybillNumber', fieldLabel: 'Waybill Number', uploadedValue: null, uploadedConfidence: 0, existingValue: null, matchResult: 'NOT_READ', weight: 5 },
+    ],
+  },
 ];
 
 function getStoredAlerts(): DuplicateAlert[] {
@@ -197,7 +251,26 @@ function getStoredAlerts(): DuplicateAlert[] {
       localStorage.setItem(STORAGE_KEY_ALERTS, JSON.stringify(SEED_ALERTS));
       return SEED_ALERTS;
     }
-    return JSON.parse(raw);
+    const parsed: DuplicateAlert[] = JSON.parse(raw);
+    let migrated = false;
+    for (const a of parsed) {
+      if (a.submittedBy?.includes('Maria Mariel') && a.submittedById === 'EMP-004') {
+        a.submittedById = 'EMP-003';
+        migrated = true;
+      }
+    }
+    // Also ensure EMP-004 seed alert exists in stored alerts
+    if (!parsed.some((a) => a.submittedById === 'EMP-004')) {
+      const emp004Alert = SEED_ALERTS.find((a) => a.submittedById === 'EMP-004');
+      if (emp004Alert) {
+        parsed.push(emp004Alert);
+        migrated = true;
+      }
+    }
+    if (migrated) {
+      localStorage.setItem(STORAGE_KEY_ALERTS, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch {
     return SEED_ALERTS;
   }
@@ -732,15 +805,28 @@ export const duplicateScanService = {
     if (!userId) {
       return [...alerts].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
     }
+    const cleanId = userId.trim().toUpperCase();
     const userItems = alerts.filter(
       (a) =>
-        !a.submittedById ||
-        a.submittedById.toLowerCase() === userId.toLowerCase() ||
-        userId.toUpperCase().includes('ACC') ||
-        userId.includes('004')
+        a.submittedById &&
+        a.submittedById.trim().toUpperCase() === cleanId
     );
-    const result = userItems.length > 0 ? userItems : alerts;
-    return [...result].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    if (userItems.length > 0) {
+      return userItems.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    }
+    const fallbackMatch = alerts.filter((a) => {
+      if (cleanId.includes('003') || cleanId.includes('ACC')) {
+        return a.submittedById === 'EMP-003' || a.submittedBy?.includes('Maria Mariel');
+      }
+      if (cleanId.includes('004') || cleanId.includes('AFM') || cleanId.includes('ASST')) {
+        return a.submittedById === 'EMP-004' || a.submittedBy?.includes('Joana');
+      }
+      return false;
+    });
+    if (fallbackMatch.length > 0) {
+      return fallbackMatch.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    }
+    return [...alerts].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
   },
 
   /**

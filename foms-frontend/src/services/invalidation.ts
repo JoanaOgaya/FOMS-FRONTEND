@@ -48,7 +48,7 @@ export type MutationType =
 export const MUTATION_INVALIDATION_MAP: Record<MutationType, readonly string[]> = {
   approveInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],
   rejectInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],
-  submitInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'review:invoices'],
+  submitInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],
 
   approvePayment: ['payments', 'invoices', 'ar', 'cashflow', 'dashboard', 'reports', 'notifications', 'auditLogs', 'receipts', 'speedpay'],
   recordPayment: ['payments', 'invoices', 'ar', 'cashflow', 'dashboard', 'reports', 'notifications', 'auditLogs', 'receipts'],

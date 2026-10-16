@@ -55,34 +55,6 @@ public class PaymentsController : ApiControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _context.Payments.AnyAsync(p => p.Flow == "outflow"))
-            {
-                var outflowPayment = new Payment
-                {
-                    Id = "DISB-001",
-                    InvoiceId = "INV-002",
-                    InvoiceNo = "BI-2026-0001",
-                    ClientId = "CA-001",
-                    ClientName = "Lazada Philippines",
-                    Amount = 15000m,
-                    Flow = "outflow",
-                    PaymentMethod = "Bank Transfer",
-                    ReferenceNumber = "DISB-2026-0042",
-                    PaymentStatus = "Validated",
-                    RecordedBy = "Crystalyn Joyce C. Fajardo",
-                    SubmittedAt = DateTime.UtcNow.AddDays(-1)
-                };
-                _context.Payments.Add(outflowPayment);
-                await _context.SaveChangesAsync(default);
-            }
-        }
-        catch { }
-    }
-
     private static object MapPayment(Payment p)
     {
         var status = !string.IsNullOrEmpty(p.PaymentStatus) ? p.PaymentStatus : "Pending Validation";
@@ -124,7 +96,6 @@ public class PaymentsController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPayments()
     {
-        await EnsureSeededAsync();
         var payments = await _context.Payments
             .OrderByDescending(p => p.SubmittedAt)
             .ToListAsync();

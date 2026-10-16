@@ -173,7 +173,7 @@ export const InvoicingDesk: React.FC = () => {
   let viewClient: Client | undefined = undefined;
 
   if (id) {
-    viewInvoice = invoices.find(i => i.id === id);
+    viewInvoice = invoices.find(i => i.id === id || i.invoiceNumber === id);
     if (!viewInvoice) {
       viewClient = clients.find(c => c.id === id);
     }
@@ -279,12 +279,20 @@ export const InvoicingDesk: React.FC = () => {
             <Button title="Back to Invoices" variant="secondary" icon="ti-arrow-left" onClick={() => navigate('/invoicing-desk')} />
             <div style={{ display: 'flex', gap: 8 }}>
               {(viewInvoice.status === 'Draft' || viewInvoice.status === 'Needs Revision') && (
-                <Button
-                  title="Submit for Approval"
-                  variant="primary"
-                  icon="ti-send"
-                  onClick={() => handleTransition(viewInvoice!.id, 'Pending Approval', `Invoice ${viewInvoice!.invoiceNumber} submitted for approval`)}
-                />
+                <>
+                  <Button
+                    title="Edit Draft"
+                    variant="secondary"
+                    icon="ti-edit"
+                    onClick={() => navigate(`/invoice-create?edit=${viewInvoice!.id}`)}
+                  />
+                  <Button
+                    title="Submit for Approval"
+                    variant="primary"
+                    icon="ti-send"
+                    onClick={() => handleTransition(viewInvoice!.id, 'Pending Approval', `Invoice ${viewInvoice!.invoiceNumber} submitted for approval`)}
+                  />
+                </>
               )}
               {viewInvoice.status === 'Approved' && (
                 <Button title="Mark as Sent" variant="primary" icon="ti-send" onClick={() => handleTransition(viewInvoice!.id, 'Sent', 'Invoice marked as sent')} />
@@ -579,28 +587,60 @@ export const InvoicingDesk: React.FC = () => {
                         </button>
 
                         {(inv.status === 'Draft' || inv.status === 'Needs Revision') && (
-                          <button
-                            type="button"
-                            title="Submit for Approval"
-                            onClick={() => handleTransition(inv.id, 'Pending Approval', `Invoice ${inv.invoiceNumber} submitted for approval`)}
-                            style={{
-                              padding: '12px 16px',
-                              background: '#F0FDF4',
-                              color: '#16A34A',
-                              border: '1px solid #BBF7D0',
-                              borderRadius: 8,
-                              fontWeight: 700,
-                              fontSize: 13,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#DCFCE7'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#F0FDF4'}
-                          >
-                            <i className="ti ti-send" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              title="Edit Draft"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/invoice-create?edit=${inv.id}`);
+                              }}
+                              style={{
+                                padding: '12px 14px',
+                                background: '#F8FAFC',
+                                color: '#0F766E',
+                                border: '1px solid #CCFBF1',
+                                borderRadius: 8,
+                                fontWeight: 700,
+                                fontSize: 13,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#E6FFFA'}
+                              onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
+                            >
+                              <i className="ti ti-edit" />
+                              <span>EDIT</span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Submit for Approval"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTransition(inv.id, 'Pending Approval', `Invoice ${inv.invoiceNumber} submitted for approval`);
+                              }}
+                              style={{
+                                padding: '12px 16px',
+                                background: '#F0FDF4',
+                                color: '#16A34A',
+                                border: '1px solid #BBF7D0',
+                                borderRadius: 8,
+                                fontWeight: 700,
+                                fontSize: 13,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#DCFCE7'}
+                              onMouseLeave={e => e.currentTarget.style.background = '#F0FDF4'}
+                            >
+                              <i className="ti ti-send" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

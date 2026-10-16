@@ -43,47 +43,9 @@ public class BillingRatesController : ControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _fomsDb.Clients.AnyAsync())
-            {
-                _fomsDb.Clients.AddRange(new List<FOMS.Domain.Entities.SqlServer.Client>
-                {
-                    new() { ClientId = 1, ClientCode = "LZD-001", CompanyName = "Lazada Philippines", ContactPerson = "John Doe", ContactNumber = "09171234567", Email = "contact@lazada.com", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new() { ClientId = 2, ClientCode = "SHP-001", CompanyName = "Shopee Philippines", ContactPerson = "Jane Smith", ContactNumber = "09179876543", Email = "contact@shopee.com", IsActive = true, CreatedAt = DateTime.UtcNow }
-                });
-                await _fomsDb.SaveChangesAsync();
-            }
-
-            if (!await _fomsDb.ClientRates.AnyAsync())
-            {
-                var sampleRates = new List<ClientRate>
-                {
-                    // Lazada (ClientId: 1 / CA-001)
-                    new() { ClientId = 1, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 120m, ExcessRatePerKg = 20m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 180m, ExcessRatePerKg = 30m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 220m, ExcessRatePerKg = 40m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 260m, ExcessRatePerKg = 50m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-
-                    // Shopee (ClientId: 2 / CA-002)
-                    new() { ClientId = 2, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 110m, ExcessRatePerKg = 18m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 170m, ExcessRatePerKg = 28m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 210m, ExcessRatePerKg = 38m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 250m, ExcessRatePerKg = 48m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                };
-                _fomsDb.ClientRates.AddRange(sampleRates);
-                await _fomsDb.SaveChangesAsync();
-            }
-        }
-        catch { }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        await EnsureSeededAsync();
         var rates = await _fomsDb.ClientRates.AsNoTracking().ToListAsync();
         var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
 
@@ -339,34 +301,9 @@ public class BillingRecordsController : ControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _fomsDb.BillingDocuments.AnyAsync())
-            {
-                var waybills = await _fomsDb.Waybills.Take(3).ToListAsync();
-                int wb1 = waybills.Count > 0 ? waybills[0].WaybillId : 1;
-                int wb2 = waybills.Count > 1 ? waybills[1].WaybillId : wb1;
-                int wb3 = waybills.Count > 2 ? waybills[2].WaybillId : wb1;
-
-                var samples = new List<BillingDocument>
-                {
-                    new() { WaybillId = wb1, ClientId = 1, ComputedAmount = 1850m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                    new() { WaybillId = wb2, ClientId = 1, ComputedAmount = 2400m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                    new() { WaybillId = wb3, ClientId = 2, ComputedAmount = 1450m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddHours(-12) }
-                };
-                _fomsDb.BillingDocuments.AddRange(samples);
-                await _fomsDb.SaveChangesAsync();
-            }
-        }
-        catch { }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        await EnsureSeededAsync();
         var records = await _fomsDb.BillingDocuments.AsNoTracking().ToListAsync();
         var waybills = await _fomsDb.Waybills.AsNoTracking().ToListAsync();
         var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
@@ -438,10 +375,37 @@ public class BillingRecordsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] BillingRecordInputDto dto)
     {
+        int resolvedWbId = 1;
+        if (int.TryParse(dto.WaybillId, out var parsedWbId))
+        {
+            resolvedWbId = parsedWbId;
+        }
+        else if (!string.IsNullOrEmpty(dto.WaybillId))
+        {
+            var matchedWb = await _fomsDb.Waybills.FirstOrDefaultAsync(w => w.WaybillNumber == dto.WaybillId);
+            if (matchedWb != null) resolvedWbId = matchedWb.WaybillId;
+        }
+
+        int resolvedClientId = 1;
+        if (int.TryParse(dto.ClientId, out var parsedCId))
+        {
+            resolvedClientId = parsedCId;
+        }
+        else if (!string.IsNullOrEmpty(dto.ClientId))
+        {
+            var matchedClient = await _fomsDb.Clients.FirstOrDefaultAsync(c => c.ClientCode == dto.ClientId || (dto.ClientId == "CA-001" && c.ClientId == 1) || (dto.ClientId == "CA-002" && c.ClientId == 2) || (dto.ClientId == "CA-003" && c.ClientId == 3));
+            if (matchedClient != null) resolvedClientId = matchedClient.ClientId;
+            else if (resolvedWbId > 0)
+            {
+                var wb = await _fomsDb.Waybills.FindAsync(resolvedWbId);
+                if (wb != null) resolvedClientId = wb.ClientId;
+            }
+        }
+
         var entity = new BillingDocument
         {
-            WaybillId = int.TryParse(dto.WaybillId, out var wbId) ? wbId : 1,
-            ClientId = int.TryParse(dto.ClientId, out var cId) ? cId : 1,
+            WaybillId = resolvedWbId,
+            ClientId = resolvedClientId,
             ComputedAmount = dto.GrandTotal ?? dto.FreightCost ?? 100m,
             ValidationStatus = dto.Status ?? "Pending Review",
             CreatedAt = DateTime.UtcNow

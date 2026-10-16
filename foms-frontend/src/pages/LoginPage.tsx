@@ -57,16 +57,30 @@ export function LoginPage() {
     return <Navigate to={requestedFrom} replace />;
   }
 
+  const EMP_ID_REGEX = /^EMP-\d{3}$/i;
+
   const validateForm = (): FormErrors => {
     const errors: FormErrors = {};
-    if (!employeeId.trim()) {
+    const trimmedEmpId = employeeId.trim();
+
+    if (!trimmedEmpId) {
       errors.employeeId = 'Employee ID is required.';
+    } else if (trimmedEmpId.length > 10) {
+      errors.employeeId = 'Employee ID cannot exceed 10 characters.';
+    } else if (!EMP_ID_REGEX.test(trimmedEmpId)) {
+      errors.employeeId = 'Employee ID must follow pattern EMP-### (e.g., EMP-001).';
     }
+
     if (!password) {
       errors.password = 'Password is required.';
+    } else if (password.length > 100) {
+      errors.password = 'Password cannot exceed 100 characters.';
     }
+
     return errors;
   };
+
+  const isFormValid = EMP_ID_REGEX.test(employeeId.trim()) && password.trim().length >= 6;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +93,7 @@ export function LoginPage() {
     }
     setFieldErrors({});
 
-    const result = await login({ employeeId: employeeId.trim(), password });
+    const result = await login({ employeeId: employeeId.trim().toUpperCase(), password });
     if (!result.success && result.error) {
       setGlobalError(result.error);
       triggerToast('error', 'Login Failed', result.error);
@@ -88,10 +102,18 @@ export function LoginPage() {
     }
   };
 
+  const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  const isForgotValid = EMP_ID_REGEX.test(forgotEmpId.trim()) || EMAIL_REGEX.test(forgotEmpId.trim());
+
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmpId.trim()) {
+    const trimmed = forgotEmpId.trim();
+    if (!trimmed) {
       setForgotError('Please enter your Employee ID or Email.');
+      return;
+    }
+    if (!EMP_ID_REGEX.test(trimmed) && !EMAIL_REGEX.test(trimmed)) {
+      setForgotError('Please enter a valid Employee ID (EMP-###) or registered company email.');
       return;
     }
     setForgotError(null);
@@ -99,7 +121,7 @@ export function LoginPage() {
     triggerToast(
       'info',
       'Reset Request Dispatched',
-      `Password reset instructions have been dispatched for ${forgotEmpId.trim()}.`
+      `Password reset instructions have been dispatched for ${trimmed.toUpperCase()}.`
     );
   };
 
@@ -161,17 +183,27 @@ export function LoginPage() {
                 <input
                   id="foms-employee-id"
                   type="text"
+                  maxLength={10}
                   className="login-input"
-                  placeholder="Enter Employee ID"
+                  placeholder="Enter Employee ID (e.g. EMP-001)"
                   value={employeeId}
                   onChange={(e) => {
-                    setEmployeeId(e.target.value);
+                    const val = e.target.value.toUpperCase();
+                    setEmployeeId(val);
                     setFieldErrors((prev) => {
                       const next = { ...prev };
                       delete next.employeeId;
                       return next;
                     });
                     setGlobalError(null);
+                  }}
+                  onBlur={() => {
+                    const trimmed = employeeId.trim();
+                    if (!trimmed) {
+                      setFieldErrors(prev => ({ ...prev, employeeId: 'Employee ID is required.' }));
+                    } else if (!EMP_ID_REGEX.test(trimmed)) {
+                      setFieldErrors(prev => ({ ...prev, employeeId: 'Employee ID must follow pattern EMP-### (e.g., EMP-001).' }));
+                    }
                   }}
                   autoComplete="username"
                   autoFocus
@@ -197,6 +229,7 @@ export function LoginPage() {
                 <input
                   id="foms-password"
                   type={showPassword ? 'text' : 'password'}
+                  maxLength={100}
                   className="login-input"
                   placeholder="Enter Password"
                   value={password}
@@ -208,6 +241,11 @@ export function LoginPage() {
                       return next;
                     });
                     setGlobalError(null);
+                  }}
+                  onBlur={() => {
+                    if (!password) {
+                      setFieldErrors(prev => ({ ...prev, password: 'Password is required.' }));
+                    }
                   }}
                   autoComplete="current-password"
                   aria-invalid={!!fieldErrors.password}
@@ -243,7 +281,11 @@ export function LoginPage() {
             <button
               type="submit"
               className="login-btn"
-              disabled={isLoading}
+              disabled={isLoading || !isFormValid}
+              style={{
+                opacity: (!isFormValid || isLoading) ? 0.6 : 1,
+                cursor: (!isFormValid || isLoading) ? 'not-allowed' : 'pointer'
+              }}
               aria-busy={isLoading}
             >
               {isLoading ? (
@@ -286,10 +328,14 @@ export function LoginPage() {
                     <input
                       type="text"
                       className="login-input"
-                      placeholder="Enter Employee ID"
+                      placeholder="Enter Employee ID (e.g. EMP-001) or Email"
+                      maxLength={255}
                       required
                       value={forgotEmpId}
-                      onChange={(e) => setForgotEmpId(e.target.value)}
+                      onChange={(e) => {
+                        setForgotEmpId(e.target.value);
+                        setForgotError(null);
+                      }}
                     />
                   </div>
                 </div>
@@ -303,7 +349,16 @@ export function LoginPage() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="login-btn" style={{ flex: 1 }}>
+                  <button 
+                    type="submit" 
+                    className="login-btn" 
+                    style={{ 
+                      flex: 1,
+                      opacity: !isForgotValid ? 0.6 : 1,
+                      cursor: !isForgotValid ? 'not-allowed' : 'pointer'
+                    }}
+                    disabled={!isForgotValid}
+                  >
                     Send Request
                   </button>
                 </div>

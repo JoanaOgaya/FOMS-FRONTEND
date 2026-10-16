@@ -43,7 +43,7 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'rates', label: 'Rate Configuration', group: 'Client Management', icon: 'ti ti-adjustments-dollar', path: '/rate-configuration', detailPath: '/rate-configuration/:id', nav: false, roles: {} },
   { key: 'waybills', label: 'Waybills & POD', group: 'Client Management', icon: 'ti ti-truck-delivery', path: '/waybills', detailPath: '/waybills/:id', nav: false, roles: {} },
 
-  { key: 'invoiceCreate', label: 'Create Invoice', group: 'Invoicing', icon: 'ti ti-file-plus', path: '/invoice-create', nav: false, roles: {} },
+  { key: 'invoiceCreate', label: 'Create Invoice', group: 'Invoicing', icon: 'ti ti-file-plus', path: '/invoice-create', nav: true, roles: { [ACC]: ['view', 'create', 'submit'], [FM]: ['view'] } },
   { key: 'invoicingDesk', label: 'Invoice List', group: 'Invoicing', icon: 'ti ti-file-invoice', path: '/invoicing-desk', detailPath: '/invoicing-desk/:id', nav: true, roles: { [ACC]: ['view', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'billingValidation', label: 'Billing Validation', group: 'Invoicing', icon: 'ti ti-file-check', path: '/billing-validation', nav: true, roles: { [ACC]: ['view'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'invoiceReview', label: 'Invoice Review', group: 'Invoicing', icon: 'ti ti-file-search', path: '/invoice-review', detailPath: '/invoice-review/:id', nav: true, roles: { [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },

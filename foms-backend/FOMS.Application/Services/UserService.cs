@@ -21,14 +21,21 @@ public class UserService : IUserService
     public async Task<UserDto> CreateAsync(UserCreateDto request)
     {
         var role = await EnsureRoleExistsAsync(request.Role);
+        var empId = !string.IsNullOrWhiteSpace(request.EmployeeId) ? request.EmployeeId.Trim() : request.Username.Trim();
         var user = new Employee
         {
-            Username = request.Username,
-            Name = request.FullName,
-            Email = request.Email,
+            Id = empId,
+            Username = request.Username.Trim(),
+            Name = request.FullName.Trim(),
+            Email = request.Email.Trim().ToLowerInvariant(),
             Role = role.Name,
             RoleId = role.Id,
+            Phone = request.Phone?.Trim(),
+            SalaryRate = request.SalaryRate,
+            DateHired = request.DateHired ?? DateTime.UtcNow,
             IsActive = true,
+            Status = "Active",
+            SystemAccess = "Finance Operation Service",
             CreatedAt = DateTime.UtcNow,
             PasswordHash = AuthService.HashPassword(request.Password)
         };
@@ -39,12 +46,18 @@ public class UserService : IUserService
         return new UserDto
         {
             Id = user.Id,
+            EmployeeNumber = user.Id,
             Username = user.Username,
             FullName = user.Name,
             Email = user.Email,
             Role = user.Role,
+            RoleId = user.RoleId,
+            Phone = user.Phone,
+            SalaryRate = user.SalaryRate,
+            Status = user.Status,
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            DateHired = user.DateHired
         };
     }
 
@@ -66,12 +79,18 @@ public class UserService : IUserService
             .Select(user => new UserDto
             {
                 Id = user.Id,
+                EmployeeNumber = user.Id,
                 Username = user.Username,
                 FullName = user.Name,
                 Email = user.Email,
                 Role = user.Role,
+                RoleId = user.RoleId,
+                Phone = user.Phone,
+                SalaryRate = user.SalaryRate,
+                Status = user.Status,
                 IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                DateHired = user.DateHired
             })
             .ToListAsync();
     }
@@ -85,12 +104,18 @@ public class UserService : IUserService
         return new UserDto
         {
             Id = user.Id,
+            EmployeeNumber = user.Id,
             Username = user.Username,
             FullName = user.Name,
             Email = user.Email,
             Role = user.Role,
+            RoleId = user.RoleId,
+            Phone = user.Phone,
+            SalaryRate = user.SalaryRate,
+            Status = user.Status,
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            DateHired = user.DateHired
         };
     }
 
@@ -132,10 +157,16 @@ public class UserService : IUserService
         if (existing == null)
             return null;
 
-        existing.Name = request.FullName;
-        existing.Email = request.Email;
+        existing.Name = request.FullName.Trim();
+        existing.Email = request.Email.Trim().ToLowerInvariant();
         existing.IsActive = request.IsActive;
         existing.Role = request.Role;
+        existing.Phone = request.Phone?.Trim();
+        existing.SalaryRate = request.SalaryRate;
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            existing.Status = request.Status;
+        }
 
         var role = await EnsureRoleExistsAsync(request.Role);
         existing.RoleId = role.Id;
@@ -146,12 +177,18 @@ public class UserService : IUserService
         return new UserDto
         {
             Id = existing.Id,
+            EmployeeNumber = existing.Id,
             Username = existing.Username,
             FullName = existing.Name,
             Email = existing.Email,
             Role = existing.Role,
+            RoleId = existing.RoleId,
+            Phone = existing.Phone,
+            SalaryRate = existing.SalaryRate,
+            Status = existing.Status,
             IsActive = existing.IsActive,
-            CreatedAt = existing.CreatedAt
+            CreatedAt = existing.CreatedAt,
+            DateHired = existing.DateHired
         };
     }
 

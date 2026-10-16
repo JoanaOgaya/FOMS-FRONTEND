@@ -128,6 +128,10 @@ export interface Waybill {
   isODA?: boolean; // Outside Delivery Area
   actualWeight?: number;
   chargeableWeight?: number;
+  isBilled?: boolean;
+  podStatus?: string;
+  deliveryStatus?: string;
+  deliveryArea?: string;
 }
 
 
@@ -458,10 +462,18 @@ export interface AppNotification {
 
 export interface AppUserRecord {
   id: string;
+  employeeNumber?: string;
+  username?: string;
   fullName: string;
   email?: string;
   role: string;
-  status: 'Active' | 'Inactive';
+  roleId?: string;
+  phone?: string;
+  salaryRate?: number;
+  dateHired?: string;
+  status: 'Active' | 'Inactive' | 'Locked' | 'Pending';
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface Report {

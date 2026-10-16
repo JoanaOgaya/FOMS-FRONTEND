@@ -10,6 +10,7 @@ import { adjustmentsService } from '../services/adjustmentsService';
 import { speedpayService } from '../services/speedpayService';
 import { clientsService } from '../services/clientsService';
 import { auditLogsService } from '../services/auditLogsService';
+import { headAccountantService } from '../services/headAccountantService';
 import { KpiCard } from '../components/shared/KpiCard';
 import { Card } from '../components/Card';
 import { RecentActivity } from '../components/RecentActivity';
@@ -29,6 +30,7 @@ export const HeadAccountantDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const { data: headSummary } = useQuery('head:summary', () => headAccountantService.getDashboard());
   const { data: invoicesData } = useQuery('head:invoices', () => invoicesService.list({ pageSize: 100 }));
   const { data: paymentsData } = useQuery('head:payments', () => paymentsService.list({ pageSize: 100 }));
   const { data: arData } = useQuery('head:ar', () => arService.records({ pageSize: 100 }));
@@ -53,7 +55,12 @@ export const HeadAccountantDashboard: React.FC = () => {
   const pendingAdjustments = financialAdjustments.filter(a => a.status === 'Pending Approval');
   const pendingSpeedPay = speedPay.filter(s => s.status === 'Pending Validation');
 
-  const totalPending = pendingInvoices.length + pendingPayments.length + pendingAdjustments.length + pendingSpeedPay.length;
+  const pendingInvoicesCount = headSummary?.pendingInvoices ?? pendingInvoices.length;
+  const pendingPaymentsCount = headSummary?.pendingPayments ?? pendingPayments.length;
+  const pendingAdjustmentsCount = headSummary?.pendingAdjustments ?? pendingAdjustments.length;
+  const pendingSpeedPayCount = headSummary?.speedPayPending ?? pendingSpeedPay.length;
+
+  const totalPending = pendingInvoicesCount + pendingPaymentsCount + pendingAdjustmentsCount + pendingSpeedPayCount;
   const valueAwaiting = pendingInvoices.reduce((s, i) => s + i.totalAmount, 0);
 
   // Decisions already made on invoices
@@ -62,8 +69,8 @@ export const HeadAccountantDashboard: React.FC = () => {
   const decided = approved + returned;
   const approvalRate = decided > 0 ? Math.round((approved / decided) * 100) : 0;
 
-  const totalBalance = arRecords.reduce((s: number, r: ARRecord) => s + (r.outstandingBalance || 0), 0);
-  const overdueInvoices = invoices.filter(i => i.status === 'Overdue' || i.status === 'Outstanding').length;
+  const totalBalance = headSummary?.accountsReceivableTotal ?? arRecords.reduce((s: number, r: ARRecord) => s + (r.outstandingBalance || 0), 0);
+  const overdueInvoices = headSummary?.overdueInvoices ?? invoices.filter(i => i.status === 'Overdue' || i.status === 'Outstanding').length;
 
   const nearDueAccounts = arRecords.filter(r => {
     if (r.outstandingBalance <= 0 || r.status === 'Overdue' || r.status === 'Outstanding') return false;
@@ -162,11 +169,11 @@ export const HeadAccountantDashboard: React.FC = () => {
       />
 
       <div className="kpi-grid">
-        <KpiCard label="Invoices for Approval" value={pendingInvoices.length} icon="ti-file-check" variant="warning"
+        <KpiCard label="Invoices for Approval" value={pendingInvoicesCount} icon="ti-file-check" variant="warning"
           onClick={() => navigate('/invoice-review')} />
-        <KpiCard label="Payments to Validate" value={pendingPayments.length + pendingSpeedPay.length} icon="ti-cash" variant="info"
+        <KpiCard label="Payments to Validate" value={pendingPaymentsCount + pendingSpeedPayCount} icon="ti-cash" variant="info"
           onClick={() => navigate('/payments')} />
-        <KpiCard label="Adjustments to Review" value={pendingAdjustments.length} icon="ti-adjustments-alt" variant="new"
+        <KpiCard label="Adjustments to Review" value={pendingAdjustmentsCount} icon="ti-adjustments-alt" variant="new"
           onClick={() => navigate('/adjustments')} />
         <KpiCard label="Approval Rate" value={`${approvalRate}%`} icon="ti-chart-pie" variant="success"
           onClick={() => navigate('/review-history')} />

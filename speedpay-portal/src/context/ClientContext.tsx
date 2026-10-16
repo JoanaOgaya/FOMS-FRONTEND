@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Invoice, PaymentRecord, ClientUser } from '../data/mockData';
+import type { Invoice, PaymentRecord, ClientUser } from '../types/client';
 
 export interface ClientNotification {
   id: string;
@@ -130,30 +130,7 @@ export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }));
           setInvoices(mapped);
         } else {
-          if (user.id === 'TEST-001') {
-            setInvoices([
-              {
-                id: 'INV-1001',
-                invoiceNumber: 'INV-1001',
-                routeArea: 'National Capital Region',
-                amount: 25000,
-                dueDate: new Date(Date.now() + 86400000 * 5).toISOString(), // 5 days from now
-                status: 'Unpaid',
-                description: 'Logistics Services - Manila to Quezon City'
-              },
-              {
-                id: 'INV-1002',
-                invoiceNumber: 'INV-1002',
-                routeArea: 'CALABARZON',
-                amount: 15000,
-                dueDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days overdue
-                status: 'Overdue',
-                description: 'Warehouse Storage Fee'
-              }
-            ]);
-          } else {
-            setInvoices([]);
-          }
+          setInvoices([]);
         }
       })
       .catch((err) => {
@@ -182,21 +159,7 @@ export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }));
           setPayments(mapped);
         } else {
-          if (user.id === 'TEST-001') {
-            setPayments([
-              {
-                id: 'PAY-2001',
-                invoiceId: 'INV-0999',
-                referenceNo: 'REF123456789',
-                paymentMethod: 'GCash',
-                dateSubmitted: new Date(Date.now() - 86400000 * 10).toISOString(),
-                amount: 10000,
-                status: 'Validated'
-              }
-            ]);
-          } else {
-            setPayments([]);
-          }
+          setPayments([]);
         }
       })
       .catch((err) => {

@@ -20,6 +20,10 @@ export const MySubmissions: React.FC = () => {
     user?.role === ROLES.ACCOUNTANT ||
     user?.role === ROLES.ASSISTANT_FM;
 
+  const isAFM = user?.role === ROLES.ASSISTANT_FM || user?.employeeId === 'EMP-004';
+  const effectiveName = user?.fullName || (isAFM ? 'Joana Marie Ogaya' : 'Maria Mariel Jane Anonuevo');
+  const effectiveId = user?.employeeId || (isAFM ? 'EMP-004' : 'EMP-003');
+
   const [submissions, setSubmissions] = useState<DuplicateAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +49,7 @@ export const MySubmissions: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const items = await duplicateScanService.getMySubmissions(user?.employeeId);
+      const items = await duplicateScanService.getMySubmissions(effectiveId);
       setSubmissions(items);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch your document submissions.');
@@ -56,7 +60,7 @@ export const MySubmissions: React.FC = () => {
 
   useEffect(() => {
     loadSubmissions();
-  }, [user]);
+  }, [user, effectiveId]);
 
   const counts = useMemo(() => {
     const returned = submissions.filter((s) => s.status === 'Returned').length;
@@ -141,8 +145,8 @@ export const MySubmissions: React.FC = () => {
       const res = await duplicateScanService.resubmitReturnedAlert(
         resubmitAlert.alertId,
         resubmitNote,
-        user?.fullName || 'Maria Mariel Jane Anonuevo',
-        user?.employeeId || 'EMP-004',
+        effectiveName,
+        effectiveId,
         resubmitReasonTag,
         rescanPreview || undefined,
         rescanFile?.name || undefined

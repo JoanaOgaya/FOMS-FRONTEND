@@ -381,14 +381,19 @@ namespace FOMS.Infrastructure.Migrations
             modelBuilder.Entity("FOMS.Domain.Entities.Employee", b =>
                 {
                     b.Property<string>("Id")
+                        .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DateHired")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<int>("FailedLoginCount")
                         .HasColumnType("int");
@@ -401,36 +406,65 @@ namespace FOMS.Infrastructure.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Role")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RoleId")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<decimal?>("SalaryRate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("SystemAccess")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Email")
+                        .IsUnique();
+
                     b.HasIndex("RoleId");
 
-                    b.ToTable("Employees");
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Employees", t =>
+                        {
+                            t.HasCheckConstraint("CK_Employees_Email_Format", "[Email] LIKE '%_@__%.__%'");
+
+                            t.HasCheckConstraint("CK_Employees_Id_Pattern", "[Id] LIKE 'EMP-[0-9][0-9][0-9]'");
+
+                            t.HasCheckConstraint("CK_Employees_SalaryRate", "[SalaryRate] IS NULL OR [SalaryRate] >= 0");
+
+                            t.HasCheckConstraint("CK_Employees_Status", "[Status] IN ('Active', 'Pending', 'Locked', 'Inactive')");
+                        });
                 });
 
             modelBuilder.Entity("FOMS.Domain.Entities.GeneralLedgerEntry", b =>
@@ -559,6 +593,9 @@ namespace FOMS.Infrastructure.Migrations
 
                     b.Property<double>("VatRate")
                         .HasColumnType("float");
+
+                    b.Property<string>("WaybillIds")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

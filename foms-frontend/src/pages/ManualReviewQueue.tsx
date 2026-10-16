@@ -709,6 +709,9 @@ export const ManualReviewQueue: React.FC = () => {
                     <img
                       src={activeAlert.existingRecord?.previewUrl || '/mock-receipt.png'}
                       alt="Existing Matching Record"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/mock-receipt.png';
+                      }}
                       style={{
                         transform: `scale(${zoomLevel})`,
                         transformOrigin: 'center center',

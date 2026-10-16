@@ -252,26 +252,6 @@ public class SpeedPayController : ApiControllerBase
     {
         try
         {
-            if (checkoutId == "cs_mock_test1")
-            {
-                var exists = await _context.PaymentTransactions.AnyAsync(t => t.PayMongoCheckoutId == "cs_mock_test1");
-                if (!exists)
-                {
-                    var mockTxn = new PaymentTransaction
-                    {
-                        Id = "TXN-MOCK-TEST1",
-                        Amount = 53200m,
-                        ClientId = "CA-001",
-                        CreatedAt = DateTime.UtcNow,
-                        InvoiceNo = "BI-2026-0001",
-                        PayMongoCheckoutId = "cs_mock_test1",
-                        Status = "Pending",
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    await _context.PaymentTransactions.AddAsync(mockTxn);
-                    await _context.SaveChangesAsync(default);
-                }
-            }
 
             var isPaymentsApi = checkoutId.StartsWith("pi_");
             var eventType = status.ToLower() == "completed" 

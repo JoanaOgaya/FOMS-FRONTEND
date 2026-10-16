@@ -19,6 +19,7 @@ import { paymentsService } from '../services/paymentsService';
 import { cashFlowService } from '../services/cashFlowService';
 import { liquidationsService } from '../services/liquidationsService';
 import { auditLogsService } from '../services/auditLogsService';
+import { assistantFinanceService } from '../services/assistantFinanceService';
 import { formatCurrency, formatDate } from '../utils/format';
 import type { ARRecord, Payment, CashFlowRecord, Liquidation, AuditLog, FinanceManagerDashboardSummary } from '../types/entities';
 
@@ -26,6 +27,7 @@ import type { ARRecord, Payment, CashFlowRecord, Liquidation, AuditLog, FinanceM
 const AsstFinanceDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
+  const { data: asstDbData } = useQuery('asst:db-summary', () => assistantFinanceService.getDashboard());
   const { data: arData } = useQuery('asst:ar', () => arService.records({ pageSize: 100 }));
   const { data: paymentsData } = useQuery('asst:payments', () => paymentsService.list({ pageSize: 100 }));
   const { data: auditData } = useQuery('asst:audit', () => auditLogsService.list({ pageSize: 20 }));
@@ -97,12 +99,15 @@ const AsstFinanceDashboard: React.FC = () => {
     };
   });
 
-  const liquidationTrendData = liqViewMode === 'weekly' ? liquidationTrendWeekly : liquidationTrendMonthly;
+  const asstDb = asstDbData?.data;
+  const liquidationTrendData = (liqViewMode === 'weekly' 
+    ? (asstDb?.liquidationReports?.weeklyTrend && asstDb.liquidationReports.weeklyTrend.length > 0 ? asstDb.liquidationReports.weeklyTrend : liquidationTrendWeekly)
+    : (asstDb?.liquidationReports?.monthlyTrend && asstDb.liquidationReports.monthlyTrend.length > 0 ? asstDb.liquidationReports.monthlyTrend : liquidationTrendMonthly));
 
   const totalCashInflow = cashFlowRecords.filter((r: CashFlowRecord) => r.type === 'Inflow').reduce((s: number, r: CashFlowRecord) => s + r.amount, 0);
   const totalCashOutflow = cashFlowRecords.filter((r: CashFlowRecord) => r.type === 'Outflow').reduce((s: number, r: CashFlowRecord) => s + r.amount, 0);
   const totalNetCash = totalCashInflow - totalCashOutflow;
-  const pendingLiquidationCount = liquidations.filter((l: Liquidation) => l.status === 'Pending Validation').length;
+  const pendingLiquidationCount = asstDb?.pendingLiquidations ?? liquidations.filter((l: Liquidation) => l.status === 'Pending Validation').length;
 
   const bannerName = (authUser?.fullName || 'Assistant').split(' ')[0];
 
@@ -348,9 +353,9 @@ const FinanceManagerDashboard: React.FC = () => {
               </button>
             </div>
           </div>
-          <div style={{ width: '100%', height: 280, flex: 1 }}>
+          <div style={{ width: '100%', height: 280, minHeight: 280, flex: 1 }}>
             {hasCashFlowData ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={280}>
                 <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1">

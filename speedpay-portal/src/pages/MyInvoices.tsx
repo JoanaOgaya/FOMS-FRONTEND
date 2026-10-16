@@ -26,25 +26,6 @@ function numberToWords(amount: number): string {
   return words + ' Only';
 }
 
-const MOCK_WAYBILLS = [
-  {
-    waybillNo: 'WB-2026-0001', status: 'Validated',
-    sender: 'Lazada Philippines', receiver: 'Juan Dela Cruz',
-    address: '123 Sampaguita St., Quezon City', service: 'Delivery',
-    courier: 'Rider John Doe', date: '9/29/2026', items: '2 box',
-    declaredValue: 0, remarks: 'Fragile, please handle with care.',
-    weight: 1.5, volumeWeight: 0, freight: 100, valuation: 0, oda: 0, vat: 12
-  },
-  {
-    waybillNo: 'WB-2026-0002', status: 'Validated',
-    sender: 'Shopee Philippines', receiver: 'Maria Clara',
-    address: '456 Rizal Ave., Manila', service: 'Delivery',
-    courier: 'Rider Jane Doe', date: '9/28/2026', items: '1 pouch',
-    declaredValue: 500, remarks: 'Deliver during office hours.',
-    weight: 0.5, volumeWeight: 0, freight: 80, valuation: 5, oda: 0, vat: 12
-  }
-];
-
 export const MyInvoices: React.FC = () => {
   const { invoices, payments, user, submitPayment } = useClientContext();
   const navigate = useNavigate();
@@ -59,7 +40,43 @@ export const MyInvoices: React.FC = () => {
 
   // Pay Modal state
   const [payInvoice, setPayInvoice] = useState<any>(null);
-  const [expandedWaybill, setExpandedWaybill] = useState<string | null>('WB-2026-0001');
+  const [expandedWaybill, setExpandedWaybill] = useState<string | null>(null);
+
+  // Real waybills fetched from SQL Server backend
+  const [realWaybills, setRealWaybills] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    fetch('/api/waybills')
+      .then(res => res.json())
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((wb: any) => ({
+            waybillNo: wb.waybillNumber || wb.trackingNumber || `WB-${wb.id}`,
+            status: wb.status || wb.podStatus || 'Validated',
+            sender: wb.clientName || user?.companyName || 'Lazada Philippines',
+            receiver: wb.destination || 'Delivery Consignee',
+            address: `${wb.destination || 'Metro Manila'}, Philippines`,
+            service: 'Standard Delivery',
+            courier: 'Operations Rider',
+            date: wb.date || 'Today',
+            items: `${wb.actualWeight || 1} kg package`,
+            declaredValue: 500,
+            remarks: 'Standard parcel shipment.',
+            weight: Number(wb.actualWeight) || 1.5,
+            volumeWeight: 0,
+            freight: Math.round((Number(wb.actualWeight) || 1) * 80),
+            valuation: 5,
+            oda: 0,
+            vat: 12,
+            clientId: wb.clientId,
+            invoiceNo: wb.invoiceNo
+          }));
+          setRealWaybills(mapped);
+          if (mapped.length > 0) setExpandedWaybill(mapped[0].waybillNo);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   // PayMongo Checkout modal state
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -73,8 +90,16 @@ export const MyInvoices: React.FC = () => {
   const [aiScanResult, setAiScanResult] = useState<'success' | 'failed' | null>(null);
   const [aiScanMessage, setAiScanMessage] = useState('');
 
-  const grossSubtotal = MOCK_WAYBILLS.reduce((s, wb) => s + wb.freight + wb.valuation + wb.oda, 0);
-  const totalVat = MOCK_WAYBILLS.reduce((s, wb) => s + (wb.freight + wb.valuation + wb.oda) * (wb.vat / 100), 0);
+  const activeWaybills = realWaybills.filter(wb => {
+    if (!payInvoice) return true;
+    if (wb.invoiceNo && (wb.invoiceNo === payInvoice.invoiceNumber || wb.invoiceNo === payInvoice.id)) return true;
+    if (wb.clientId && user?.id && wb.clientId.toLowerCase() === user.id.toLowerCase()) return true;
+    if (wb.sender && user?.companyName && wb.sender.toLowerCase().includes(user.companyName.toLowerCase())) return true;
+    return false;
+  });
+  const waybillsList = activeWaybills.length > 0 ? activeWaybills : realWaybills;
+  const grossSubtotal = waybillsList.reduce((s, wb) => s + (wb.freight || 0) + (wb.valuation || 0) + (wb.oda || 0), 0);
+  const totalVat = waybillsList.reduce((s, wb) => s + ((wb.freight || 0) + (wb.valuation || 0) + (wb.oda || 0)) * ((wb.vat || 12) / 100), 0);
 
   const allAreas = Array.from(new Set(invoices.map(inv => inv.routeArea))).filter(Boolean);
 
@@ -238,7 +263,7 @@ export const MyInvoices: React.FC = () => {
                     {inv.status === 'Paid' && (
                       <button onClick={() => {
                         const payment = payments.find(p => p.invoiceId === inv.id && p.status === 'Validated') || {
-                          id: 'TEST-PAYREF-' + Date.now().toString().slice(-5), paymentMethod: 'Mock Payment',
+                          id: 'PAY-' + Date.now().toString().slice(-6), paymentMethod: 'SpeedPay Digital Transfer',
                           dateSubmitted: new Date().toISOString(), status: 'Validated'
                         };
                         setReceiptData({ invoice: inv, payment });
@@ -317,14 +342,14 @@ export const MyInvoices: React.FC = () => {
               <div style={{ margin: '16px 24px 0', background: '#FFF', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
                 {/* Section header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
-                  <span style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>Charges for this billing period · {MOCK_WAYBILLS.length} waybills</span>
+                  <span style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>Charges for this billing period · {waybillsList.length} waybills</span>
                   <span style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>₱{(grossSubtotal + totalVat).toFixed(2)}</span>
                 </div>
 
                 {/* Each waybill accordion row */}
-                {MOCK_WAYBILLS.map((wb) => {
-                  const sub = wb.freight + wb.valuation + wb.oda;
-                  const vatAmt = sub * (wb.vat / 100);
+                {waybillsList.map((wb) => {
+                  const sub = (wb.freight || 0) + (wb.valuation || 0) + (wb.oda || 0);
+                  const vatAmt = sub * ((wb.vat || 12) / 100);
                   const total = sub + vatAmt;
                   const isExpanded = expandedWaybill === wb.waybillNo;
                   return (
@@ -363,9 +388,9 @@ export const MyInvoices: React.FC = () => {
                           >
                             <div style={{ padding: '4px 20px 16px 20px', background: '#F8FAFC' }}>
                               {[
-                                ['Freight', `₱${wb.freight.toFixed(2)}`],
-                                ['Valuation (1%)', `₱${wb.valuation.toFixed(2)}`],
-                                ['ODA', `₱${wb.oda.toFixed(2)}`],
+                                ['Freight', `₱${(wb.freight || 0).toFixed(2)}`],
+                                ['Valuation (1%)', `₱${(wb.valuation || 0).toFixed(2)}`],
+                                ['ODA', `₱${(wb.oda || 0).toFixed(2)}`],
                               ].map(([label, val]) => (
                                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: '13px', color: '#475569' }}>
                                   <span>{label}</span><span>{val}</span>
@@ -376,7 +401,7 @@ export const MyInvoices: React.FC = () => {
                                 <span>Subtotal</span><span>₱{sub.toFixed(2)}</span>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: '13px', color: '#475569' }}>
-                                <span>VAT ({wb.vat}%)</span><span>₱{vatAmt.toFixed(2)}</span>
+                                <span>VAT ({wb.vat || 12}%)</span><span>₱{vatAmt.toFixed(2)}</span>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 4px', fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
                                 <span>Waybill Total</span><span>₱{total.toFixed(2)}</span>
@@ -392,7 +417,7 @@ export const MyInvoices: React.FC = () => {
                 {/* Summary footer */}
                 <div style={{ padding: '16px 20px', background: '#FAFAFA', borderTop: '1px solid #E2E8F0' }}>
                   {[
-                    [`Gross Subtotal (${MOCK_WAYBILLS.length} waybills)`, `₱${grossSubtotal.toFixed(2)}`],
+                    [`Gross Subtotal (${waybillsList.length} waybills)`, `₱${grossSubtotal.toFixed(2)}`],
                     ['Total VAT', `₱${totalVat.toFixed(2)}`],
                     ['Government Taxes (Others)', '0.00'],
                     ['Other Surcharges', '0.00'],
