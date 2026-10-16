@@ -77,9 +77,18 @@ public class ShipmentRecordsController : ApiControllerBase
 
                     foreach (var s in extraSamples)
                     {
-                        if (!await _fomsDb.Waybills.AnyAsync(w => w.WaybillNumber == s.WaybillNumber))
+                        var existing = await _fomsDb.Waybills.FirstOrDefaultAsync(w => w.WaybillNumber == s.WaybillNumber);
+                        if (existing == null)
                         {
                             _fomsDb.Waybills.Add(s);
+                        }
+                        else if (existing.IsBilled)
+                        {
+                            existing.IsBilled = false;
+                            existing.PodStatus = "Validated";
+                            existing.DeliveryStatus = "Delivered";
+                            existing.InvoiceId = null;
+                            existing.InvoiceNo = null;
                         }
                     }
                     await _fomsDb.SaveChangesAsync();

@@ -1798,6 +1798,9 @@ export const InvoiceCreation: React.FC = () => {
                 </span>
                 <button
                   type="button"
+                  id="close-billing-rates-btn"
+                  data-testid="close-billing-rates-btn"
+                  aria-label="Close"
                   onClick={() => setShowBillingRatesModal(false)}
                   style={{
                     background: '#F8FAFC',
@@ -1896,6 +1899,8 @@ export const InvoiceCreation: React.FC = () => {
             <div style={{ marginTop: 20 }}>
               <button
                 type="button"
+                id="close-billing-rates-bottom"
+                data-testid="close-billing-rates-bottom"
                 onClick={() => setShowBillingRatesModal(false)}
                 style={{
                   width: '100%',
