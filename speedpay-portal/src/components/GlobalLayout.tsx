@@ -1,15 +1,14 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { useClientContext } from '../context/ClientContext';
-import { Login } from '../pages/Login';
 
 export const GlobalLayout: React.FC = () => {
   const { user } = useClientContext();
 
   if (!user) {
-    return <Login />;
+    return <Navigate to="/login" replace />;
   }
 
   return (

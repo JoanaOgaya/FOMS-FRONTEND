@@ -181,7 +181,7 @@ export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const getFallbackInvoices = (clientId: string): Invoice[] => {
+  const getFallbackInvoices = (_clientId: string): Invoice[] => {
     const defaultList: Invoice[] = [
       {
         id: 'PLD-2026-0009',
