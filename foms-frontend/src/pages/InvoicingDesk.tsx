@@ -120,7 +120,7 @@ export const InvoicingDesk: React.FC = () => {
 
       return {
         ...inv,
-        clientName: client?.name ?? inv.clientId,
+        clientName: client?.name ?? (inv as any).clientName ?? inv.clientId,
         waybillCount: calculatedCount,
         paymentStatus: ps,
       };
@@ -146,7 +146,7 @@ export const InvoicingDesk: React.FC = () => {
   const allClients: string[] = useMemo(() => {
     return Array.from(new Set(invoices.map((inv: Invoice) => {
       const client = clients.find(c => c.id === inv.clientId);
-      return client?.name ?? inv.clientId;
+      return client?.name ?? (inv as any).clientName ?? inv.clientId;
     }))).filter(Boolean);
   }, [invoices, clients]);
 

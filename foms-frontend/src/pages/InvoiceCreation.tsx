@@ -71,18 +71,18 @@ export const InvoiceCreation: React.FC = () => {
   const primaryRate = ncrRate || luzonRate || visayasRate || mindanaoRate || clientRates[0];
   const rateConfig = useMemo(() => {
     return {
-      minWeight: primaryRate?.minimumWeight ?? 0,
-      ncrBase: ncrRate?.minimumRate ?? 0,
-      ncrExcess: ncrRate?.excessRate ?? 0,
-      luzonBase: luzonRate?.minimumRate ?? 0,
-      luzonExcess: luzonRate?.excessRate ?? 0,
-      visayasBase: visayasRate?.minimumRate ?? 0,
-      visayasExcess: visayasRate?.excessRate ?? 0,
-      mindanaoBase: mindanaoRate?.minimumRate ?? 0,
-      mindanaoExcess: mindanaoRate?.excessRate ?? 0,
-      odaFee: odaRate?.minimumRate ?? (clientRates.length > 0 ? 500 : 0),
-      valuationRate: primaryRate?.valuationRate !== undefined ? Number(primaryRate.valuationRate) * 100 : 0,
-      fuelSurchargeRate: primaryRate?.fuelSurchargeRate !== undefined ? Number(primaryRate.fuelSurchargeRate) * 100 : 0,
+      minWeight: primaryRate?.minimumWeight ?? 5,
+      ncrBase: ncrRate?.minimumRate ?? 110,
+      ncrExcess: ncrRate?.excessRate ?? 20,
+      luzonBase: luzonRate?.minimumRate ?? 160,
+      luzonExcess: luzonRate?.excessRate ?? 28,
+      visayasBase: visayasRate?.minimumRate ?? 200,
+      visayasExcess: visayasRate?.excessRate ?? 38,
+      mindanaoBase: mindanaoRate?.minimumRate ?? 240,
+      mindanaoExcess: mindanaoRate?.excessRate ?? 48,
+      odaFee: odaRate?.minimumRate ?? 500,
+      valuationRate: primaryRate?.valuationRate !== undefined ? Number(primaryRate.valuationRate) * 100 : 1,
+      fuelSurchargeRate: primaryRate?.fuelSurchargeRate !== undefined ? Number(primaryRate.fuelSurchargeRate) * 100 : 5,
       vatRate: invoiceClient?.vatRate !== undefined && invoiceClient?.vatRate !== null
         ? Number(invoiceClient.vatRate) * 100
         : (primaryRate?.vatRate !== undefined ? Number(primaryRate.vatRate) * 100 : 12)
@@ -96,6 +96,7 @@ export const InvoiceCreation: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -347,16 +348,50 @@ export const InvoiceCreation: React.FC = () => {
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <i className="ti ti-circle-check" style={{ fontSize: 36, color: '#10B981' }} />
         </div>
-        <h2 style={{ margin: 0, color: '#0F172A', fontSize: '1.4rem' }}>Invoice Submitted for Review</h2>
-        <p style={{ margin: 0, color: '#64748B', textAlign: 'center', maxWidth: 400 }}>
-          Your invoice has been created and is now <strong>Pending Approval</strong> by the Head Accountant.
+        <h2 style={{ margin: 0, color: '#0F172A', fontSize: '1.4rem' }}>Invoice Saved Successfully</h2>
+        <p style={{ margin: 0, color: '#64748B', textAlign: 'center', maxWidth: 420 }}>
+          Your invoice has been generated and saved to the <strong>Invoice List</strong> with status <strong>Pending Approval</strong>.
         </p>
-        <Button
-          title="Create Another Invoice"
-          variant="primary"
-          style={{ marginTop: 8 }}
-          onClick={() => { setSubmitted(false); setStep(1); setSelectedWaybills([]); setBillingPeriod(''); setNotes(''); setSelectedClientId(null); }}
-        />
+        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/invoicing-desk')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 8,
+              background: '#0D9488',
+              color: '#FFFFFF',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+          >
+            <i className="ti ti-file-invoice" /> Go to Invoice List
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSubmitted(false); setStep(1); setSelectedWaybills([]); setBillingPeriod(''); setNotes(''); setSelectedClientId(null); }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 8,
+              background: '#F1F5F9',
+              color: '#475569',
+              border: '1px solid #CBD5E1',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+          >
+            <i className="ti ti-plus" /> Create Another Invoice
+          </button>
+        </div>
       </Card>
     );
   }
@@ -752,6 +787,38 @@ export const InvoiceCreation: React.FC = () => {
 
                 {/* View toggle & Billing rates */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      height: 38,
+                      padding: '0 12px',
+                      background: '#fff',
+                      color: '#475569',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 6,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#94A3B8';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#fff';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }}
+                  >
+                    <i className="ti ti-arrow-left" style={{ fontSize: '0.95rem' }} />
+                    <span>Change Client</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setShowBillingRatesModal(true)}
@@ -1166,7 +1233,7 @@ export const InvoiceCreation: React.FC = () => {
 
       {/* Step 3: Review & Submit */}
       {step === 3 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', gap: 24, alignItems: 'flex-start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, alignItems: 'flex-start' }}>
           <Card style={{ padding: 24 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: '1.05rem', fontWeight: 700, color: '#0F172A' }}>Invoice summary · {invoiceClient?.name}</h4>
             <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#64748B' }}>Review each waybill line before submitting. Taxes and surcharges are computed per line.</p>
@@ -1332,8 +1399,8 @@ export const InvoiceCreation: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
-              <Button title="Back" variant="secondary" onClick={() => setStep(2)} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+              {/* Primary: Submit for Approval */}
               <button
                 type="button"
                 disabled={isSubmitting || isBillingPeriodInvalid || isDateInvalid}
@@ -1356,6 +1423,8 @@ export const InvoiceCreation: React.FC = () => {
                         await invoicesService.update(existing.id, {
                           waybillIds: calc.validIds,
                           amount: calc.base,
+                          freightCharges: calc.base,
+                          subtotal: calc.totalSubtotal,
                           vatAmount: calc.vat,
                           surchargeAmount: calc.surcharge,
                           totalAmount: calc.total,
@@ -1363,11 +1432,12 @@ export const InvoiceCreation: React.FC = () => {
                           billingPeriod,
                           status: 'Pending Approval',
                           createdAt: new Date(issueDate).toISOString(),
-                          dueDate: new Date(dueDate).toISOString(),
+                          billingDate: new Date(issueDate).toISOString().split('T')[0],
+                          dueDate: new Date(dueDate).toISOString().split('T')[0],
                           notes,
                           appliedRates: clientRates,
                         });
-                        await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed' })));
+                        await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed', isBilled: true })));
                         refetchInvoices();
                         refetchWaybills();
                         setSubmitted(true);
@@ -1389,9 +1459,12 @@ export const InvoiceCreation: React.FC = () => {
 
                     await invoicesService.create({
                       invoiceNumber: invNum,
-                      clientId: invoiceClient?.id ?? '',
+                      clientId: invoiceClient?.clientCode || invoiceClient?.id || selectedClientId || '',
+                      clientName: invoiceClient?.name || '',
                       waybillIds: calc.validIds,
                       amount: calc.base,
+                      freightCharges: calc.base,
+                      subtotal: calc.totalSubtotal,
                       vatAmount: calc.vat,
                       surchargeAmount: calc.surcharge,
                       totalAmount: calc.total,
@@ -1400,11 +1473,12 @@ export const InvoiceCreation: React.FC = () => {
                       status: 'Pending Approval',
                       createdBy: user?.fullName || 'User',
                       createdAt: new Date(issueDate).toISOString(),
-                      dueDate: new Date(dueDate).toISOString(),
+                      billingDate: new Date(issueDate).toISOString().split('T')[0],
+                      dueDate: new Date(dueDate).toISOString().split('T')[0],
                       notes,
                       appliedRates: clientRates,
                     });
-                    await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed' })));
+                    await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed', isBilled: true, invoiceNo: invNum })));
                     refetchInvoices();
                     refetchWaybills();
                     setSubmitted(true);
@@ -1418,18 +1492,33 @@ export const InvoiceCreation: React.FC = () => {
                   }
                 }}
                 style={{
-                  background: (isSubmitting || isBillingPeriodInvalid || isDateInvalid) ? '#94A3B8' : '#059669',
+                  width: '100%',
+                  background: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? '#94A3B8' : '#059669',
                   color: '#fff',
                   border: 'none',
-                  padding: '12px 24px',
+                  padding: '13px 20px',
                   borderRadius: 8,
                   fontWeight: 700,
-                  cursor: (isSubmitting || isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
-                  flex: 1,
+                  fontSize: '0.95rem',
+                  cursor: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
+                  boxShadow: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'none' : '0 2px 6px rgba(5, 150, 105, 0.28)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  if (!isSubmitting && !isSavingDraft && !isBillingPeriodInvalid && !isDateInvalid) {
+                    e.currentTarget.style.background = '#047857';
+                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(5, 150, 105, 0.35)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isSubmitting && !isSavingDraft && !isBillingPeriodInvalid && !isDateInvalid) {
+                    e.currentTarget.style.background = '#059669';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(5, 150, 105, 0.28)';
+                  }
                 }}
               >
                 {isSubmitting ? (
@@ -1438,9 +1527,150 @@ export const InvoiceCreation: React.FC = () => {
                     <span>Submitting Invoice...</span>
                   </>
                 ) : (
-                  <span>Submit Invoice</span>
+                  <>
+                    <i className="ti ti-send" style={{ fontSize: '1.05rem' }} />
+                    <span>Submit Invoice</span>
+                  </>
                 )}
               </button>
+
+              {/* Secondary Actions: Back & Save as Draft */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = '#F1F5F9';
+                    e.currentTarget.style.borderColor = '#94A3B8';
+                    e.currentTarget.style.color = '#1E293B';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#CBD5E1';
+                    e.currentTarget.style.color = '#475569';
+                  }}
+                >
+                  <i className="ti ti-arrow-left" style={{ fontSize: '0.95rem' }} />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid}
+                  onClick={async () => {
+                    if (isSubmitting || isSavingDraft) return;
+                    if (isBillingPeriodInvalid) {
+                      toast.error('Billing period is required.', 'Validation Error');
+                      return;
+                    }
+                    if (isDateInvalid) {
+                      toast.error('Due date cannot be earlier than issue date.', 'Validation Error');
+                      return;
+                    }
+
+                    setIsSavingDraft(true);
+                    try {
+                      const year = new Date().getFullYear();
+                      const matchingNums = invoices
+                        .map(inv => {
+                          const num = inv.invoiceNumber || inv.id || '';
+                          const match = num.match(new RegExp(`^INV-${year}-(\\d+)$`));
+                          return match ? parseInt(match[1], 10) : 0;
+                        })
+                        .filter(n => !isNaN(n));
+                      const nextSeq = Math.max(0, ...matchingNums) + 1;
+                      const invNum = `INV-${year}-${String(nextSeq).padStart(3, '0')}`;
+
+                      await invoicesService.create({
+                        invoiceNumber: invNum,
+                        clientId: invoiceClient?.clientCode || invoiceClient?.id || selectedClientId || '',
+                        clientName: invoiceClient?.name || '',
+                        waybillIds: calc.validIds,
+                        amount: calc.base,
+                        freightCharges: calc.base,
+                        subtotal: calc.totalSubtotal,
+                        vatAmount: calc.vat,
+                        surchargeAmount: calc.surcharge,
+                        totalAmount: calc.total,
+                        billingSchedule: derivedBillingSchedule,
+                        billingPeriod,
+                        status: 'Draft',
+                        createdBy: user?.fullName || 'User',
+                        createdAt: new Date(issueDate).toISOString(),
+                        billingDate: new Date(issueDate).toISOString().split('T')[0],
+                        dueDate: new Date(dueDate).toISOString().split('T')[0],
+                        notes,
+                        appliedRates: clientRates,
+                      });
+                      refetchInvoices();
+                      refetchWaybills();
+                      setSubmitted(true);
+                      toast.success(`Invoice ${invNum} saved as Draft.`, 'Success');
+                    } catch (err: any) {
+                      console.error('Invoice creation error:', err);
+                      const msg = err?.response?.data?.message || err?.message || 'Failed to save invoice draft.';
+                      toast.error(msg, 'Submission Error');
+                    } finally {
+                      setIsSavingDraft(false);
+                    }
+                  }}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #CBD5E1',
+                    background: '#F8FAFC',
+                    color: '#0F766E',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSubmitting && !isSavingDraft) {
+                      e.currentTarget.style.background = '#F0FDFA';
+                      e.currentTarget.style.borderColor = '#0D9488';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSubmitting && !isSavingDraft) {
+                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }
+                  }}
+                >
+                  {isSavingDraft ? (
+                    <>
+                      <i className="ti ti-loader-2 ti-spin" style={{ fontSize: '0.95rem' }} />
+                      <span>Saving Draft...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ti ti-device-floppy" style={{ fontSize: '0.95rem' }} />
+                      <span>Save as Draft</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </Card>
         </div>

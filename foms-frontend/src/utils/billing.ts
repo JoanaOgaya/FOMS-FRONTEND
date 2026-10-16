@@ -88,19 +88,28 @@ export function computeFreightCost(waybill: any, clientRates: BillingRate[]): Fr
   // Find applicable rate config for the client
   let rateConfig = clientRates.find(r => r.region.toUpperCase() === area.toUpperCase() && r.status === 'Active');
   
-  // If no rate configuration is found in database for this client/area, use empty zeroed rate (no mock/hardcoded fallback)
+  // If no rate configuration is found in database for this client/area, use standard Speedex baseline rates
   if (!rateConfig) {
     const allRate = clientRates.find(r => r.clientId === 'ALL' && r.status === 'Active');
+    const standardRates: Record<string, { minRate: number; excessRate: number; fuel: number; val: number }> = {
+      'NCR': { minRate: 110, excessRate: 20, fuel: 0.05, val: 0.01 },
+      'LUZON': { minRate: 160, excessRate: 28, fuel: 0.08, val: 0.01 },
+      'VISAYAS': { minRate: 200, excessRate: 38, fuel: 0.10, val: 0.015 },
+      'MINDANAO': { minRate: 240, excessRate: 48, fuel: 0.12, val: 0.015 },
+      'ODA': { minRate: 220, excessRate: 50, fuel: 0.12, val: 0.015 }
+    };
+    const std = standardRates[area.toUpperCase()] || standardRates['NCR'];
+
     rateConfig = allRate || {
-      id: 'NONE',
-      clientId: waybill.clientCode || 'UNKNOWN',
+      id: 'FALLBACK-DEFAULT',
+      clientId: waybill.clientCode || 'ALL',
       region: area as any,
-      minimumWeight: 0,
-      minimumRate: 0,
-      excessRate: 0,
-      valuationRate: 0,
-      fuelSurchargeRate: 0,
-      vatRate: 0,
+      minimumWeight: 5,
+      minimumRate: std.minRate,
+      excessRate: std.excessRate,
+      valuationRate: std.val,
+      fuelSurchargeRate: std.fuel,
+      vatRate: 0.12,
       effectiveDate: new Date().toISOString(),
       status: 'Active'
     };

@@ -52,27 +52,62 @@ public class BillingRatesController : ControllerBase
                 _fomsDb.Clients.AddRange(new List<FOMS.Domain.Entities.SqlServer.Client>
                 {
                     new() { ClientId = 1, ClientCode = "LZD-001", CompanyName = "Lazada Philippines", ContactPerson = "John Doe", ContactNumber = "09171234567", Email = "contact@lazada.com", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new() { ClientId = 2, ClientCode = "SHP-001", CompanyName = "Shopee Philippines", ContactPerson = "Jane Smith", ContactNumber = "09179876543", Email = "contact@shopee.com", IsActive = true, CreatedAt = DateTime.UtcNow }
+                    new() { ClientId = 2, ClientCode = "SHP-001", CompanyName = "Shopee Philippines", ContactPerson = "Jane Smith", ContactNumber = "09179876543", Email = "contact@shopee.com", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new() { ClientId = 3, ClientCode = "TKT-001", CompanyName = "TikTok Shop Philippines", ContactPerson = "Alex Wong", ContactNumber = "09175551234", Email = "contact@tiktok.com", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new() { ClientId = 4, ClientCode = "ZAL-001", CompanyName = "Zalora Philippines", ContactPerson = "Maria Santos", ContactNumber = "09178889999", Email = "contact@zalora.com", IsActive = true, CreatedAt = DateTime.UtcNow }
                 });
                 await _fomsDb.SaveChangesAsync();
             }
 
-            if (!await _fomsDb.ClientRates.AnyAsync())
-            {
-                var sampleRates = new List<ClientRate>
-                {
-                    // Lazada (ClientId: 1 / CA-001)
-                    new() { ClientId = 1, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 120m, ExcessRatePerKg = 20m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 180m, ExcessRatePerKg = 30m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 220m, ExcessRatePerKg = 40m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
-                    new() { ClientId = 1, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 260m, ExcessRatePerKg = 50m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+            var existingRateClientIds = await _fomsDb.ClientRates.Select(r => r.ClientId).Distinct().ToListAsync();
+            var sampleRates = new List<ClientRate>();
 
-                    // Shopee (ClientId: 2 / CA-002)
-                    new() { ClientId = 2, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 110m, ExcessRatePerKg = 18m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 170m, ExcessRatePerKg = 28m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 210m, ExcessRatePerKg = 38m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                    new() { ClientId = 2, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 250m, ExcessRatePerKg = 48m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
-                };
+            if (!existingRateClientIds.Contains(1))
+            {
+                sampleRates.AddRange(new[]
+                {
+                    new ClientRate { ClientId = 1, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 120m, ExcessRatePerKg = 20m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 1, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 180m, ExcessRatePerKg = 30m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 1, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 220m, ExcessRatePerKg = 40m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 1, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 260m, ExcessRatePerKg = 50m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true }
+                });
+            }
+
+            if (!existingRateClientIds.Contains(2))
+            {
+                sampleRates.AddRange(new[]
+                {
+                    new ClientRate { ClientId = 2, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 110m, ExcessRatePerKg = 18m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 2, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 170m, ExcessRatePerKg = 28m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 2, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 210m, ExcessRatePerKg = 38m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 2, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 250m, ExcessRatePerKg = 48m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true }
+                });
+            }
+
+            if (!existingRateClientIds.Contains(3))
+            {
+                sampleRates.AddRange(new[]
+                {
+                    new ClientRate { ClientId = 3, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 105m, ExcessRatePerKg = 20m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 3, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 165m, ExcessRatePerKg = 30m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 3, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 205m, ExcessRatePerKg = 38m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true },
+                    new ClientRate { ClientId = 3, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 245m, ExcessRatePerKg = 48m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)), IsActive = true }
+                });
+            }
+
+            if (!existingRateClientIds.Contains(4))
+            {
+                sampleRates.AddRange(new[]
+                {
+                    new ClientRate { ClientId = 4, DeliveryArea = "NCR", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 115m, ExcessRatePerKg = 22m, ValuationRate = 0.01m, FuelSurchargeRate = 0.05m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 4, DeliveryArea = "Luzon", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 175m, ExcessRatePerKg = 32m, ValuationRate = 0.01m, FuelSurchargeRate = 0.08m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 4, DeliveryArea = "Visayas", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 215m, ExcessRatePerKg = 42m, ValuationRate = 0.015m, FuelSurchargeRate = 0.10m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true },
+                    new ClientRate { ClientId = 4, DeliveryArea = "Mindanao", ServiceType = "Standard Delivery", MinimumKg = 5m, MinimumRate = 255m, ExcessRatePerKg = 50m, ValuationRate = 0.015m, FuelSurchargeRate = 0.12m, EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3)), IsActive = true }
+                });
+            }
+
+            if (sampleRates.Any())
+            {
                 _fomsDb.ClientRates.AddRange(sampleRates);
                 await _fomsDb.SaveChangesAsync();
             }

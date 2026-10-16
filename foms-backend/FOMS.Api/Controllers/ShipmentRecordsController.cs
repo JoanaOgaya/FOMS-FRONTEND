@@ -46,15 +46,44 @@ public class ShipmentRecordsController : ApiControllerBase
                 _fomsDb.Waybills.AddRange(samples);
                 await _fomsDb.SaveChangesAsync();
             }
-            else if (!await _fomsDb.Waybills.AnyAsync(w => w.PodStatus == "Pending"))
+            else
             {
-                var pendingSamples = new List<Waybill>
+                var unbilledValidatedCount = await _fomsDb.Waybills.CountAsync(w => !w.IsBilled && (w.PodStatus == "Validated" || w.PodStatus == "Validated (CTC)"));
+                if (unbilledValidatedCount < 10)
                 {
-                    new() { ClientId = 1, WaybillNumber = "WB-NCR-88496", Origin = "Cebu Hub", Destination = "Mandaue", DeliveryArea = "Visayas", ActualWeight = 14.0m, DeliveryStatus = "Delivered", PodStatus = "Pending", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-2), UpdatedAt = DateTime.UtcNow },
-                    new() { ClientId = 2, WaybillNumber = "WB-NCR-88497", Origin = "Davao Hub", Destination = "Tagum", DeliveryArea = "Mindanao", ActualWeight = 19.5m, DeliveryStatus = "Delivered", PodStatus = "Pending", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-1), UpdatedAt = DateTime.UtcNow }
-                };
-                _fomsDb.Waybills.AddRange(pendingSamples);
-                await _fomsDb.SaveChangesAsync();
+                    var extraSamples = new List<Waybill>
+                    {
+                        // Zalora (Client 4)
+                        new() { ClientId = 4, WaybillNumber = "WB-VAL-90008", Origin = "Manila Hub", Destination = "Bonifacio Global City, Taguig", DeliveryArea = "NCR", ActualWeight = 6.2m, DeclaredValue = 4200m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-2), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 4, WaybillNumber = "WB-VAL-90009", Origin = "Clark Hub", Destination = "San Fernando, Pampanga", DeliveryArea = "Luzon", ActualWeight = 12.0m, DeclaredValue = 7800m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 4, WaybillNumber = "WB-VAL-90010", Origin = "Cebu Hub", Destination = "Cebu Central, Cebu City", DeliveryArea = "Visayas", ActualWeight = 8.5m, DeclaredValue = 5500m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 4, WaybillNumber = "WB-VAL-90011", Origin = "Davao Hub", Destination = "Davao Central, Davao City", DeliveryArea = "Mindanao", ActualWeight = 15.0m, DeclaredValue = 11000m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-4), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 4, WaybillNumber = "WB-VAL-90012", Origin = "Manila Hub", Destination = "Ortigas Center, Pasig City", DeliveryArea = "NCR", ActualWeight = 3.8m, DeclaredValue = 2900m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-1), UpdatedAt = DateTime.UtcNow },
+
+                        // Shopee (Client 2)
+                        new() { ClientId = 2, WaybillNumber = "WB-VAL-90014", Origin = "Cebu Hub", Destination = "Bacolod City, Negros Occ", DeliveryArea = "Visayas", ActualWeight = 9.0m, DeclaredValue = 3200m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-2), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 2, WaybillNumber = "WB-VAL-90015", Origin = "Davao Hub", Destination = "Cagayan de Oro City", DeliveryArea = "Mindanao", ActualWeight = 14.2m, DeclaredValue = 5800m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 2, WaybillNumber = "WB-VAL-90016", Origin = "Manila Hub", Destination = "Quezon City", DeliveryArea = "NCR", ActualWeight = 5.5m, DeclaredValue = 2400m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-1), UpdatedAt = DateTime.UtcNow },
+
+                        // TikTok Shop (Client 3)
+                        new() { ClientId = 3, WaybillNumber = "WB-VAL-90017", Origin = "Clark Hub", Destination = "Baguio City, Benguet", DeliveryArea = "Luzon", ActualWeight = 8.4m, DeclaredValue = 3600m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-2), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 3, WaybillNumber = "WB-VAL-90018", Origin = "Cebu Hub", Destination = "Iloilo City", DeliveryArea = "Visayas", ActualWeight = 11.0m, DeclaredValue = 4900m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 3, WaybillNumber = "WB-VAL-90019", Origin = "Manila Hub", Destination = "Mandaluyong City", DeliveryArea = "NCR", ActualWeight = 4.2m, DeclaredValue = 1950m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-1), UpdatedAt = DateTime.UtcNow },
+
+                        // Lazada (Client 1)
+                        new() { ClientId = 1, WaybillNumber = "WB-VAL-90020", Origin = "Laguna Hub", Destination = "Calamba City, Laguna", DeliveryArea = "Luzon", ActualWeight = 9.8m, DeclaredValue = 4100m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-2), UpdatedAt = DateTime.UtcNow },
+                        new() { ClientId = 1, WaybillNumber = "WB-VAL-90021", Origin = "Davao Hub", Destination = "General Santos City", DeliveryArea = "Mindanao", ActualWeight = 16.5m, DeclaredValue = 8700m, DeliveryStatus = "Delivered", PodStatus = "Validated", IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3), UpdatedAt = DateTime.UtcNow }
+                    };
+
+                    foreach (var s in extraSamples)
+                    {
+                        if (!await _fomsDb.Waybills.AnyAsync(w => w.WaybillNumber == s.WaybillNumber))
+                        {
+                            _fomsDb.Waybills.Add(s);
+                        }
+                    }
+                    await _fomsDb.SaveChangesAsync();
+                }
             }
         }
         catch { }
