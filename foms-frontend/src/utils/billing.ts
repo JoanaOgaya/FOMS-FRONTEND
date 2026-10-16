@@ -29,13 +29,13 @@ export interface FreightBreakdown {
   volumeWeight: number;
   chargeableWeight: number;
   weightBasis: 'Actual Weight' | 'Volume Weight';
-  minimumWeight: number;
+  minimumWeight?: number;
   minimumRate: number;
   excessRate: number;
   excessKgs: number;
-  valuationRate: number;
-  vatRate: number;
-  fuelSurchargeRate: number;
+  valuationRate?: number;
+  vatRate?: number;
+  fuelSurchargeRate?: number;
   freightCost: number;
   declaredValue: number;
   valuation: number;        // declaredValue × valuationRate

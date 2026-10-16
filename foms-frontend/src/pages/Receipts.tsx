@@ -94,7 +94,7 @@ export const Receipts: React.FC = () => {
         const inv = invoices.find(i => i.id === p.invoiceId || i.invoiceNumber === p.invoiceNumber);
         return {
           id: p.id,
-          receiptNumber: p.orNumber || `OR-2026-${(p.referenceNumber || p.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`,
+          receiptNumber: p.orNumber || `OR-${p.referenceNumber || p.id.slice(0, 8).toUpperCase()}`,
           paymentId: p.id,
           clientId: clientIdParam,
           invoiceId: p.invoiceId,
@@ -368,7 +368,7 @@ export const Receipts: React.FC = () => {
                             }}
                           >
                             <i className="ti ti-eye" />
-                            View Official Receipt
+                            View Details
                           </button>
                         </div>
                       </div>

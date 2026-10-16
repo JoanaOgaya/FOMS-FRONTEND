@@ -11,13 +11,11 @@ import { invoicesService } from '../services/invoicesService';
 import { clientsService } from '../services/clientsService';
 import { paymentsService } from '../services/paymentsService';
 import { useQuery } from '../hooks/useQuery';
-import { KpiCard } from '../components/shared/KpiCard';
 import { formatCurrency } from '../utils/format';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import { useDuplicatePreCheck } from '../hooks/useDuplicatePreCheck';
 import { DuplicatePreCheckModal } from '../components/ai/DuplicatePreCheckModal';
 import { canCheckDuplicateInForm, canActOnRecord } from '../utils/roleAccess';
-import { invalidateForMutation } from '../services/invalidation';
 import { Role, type SpeedPaySubmission, type Invoice, type Client } from '../types/entities';
 
 export const SpeedPayValidation: React.FC = () => {
@@ -67,9 +65,6 @@ export const SpeedPayValidation: React.FC = () => {
 
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [methodFilter, setMethodFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
 
   // ─── Enrich SpeedPay submissions ─────────────────────────────────
   const allEnriched = useMemo(() => {
@@ -124,7 +119,6 @@ export const SpeedPayValidation: React.FC = () => {
       return;
     }
 
-    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       if (validationStatus === 'Approve') {
@@ -147,22 +141,19 @@ export const SpeedPayValidation: React.FC = () => {
         if (sub.invoiceId) {
           await invoicesService.update(sub.invoiceId, { status: 'Paid' as any });
         }
-        await invalidateForMutation('validateSpeedpay');
         toast.success(`Payment from ${sub.clientName} approved. Invoice marked as Paid.`, 'Payment Validated');
       } else if (validationStatus === 'Reject') {
         await speedpayService.validate(sub.id, { status: 'Rejected', notes: rejectionReason });
-        await invalidateForMutation('rejectSpeedpay');
         toast.error(`Payment from ${sub.clientName} has been Rejected.`, 'Payment Rejected');
       } else if (validationStatus === 'Endorse') {
         await speedpayService.update(sub.id, { status: 'Pending Finance Validation' as any, notes: 'Endorsed for final validation by Accountant' } as any);
-        await invalidateForMutation('validateSpeedpay');
         toast.success(`Payment from ${sub.clientName} endorsed to Finance Manager.`, 'Endorsed');
       } else if (validationStatus === 'Return') {
         await speedpayService.update(sub.id, { status: 'Returned / Needs Correction' as any, notes: rejectionReason } as any);
-        await invalidateForMutation('rejectSpeedpay');
         toast.error(`Payment from ${sub.clientName} returned for correction.`, 'Payment Returned');
       }
       
+      await refetch();
       setSelectedSubmission(null);
     } catch (err: any) {
       toast.error(err?.message ?? 'Action failed.', 'Validation Error');
@@ -209,13 +200,26 @@ export const SpeedPayValidation: React.FC = () => {
     },
   ];
 
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+
   const filteredData = useMemo(() => {
     let result = allEnriched;
-    if (methodFilter !== 'All') {
-      result = result.filter(r => r.paymentMethod === methodFilter);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        (r.clientName || '').toLowerCase().includes(q) ||
+        (r.invoiceNumber || '').toLowerCase().includes(q) ||
+        (r.referenceNumber || '').toLowerCase().includes(q)
+      );
     }
-    if (statusFilter !== 'All') {
-      result = result.filter(r => r.status === statusFilter);
+    if (selectedMethod !== 'All') {
+      result = result.filter(r => r.paymentMethod === selectedMethod);
+    }
+    if (selectedStatus !== 'All') {
+      result = result.filter(r => r.status === selectedStatus);
     }
     if (dateFrom) {
       const fromD = new Date(dateFrom);
@@ -226,17 +230,8 @@ export const SpeedPayValidation: React.FC = () => {
       toD.setHours(23, 59, 59, 999);
       result = result.filter(r => new Date(r.submittedAt) <= toD);
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(r =>
-        (r.clientName || '').toLowerCase().includes(q) ||
-        (r.invoiceNumber || '').toLowerCase().includes(q) ||
-        (r.referenceNumber || '').toLowerCase().includes(q) ||
-        (r.id || '').toLowerCase().includes(q)
-      );
-    }
     return result;
-  }, [allEnriched, dateFrom, dateTo, methodFilter, statusFilter, searchQuery]);
+  }, [allEnriched, searchQuery, selectedMethod, selectedStatus, dateFrom, dateTo]);
 
   const methodFilterOptions = [
     { label: 'GCash', value: 'GCash' },
@@ -289,91 +284,171 @@ export const SpeedPayValidation: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
       {/* KPI Cards */}
-      <div className="kpi-grid">
-        <KpiCard label="Pending Validation" value={pending} icon="ti-clock" variant="warning" description={`${formatCurrency(pendingAmount)} awaiting`} hideTrend />
-        <KpiCard label="Validated" value={validated} icon="ti-circle-check" variant="success" description={`Today: ${validatedToday}`} hideTrend />
-        <KpiCard label="Rejected" value={rejected} icon="ti-circle-x" variant="danger" description="Total returned" hideTrend />
-        <KpiCard label="Total Collected" value={formatCurrency(totalCollected)} icon="ti-cash" variant="info" description="From validated payments" hideTrend />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
+        {[
+          { label: 'PENDING VALIDATION', value: pending, border: '#FDE68A', bg: '#fff', color: '#D97706', sub: `${formatCurrency(pendingAmount)} awaiting` },
+          { label: 'VALIDATED', value: validated, border: '#BBF7D0', bg: '#fff', color: '#16A34A', sub: `Today: ${validatedToday}` },
+          { label: 'REJECTED', value: rejected, border: '#FECACA', bg: '#fff', color: '#B91C1C', sub: `Total returned` },
+          { label: 'TOTAL COLLECTED', value: formatCurrency(totalCollected), border: '#C7D2FE', bg: '#fff', color: '#4F46E5', sub: `From validated payments` },
+        ].map((kpi: any, i) => (
+          <div
+            key={i}
+            style={{
+              background: kpi.bg, border: `1px solid ${kpi.border}`,
+              borderTop: '4px solid transparent', borderRadius: 12,
+              padding: '14px 20px', transition: 'all 0.3s ease', cursor: 'pointer'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-5px)';
+              e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.1)';
+              e.currentTarget.style.borderTop = `4px solid ${kpi.color}`;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.borderTop = '4px solid transparent';
+            }}
+          >
+            <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: kpi.color, letterSpacing: '0.06em' }}>{kpi.label}</p>
+            <p style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{kpi.value}</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF' }}>{kpi.sub}</p>
+          </div>
+        ))}
       </div>
 
-      {/* SpeedPay Toolbar & Card Grid */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Toolbar: Search, Method, Status, Date Pickers, Clear */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          background: '#fff',
-          padding: '16px 20px',
-          borderRadius: 14,
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative', minWidth: 260, flex: '1 1 260px' }}>
-              <i className="ti ti-search" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: 16 }} />
+      {/* Unified Main Container Card */}
+      <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+        
+        {/* Header Row: Title & View Mode Toggle */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <div style={{ fontSize: '0.82rem', color: '#92400E', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <i className="ti ti-info-circle" style={{ color: '#F59E0B', fontSize: 15 }} />
+              <span><strong>Validation Policy:</strong> Confirm that the submitted amount matches invoice total before approving.</span>
+            </div>
+          </div>
+
+          {/* Cards vs Table View Switcher */}
+          <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #E2E8F0', overflow: 'hidden', background: '#F8FAFC' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-layout-grid" style={{ fontSize: '15px' }} />
+              Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <i className="ti ti-table" style={{ fontSize: '15px' }} />
+              Table
+            </button>
+          </div>
+        </div>
+
+        {/* Filters Row */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '300px' }}>
+              <i className="ti ti-search" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#0D9488', fontSize: '16px' }} />
               <input
                 type="text"
-                placeholder="Search by client, invoice, or reference..."
+                placeholder="Search by client, invoice, or ref..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '9px 36px 9px 36px',
-                  borderRadius: 8,
-                  border: '1px solid #CBD5E1',
-                  background: '#F8FAFC',
-                  fontSize: '0.875rem',
+                  padding: '9px 16px 9px 40px',
+                  borderRadius: '9999px',
+                  border: '1.5px solid #0D9488',
+                  background: '#FFFFFF',
+                  fontSize: '0.85rem',
                   color: '#0F172A',
                   outline: 'none',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }}
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
-                >
-                  <i className="ti ti-x" style={{ fontSize: 14 }} />
-                </button>
-              )}
             </div>
 
-            {/* Method Filter */}
             <select
-              value={methodFilter}
-              onChange={e => setMethodFilter(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.85rem', color: '#334155', fontWeight: 600, cursor: 'pointer' }}
+              value={selectedMethod}
+              onChange={(e) => setSelectedMethod(e.target.value)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                fontSize: '0.85rem',
+                color: '#334155',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
             >
               <option value="All">All Methods</option>
-              <option value="GCash">GCash</option>
               <option value="Maya">Maya</option>
+              <option value="GCash">GCash</option>
             </select>
 
-            {/* Status Filter */}
             <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.85rem', color: '#334155', fontWeight: 600, cursor: 'pointer' }}
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                background: '#FFFFFF',
+                fontSize: '0.85rem',
+                color: '#334155',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
             >
               <option value="All">All Statuses</option>
               <option value="Pending Validation">Pending Validation</option>
               <option value="Validated">Validated</option>
               <option value="Rejected">Rejected</option>
             </select>
+          </div>
 
-            {/* Date Pickers */}
+          {/* Date Row Below Search */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <CalendarPicker
               label="From:"
               placeholder="Start date..."
               value={dateFrom}
               onChange={setDateFrom}
-              maxDate={dateTo || "2026-12-31"}
               variant="toolbar"
+              disableFutureDates={true}
+              maxDate={dateTo}
             />
 
             <CalendarPicker
@@ -381,664 +456,323 @@ export const SpeedPayValidation: React.FC = () => {
               placeholder="End date..."
               value={dateTo}
               onChange={setDateTo}
-              minDate={dateFrom}
-              maxDate="2026-12-31"
               variant="toolbar"
+              disableFutureDates={true}
+              minDate={dateFrom}
             />
 
-            {(methodFilter !== 'All' || statusFilter !== 'All' || dateFrom || dateTo || searchQuery) && (
+            {(searchQuery || selectedMethod !== 'All' || selectedStatus !== 'All' || dateFrom || dateTo) && (
               <button
-                onClick={() => { setMethodFilter('All'); setStatusFilter('All'); setDateFrom(''); setDateTo(''); setSearchQuery(''); }}
-                style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#DC2626', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedMethod('All');
+                  setSelectedStatus('All');
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #FCA5A5',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
               >
-                <i className="ti ti-x" /> Clear Filters
+                <i className="ti ti-x" style={{ marginRight: 4 }} />Clear Filters
               </button>
             )}
           </div>
         </div>
 
-        {/* Results Count Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
-          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#64748B' }}>
-            Showing <strong style={{ color: '#0F172A' }}>{filteredData.length}</strong> SpeedPay submission{filteredData.length === 1 ? '' : 's'}
-          </div>
-        </div>
-
-        {/* Cards Grid */}
-        {filteredData.length === 0 ? (
-          <div style={{
-            background: '#fff',
-            borderRadius: 14,
-            border: '1px solid #E2E8F0',
-            padding: '60px 20px',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12
-          }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 28 }}>
-              <i className="ti ti-wallet-off" />
+        {/* View Mode: Cards or Table */}
+        {viewMode === 'cards' ? (
+          filteredData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '64px 20px', color: '#94A3B8' }}>
+              <i className="ti ti-receipt-off" style={{ fontSize: '42px', display: 'block', marginBottom: '12px', color: '#CBD5E1' }} />
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#334155' }}>No SpeedPay records found</div>
+              <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748B' }}>Try adjusting your search query or filter options.</p>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>No submissions found</div>
-            <p style={{ margin: 0, fontSize: 13, color: '#64748B', maxWidth: 400 }}>
-              No SpeedPay transactions match your current search and filter settings.
-            </p>
-            {(methodFilter !== 'All' || statusFilter !== 'All' || dateFrom || dateTo || searchQuery) && (
-              <button
-                onClick={() => { setMethodFilter('All'); setStatusFilter('All'); setDateFrom(''); setDateTo(''); setSearchQuery(''); }}
-                style={{ marginTop: 8, padding: '8px 18px', borderRadius: 8, background: '#0F172A', color: '#fff', border: 'none', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-              >
-                Reset All Filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 20 }}>
-            {filteredData.map((sub: any) => {
-              const isPending = sub.status === 'Pending Validation';
-              return (
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
+              {filteredData.map((row: any) => (
                 <div
-                  key={sub.id}
+                  key={row.id}
                   style={{
-                    background: '#fff',
+                    background: '#FFFFFF',
                     border: '1px solid #E2E8F0',
-                    borderRadius: 14,
-                    padding: 22,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    borderRadius: '16px',
+                    padding: '20px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 14,
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
                     transition: 'all 0.2s ease',
                   }}
-                  onMouseEnter={e => {
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px -4px rgba(0,0,0,0.08)';
                   }}
-                  onMouseLeave={e => {
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.02)';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
                   }}
                 >
-                  {/* Top Row: Method Badge + Status */}
+                  {/* Top: Method Tag & Status Badge */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: 9999,
-                      fontWeight: 700,
-                      fontSize: '0.75rem',
-                      background: sub.paymentMethod === 'GCash' ? '#EFF6FF' : '#F0FDF4',
-                      color: sub.paymentMethod === 'GCash' ? '#2563EB' : '#15803D',
-                      border: `1px solid ${sub.paymentMethod === 'GCash' ? '#BFDBFE' : '#BBF7D0'}`,
+                    <div style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 4
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      background: '#F1F5F9',
+                      color: '#334155',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
                     }}>
-                      <i className="ti ti-wallet" />
-                      {sub.paymentMethod || 'SpeedPay'}
-                    </span>
-                    <StatusBadge status={sub.status} />
+                      <i className={row.paymentMethod === 'Maya' ? 'ti ti-brand-mastercard' : 'ti ti-device-mobile'} style={{ color: '#0D9488' }} />
+                      {row.paymentMethod}
+                    </div>
+                    <StatusBadge status={row.status} />
                   </div>
 
-                  {/* Client Info & Linked Invoice */}
+                  {/* Client Info */}
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 17, color: '#0F172A', lineHeight: 1.3 }}>
-                      {sub.clientName}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#475569', background: '#F1F5F9', padding: '2px 8px', borderRadius: 4 }}>
-                        {sub.invoiceNumber}
-                      </span>
-                      {sub.clientId && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8' }}>
-                          • ID: {sub.clientId}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>
+                        {row.clientName || 'Unknown Client'}
+                      </h3>
+                      {row.clientId && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0D9488', background: '#F0FDFA', padding: '2px 8px', borderRadius: '6px' }}>
+                          {row.clientId}
                         </span>
                       )}
                     </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="ti ti-file-invoice" />
+                      Invoice Ref: <strong style={{ color: '#0F172A' }}>{row.invoiceNumber}</strong>
+                    </div>
                   </div>
 
-                  {/* Amount Highlight Box */}
-                  <div style={{
-                    padding: '12px 16px',
-                    borderRadius: 10,
-                    background: '#F0FDF4',
-                    border: '1px solid #BBF7D0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: '#166534', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                        AMOUNT SUBMITTED
-                      </div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: '#15803D', marginTop: 2 }}>
-                        {formatCurrency(Number(sub.amountPaid))}
-                      </div>
+                  {/* Amount Block */}
+                  <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '12px 14px', border: '1px solid #F1F5F9' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>
+                      SUBMITTED PAYMENT
                     </div>
-                    {sub.proofFileUrl && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setPreviewImage(sub.proofFileUrl!); }}
-                        title="Quick View Proof"
-                        style={{
-                          background: '#fff',
-                          border: '1px solid #BBF7D0',
-                          borderRadius: 8,
-                          padding: '6px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: '#059669',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <i className="ti ti-photo" /> Proof
-                      </button>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10B981', marginTop: '2px' }}>
+                      {formatCurrency(Number(row.amountPaid))}
+                    </div>
+                    {row.proofFileName && (
+                      <div style={{ fontSize: '0.75rem', color: '#0284C7', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <i className="ti ti-photo" />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.proofFileName}</span>
+                      </div>
                     )}
                   </div>
 
-                  {/* Details Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: 10,
-                    padding: '10px 14px',
-                    background: '#F8FAFC',
-                    borderRadius: 8,
-                    border: '1px solid #F1F5F9'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>REF NUMBER</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', fontFamily: 'monospace', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub.referenceNumber}>
-                        {sub.referenceNumber || '—'}
-                      </div>
+                  {/* Card Footer: Metadata & Validate Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: '12px', fontSize: '0.75rem', color: '#94A3B8' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>
+                        #{row.referenceNumber || row.id}
+                      </span>
+                      <span>{new Date(row.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>SUBMISSION DATE</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginTop: 2 }}>
-                        {new Date(sub.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Actions Footer */}
-                  <div style={{ marginTop: 'auto', paddingTop: 6 }}>
                     <button
                       type="button"
-                      onClick={() => setSelectedSubmission(sub)}
+                      onClick={() => setSelectedSubmission(row)}
                       style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        background: isPending ? '#0D9488' : '#0F172A',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: 'pointer',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        boxShadow: isPending ? '0 2px 4px rgba(13,148,136,0.25)' : 'none'
+                        gap: '6px',
+                        padding: '8px 14px',
+                        background: '#0D9488',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
                       }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
                     >
-                      <i className={isPending ? "ti ti-shield-check" : "ti ti-eye"} />
-                      {isPending ? 'Review & Validate' : 'View Payment Details'}
+                      <i className="ti ti-eye" />
+                      View Details
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <TableContainer style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}>
+            <DataTable
+              title=""
+              data={filteredData}
+              columns={columns}
+              actions={actions}
+              rowKey="id"
+              hideSearch={true}
+              columnToggle={true}
+              densityToggle={true}
+              exportable={false}
+              emptyMessage="No SpeedPay records found."
+            />
+          </TableContainer>
         )}
       </div>
 
-
-      {/* SpeedPay Details Modal — Redesigned Side-by-Side User-Friendly Layout */}
+      {/* SpeedPay Details Modal */}
       {selectedSubmission && (
         <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            padding: 24
-          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.4)', padding: 40 }}
           onClick={() => setSelectedSubmission(null)}
         >
           <div 
-            style={{
-              width: '100%',
-              maxWidth: 1040,
-              maxHeight: '92vh',
-              background: '#fff',
-              borderRadius: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.35)',
-              overflow: 'hidden',
-              border: '1px solid #E2E8F0'
-            }}
+            style={{ width: '100%', maxWidth: 700, maxHeight: '90vh', background: '#fff', borderRadius: 16, display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{
-              background: '#0F172A',
-              padding: '18px 28px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexShrink: 0,
-              borderBottom: '1px solid #1E293B'
-            }}>
+            <div style={{ background: '#0F172A', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-                  SpeedPay Submission · {selectedSubmission.id}
-                </div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', fontWeight: 800 }}>
-                  Payment Information
-                </h3>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>SpeedPay Submission · {selectedSubmission.id}</div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', fontWeight: 800 }}>Payment Information</h3>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <StatusBadge status={selectedSubmission.status} />
-                <button 
-                  onClick={() => setSelectedSubmission(null)}
-                  style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    border: 'none',
-                    color: '#fff',
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                >
-                  <i className="ti ti-x" style={{ fontSize: 20 }} />
-                </button>
+              <button 
+                onClick={() => setSelectedSubmission(null)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <i className="ti ti-x" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 28, paddingBottom: 28, borderBottom: '1px solid #E2E8F0' }}>
+                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CLIENT & PAYMENT DETAILS</h4>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Client Name</label>
+                    <div style={{ fontSize: 16, color: '#0F172A', fontWeight: 700 }}>{selectedSubmission.clientName}</div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Linked Invoice No.</label>
+                    <div style={{ fontSize: 15, color: '#0F172A' }}>{selectedSubmission.invoiceNumber}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Payment Method</label>
+                    <div style={{ fontSize: 15, color: '#0F172A' }}>{selectedSubmission.paymentMethod}</div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>Reference Number</label>
+                    <div style={{ fontSize: 15, color: '#0F172A' }}>{selectedSubmission.referenceNumber}</div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#64748B', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AMOUNT PAID</label>
+                  <div style={{ padding: '16px 20px', background: '#F0FDF4', border: '1px solid #16A34A', borderLeft: '4px solid #16A34A', borderRadius: 8, fontSize: 24, color: '#15803D', fontWeight: 800 }}>
+                    {formatCurrency(Number(selectedSubmission.amountPaid))}
+                  </div>
+                </div>
+              </div>
+
+              {/* BOTTOM — Proof */}
+              <div style={{ paddingTop: 28 }}>
+                <h4 style={{ margin: '0 0 20px 0', fontSize: '0.85rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PROOF OF PAYMENT</h4>
+                {selectedSubmission.proofFileUrl ? (
+                  <div
+                    onClick={() => setPreviewImage(selectedSubmission.proofFileUrl!)}
+                    style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
+                  >
+                    <div style={{ position: 'relative', width: '100%', height: 200, background: '#F1F5F9' }}>
+                      <img src={selectedSubmission.proofFileUrl} alt="Proof" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '8px 16px', fontWeight: 700, fontSize: 13, pointerEvents: 'none', borderRadius: 4 }}>
+                          Click to view full size
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAFAFA', borderTop: '1px solid #F1F5F9' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6' }}>Original Document</span>
+                      <span style={{ fontSize: 12, color: '#64748B' }}>System Integration</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 14, color: '#94A3B8' }}>No proof uploaded</div>
+                )}
               </div>
             </div>
 
-            {/* Side-by-Side 2-Column Content */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '24px 28px',
-              display: 'grid',
-              gridTemplateColumns: '1.15fr 1fr',
-              gap: 24,
-              alignItems: 'start'
-            }}>
-              {/* LEFT COLUMN: Payment Details + Decision Form */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* Amount Paid Highlight Card */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)',
-                  border: '1px solid #A7F3D0',
-                  borderLeft: '5px solid #10B981',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+            {/* Validation Decision (Bottom Fixed) */}
+            <div style={{ background: '#F8FAFC', padding: '24px 32px', borderTop: '1px solid #E2E8F0', flexShrink: 0 }}>
+              {(selectedSubmission.status !== 'Validated' && selectedSubmission.status !== 'Rejected') ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: '#065F46', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                      AMOUNT PAID
-                    </div>
-                    <div style={{ fontSize: 28, color: '#047857', fontWeight: 800, marginTop: 2 }}>
-                      {formatCurrency(Number(selectedSubmission.amountPaid))}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>
-                      Submitted {selectedSubmission.submittedAt ? new Date(selectedSubmission.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'recently'}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{
-                      padding: '6px 14px',
-                      background: '#fff',
-                      border: '1px solid #A7F3D0',
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#065F46',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}>
-                      <i className="ti ti-wallet" />
-                      {selectedSubmission.paymentMethod || 'SpeedPay'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Client & Payment Details Card */}
-                <div style={{
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: 12,
-                  padding: '18px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 14
-                }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: '#64748B', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    CLIENT & INVOICE DETAILS
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Client Name</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginTop: 2 }}>
-                        {selectedSubmission.clientName}
-                      </div>
-                      {selectedSubmission.clientId && (
-                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>ID: {selectedSubmission.clientId}</div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Decision</label>
+                    <select
+                      value={validationStatus}
+                      onChange={(e) => setValidationStatus(e.target.value as 'Approve' | 'Reject' | 'Endorse' | 'Return')}
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 14, background: '#fff', color: '#0F172A', outline: 'none' }}
+                    >
+                      <option value="" disabled>Select Decision...</option>
+                      {user?.role === Role.ACCOUNTANT ? (
+                        <>
+                          <option value="Endorse">Endorse for Validation</option>
+                          <option value="Return">Return for Correction</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Approve">Validate payment</option>
+                          <option value="Reject">Reject payment</option>
+                        </>
                       )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Linked Invoice No.</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', marginTop: 2, background: '#fff', padding: '3px 8px', borderRadius: 4, border: '1px solid #E2E8F0', display: 'inline-block' }}>
-                        {selectedSubmission.invoiceNumber}
-                      </div>
-                    </div>
+                    </select>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, borderTop: '1px solid #E2E8F0', paddingTop: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Payment Method</div>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0F172A', marginTop: 2 }}>
-                        {selectedSubmission.paymentMethod}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Reference Number</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', fontFamily: 'monospace', marginTop: 2 }}>
-                        {selectedSubmission.referenceNumber || '—'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Validation Decision Form Card */}
-                <div style={{
-                  background: '#fff',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: 12,
-                  padding: '18px 20px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-                }}>
-                  {(selectedSubmission.status !== 'Validated' && selectedSubmission.status !== 'Rejected') ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>
-                          Validation Decision <span style={{ color: '#EF4444' }}>*</span>
-                        </label>
-                        <select
-                          value={validationStatus}
-                          onChange={(e) => setValidationStatus(e.target.value as 'Approve' | 'Reject' | 'Endorse' | 'Return')}
-                          style={{
-                            width: '100%',
-                            padding: '10px 14px',
-                            border: '1px solid #CBD5E1',
-                            borderRadius: 8,
-                            fontSize: 13.5,
-                            background: '#F8FAFC',
-                            color: '#0F172A',
-                            outline: 'none',
-                            fontWeight: 600,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="" disabled>Select Decision...</option>
-                          {user?.role === Role.ACCOUNTANT ? (
-                            <>
-                              <option value="Endorse">Endorse for Validation</option>
-                              <option value="Return">Return for Correction</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="Approve">Validate payment (Approve)</option>
-                              <option value="Reject">Reject payment</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      {(validationStatus === 'Reject' || validationStatus === 'Return') && (
-                        <div>
-                          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#DC2626', marginBottom: 6 }}>
-                            Reason for {validationStatus === 'Reject' ? 'Rejection' : 'Return'} <span style={{ color: '#EF4444' }}>*</span>
-                          </label>
-                          <textarea
-                            value={rejectionReason}
-                            onChange={e => setRejectionReason(e.target.value)}
-                            placeholder={`Explain why this payment submission is being ${validationStatus === 'Reject' ? 'rejected' : 'returned for correction'}...`}
-                            rows={3}
-                            style={{
-                              width: '100%',
-                              padding: '10px 14px',
-                              border: '1px solid #FECACA',
-                              borderRadius: 8,
-                              fontSize: 13,
-                              outline: 'none',
-                              resize: 'none',
-                              boxSizing: 'border-box',
-                              background: '#FFF5F5'
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSubmission(null)}
-                          style={{
-                            padding: '9px 18px',
-                            background: '#F1F5F9',
-                            color: '#475569',
-                            border: 'none',
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: 13
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleValidate(selectedSubmission)}
-                          disabled={isSubmitting || validationStatus === '' || ((validationStatus === 'Reject' || validationStatus === 'Return') && !rejectionReason.trim())}
-                          style={{
-                            padding: '9px 24px',
-                            borderRadius: 8,
-                            border: 'none',
-                            fontWeight: 700,
-                            fontSize: 13,
-                            cursor: (isSubmitting || validationStatus === '') ? 'not-allowed' : 'pointer',
-                            background: (isSubmitting || validationStatus === '') ? '#94A3B8' : '#0D9488',
-                            color: '#fff',
-                            boxShadow: (isSubmitting || validationStatus === '') ? 'none' : '0 2px 4px rgba(13,148,136,0.25)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6
-                          }}
-                        >
-                          <i className="ti ti-check" />
-                          {isSubmitting ? 'Processing...' : (validationStatus === 'Approve' ? 'Confirm Validation' : 'Submit Decision')}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: selectedSubmission.status === 'Validated' ? '#10B981' : '#EF4444', fontWeight: 700, fontSize: 14 }}>
-                        <i className={`ti ${selectedSubmission.status === 'Validated' ? 'ti-circle-check' : 'ti-alert-circle'}`} style={{ fontSize: 20 }} />
-                        <span>This submission is already <strong>{selectedSubmission.status}</strong>.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSubmission(null)}
-                        style={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '7px 18px',
-                          borderRadius: 6,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          fontSize: 13
-                        }}
-                      >
-                        Close
-                      </button>
-                    </div>
+                  {(validationStatus === 'Reject' || validationStatus === 'Return') && (
+                    <textarea
+                      value={rejectionReason}
+                      onChange={e => setRejectionReason(e.target.value)}
+                      placeholder={`Reason for ${validationStatus === 'Reject' ? 'rejection' : 'return'}...`}
+                      rows={2}
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #FECACA', borderRadius: 6, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                    />
                   )}
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN: Proof of Payment Document Viewer */}
-              <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: 14,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                minHeight: 460
-              }}>
-                <div style={{
-                  padding: '14px 18px',
-                  background: '#fff',
-                  borderBottom: '1px solid #E2E8F0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <i className="ti ti-file-text" style={{ color: '#0D9488', fontSize: 18 }} />
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Proof of Payment
-                    </span>
-                  </div>
-                  {selectedSubmission.proofFileUrl && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 4 }}>
+                    <button onClick={() => setSelectedSubmission(null)} style={{ background: 'transparent', color: '#64748B', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
                     <button
-                      type="button"
-                      onClick={() => setPreviewImage(selectedSubmission.proofFileUrl!)}
-                      style={{
-                        background: '#EFF6FF',
-                        border: '1px solid #BFDBFE',
-                        color: '#2563EB',
-                        borderRadius: 6,
-                        padding: '4px 10px',
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
+                      onClick={() => handleValidate(selectedSubmission)}
+                      disabled={isSubmitting || validationStatus === '' || ((validationStatus === 'Reject' || validationStatus === 'Return') && !rejectionReason.trim())}
+                      style={{ padding: '10px 24px', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: 14, cursor: (isSubmitting || validationStatus === '') ? 'not-allowed' : 'pointer', background: (isSubmitting || validationStatus === '') ? '#94A3B8' : '#0F172A', color: '#fff' }}
                     >
-                      <i className="ti ti-zoom-in" /> Full Size
+                      {isSubmitting ? 'Processing...' : 'Submit Validation'}
                     </button>
-                  )}
+                  </div>
                 </div>
-
-                <div style={{
-                  flex: 1,
-                  background: '#0F172A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 16,
-                  position: 'relative',
-                  minHeight: 340
-                }}>
-                  {selectedSubmission.proofFileUrl ? (
-                    <div
-                      onClick={() => setPreviewImage(selectedSubmission.proofFileUrl!)}
-                      style={{
-                        position: 'relative',
-                        cursor: 'pointer',
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Click to view full size"
-                    >
-                      <img 
-                        src={selectedSubmission.proofFileUrl} 
-                        alt="Proof of Payment" 
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '380px',
-                          objectFit: 'contain',
-                          borderRadius: 8,
-                          boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
-                        }} 
-                      />
-                      <div style={{
-                        position: 'absolute',
-                        bottom: 12,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        background: 'rgba(0,0,0,0.75)',
-                        color: '#fff',
-                        padding: '6px 14px',
-                        borderRadius: 20,
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        pointerEvents: 'none',
-                        backdropFilter: 'blur(4px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 5
-                      }}>
-                        <i className="ti ti-maximize" /> Click to view full size
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', color: '#94A3B8' }}>
-                      <i className="ti ti-photo-off" style={{ fontSize: 36, display: 'block', marginBottom: 8 }} />
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>No document proof attached</span>
-                    </div>
-                  )}
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ color: selectedSubmission.status === 'Validated' ? '#10B981' : '#EF4444', fontWeight: 700, fontSize: 15 }}>
+                    This submission has been {selectedSubmission.status}.
+                  </div>
+                  <button onClick={() => setSelectedSubmission(null)} style={{ background: '#0F172A', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
+                    Close
+                  </button>
                 </div>
-
-                <div style={{
-                  padding: '12px 18px',
-                  background: '#fff',
-                  borderTop: '1px solid #E2E8F0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: 11.5,
-                  color: '#64748B'
-                }}>
-                  <span style={{ fontWeight: 600 }}>
-                    <i className="ti ti-shield-check" style={{ color: '#10B981', marginRight: 4 }} />
-                    Original Customer Receipt
-                  </span>
-                  <span>Verified via FOMS SpeedPay</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
