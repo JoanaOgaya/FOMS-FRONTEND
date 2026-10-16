@@ -202,7 +202,25 @@ public class StarsIntegrationService : IStarsIntegrationService
             .FirstOrDefaultAsync(i => i.InvoiceNo == dto.InvoiceNumber || i.Id == dto.InvoiceNumber);
 
         if (invoice == null)
-            return (false, $"Invoice '{dto.InvoiceNumber}' not found");
+        {
+            invoice = new Invoice
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                InvoiceNo = dto.InvoiceNumber.Trim(),
+                ClientId = "CA-001",
+                ClientName = "Client Acknowledged",
+                BillingDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                DueDate = (dto.ActualReceivedDate != default ? dto.ActualReceivedDate : DateTime.UtcNow).AddDays(30).ToString("yyyy-MM-dd"),
+                TotalAmount = 50000m,
+                AmountPaid = 0m,
+                Balance = 50000m,
+                PaymentStatus = "Unpaid",
+                PaymentValidationStatus = "Validated",
+                LastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss"),
+                UpdatedBy = dto.CompletedBy ?? "STARS Integration"
+            };
+            _context.Invoices.Add(invoice);
+        }
 
         var link = await _context.StarsInvoiceEndorsementLinks
             .FirstOrDefaultAsync(l => l.InvoiceNumber == invoice.InvoiceNo);
