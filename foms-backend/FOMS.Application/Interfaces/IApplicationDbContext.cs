@@ -57,6 +57,11 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents { get; }
 
+    /// <summary>
+    /// Links invoices to STARS endorsement requests and receiving tracking.
+    /// </summary>
+    DbSet<StarsInvoiceEndorsementLink> StarsInvoiceEndorsementLinks { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }
 

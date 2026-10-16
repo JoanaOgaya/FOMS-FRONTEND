@@ -47,6 +47,14 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
 
+        services.Configure<FOMS.Application.Configuration.StarsIntegrationOptions>(
+            configuration.GetSection(FOMS.Application.Configuration.StarsIntegrationOptions.SectionName));
+        services.AddHttpClient(FOMS.Infrastructure.Services.StarsIntegrationService.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddScoped<IStarsIntegrationService, FOMS.Infrastructure.Services.StarsIntegrationService>();
+
         return services;
     }
 }
