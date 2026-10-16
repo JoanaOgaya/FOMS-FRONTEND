@@ -46,6 +46,34 @@ public class SkipLogDto
     public string? Remarks { get; set; }
 }
 
+public class AlertSubmitDto
+{
+    public string? SubmissionNote { get; set; }
+    public string? SubmitterName { get; set; }
+    public string? SubmitterId { get; set; }
+}
+
+public class AlertDecisionDto
+{
+    public string? Decision { get; set; }
+    public string? DuplicateReason { get; set; }
+    public string? RecommendedAction { get; set; }
+    public string? Remarks { get; set; }
+    public string? ReviewerName { get; set; }
+    public string? ReviewerId { get; set; }
+}
+
+public class ConfirmUniqueDto
+{
+    public string? DocumentNo { get; set; }
+    public string? DocumentType { get; set; }
+    public string? ClientName { get; set; }
+    public decimal? Amount { get; set; }
+    public string? TransactionDate { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? WaybillNumber { get; set; }
+}
+
 [ApiController]
 [Route("api/ai/duplicates")]
 [Route("api/duplicates")]
@@ -1483,5 +1511,252 @@ public class AiDuplicatesController : ApiControllerBase
             }
         }
         return NotFound(new { success = false, message = "Record not found or already deleted." });
+    }
+
+    private (string Role, string Username, string UserId) GetCallerContext()
+    {
+        var role = Request.Headers["X-User-Role"].FirstOrDefault() ?? User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Accountant";
+        var username = Request.Headers["X-User-Username"].FirstOrDefault() ?? User.Identity?.Name ?? "Maria Mariel Jane Anonuevo";
+        var userId = Request.Headers["X-User-Id"].FirstOrDefault() ?? "EMP-004";
+        return (role, username, userId);
+    }
+
+    [HttpPost("/api/ai/duplicate-scan")]
+    [HttpPost("/ai/duplicate-scan")]
+    public async Task<IActionResult> DuplicateScanEndpoint(IFormFile? file, IFormFile? document)
+    {
+        var (role, username, userId) = GetCallerContext();
+        if (role.Equals("Financial Manager", StringComparison.OrdinalIgnoreCase) || role.Equals("FM", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(403, new { success = false, message = "Permission Denied: Financial Managers do not upload documents in this module." });
+        }
+
+        IFormFile? targetFile = file ?? document;
+        if (targetFile == null && Request.HasFormContentType && Request.Form.Files.Count > 0)
+        {
+            targetFile = Request.Form.Files.FirstOrDefault();
+        }
+
+        if (targetFile == null || targetFile.Length == 0)
+        {
+            return BadRequest(new { success = false, message = "No document file provided for duplicate scan." });
+        }
+
+        var ext = Path.GetExtension(targetFile.FileName).ToLowerInvariant();
+        if (ext != ".jpg" && ext != ".jpeg" && ext != ".png")
+        {
+            return BadRequest(new { success = false, message = "Unsupported file type. Please upload JPG, JPEG, or PNG receipt statements only." });
+        }
+
+        if (targetFile.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { success = false, message = "File size exceeds the 10MB limit." });
+        }
+
+        return await ScanDocument(targetFile, null, null);
+    }
+
+    [HttpPost("/api/ai/alerts/{id}/submit")]
+    [HttpPost("/ai/alerts/{id}/submit")]
+    public async Task<IActionResult> SubmitAlertForReview(string id, [FromBody] AlertSubmitDto? dto)
+    {
+        var (role, username, userId) = GetCallerContext();
+        if (role.Equals("Financial Manager", StringComparison.OrdinalIgnoreCase) || role.Equals("FM", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(403, new { success = false, message = "Permission Denied: Only Accountants can submit duplicate alerts for review." });
+        }
+
+        var submitter = dto?.SubmitterName ?? username;
+        var submitterId = dto?.SubmitterId ?? userId;
+        var note = dto?.SubmissionNote ?? string.Empty;
+
+        var alertId = id.StartsWith("ALT-") ? id : $"ALT-{id}";
+
+        var review = await _fomsDb.AIReviewHistories.FirstOrDefaultAsync(r => r.DocumentNumber == id || r.ReviewId.ToString() == id);
+        if (review == null)
+        {
+            review = new AIReviewHistory
+            {
+                DocumentNumber = id,
+                FinalDecision = "Pending Review",
+                Reviewer = submitter,
+                DecisionReason = note,
+                ReviewedDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false
+            };
+            _fomsDb.AIReviewHistories.Add(review);
+        }
+        else
+        {
+            review.FinalDecision = "Pending Review";
+            review.DecisionReason = note;
+            review.Reviewer = submitter;
+        }
+
+        _fomsDb.AuditLogs.Add(new AuditLog
+        {
+            action = "SUBMIT_ALERT",
+            module = "AI Duplicate Detection",
+            role = "Accountant",
+            affected_record_id = review.ReviewId,
+            remarks = $"Submitted alert {alertId} ({id}) for review. Note: {note}",
+            created_at = DateTime.UtcNow
+        });
+
+        _fomsDb.Notifications.Add(new Notification
+        {
+            RecipientRole = "Financial Manager",
+            Type = "DUPLICATE_ALERT_SUBMITTED",
+            Title = "New Document Pending Manual Review",
+            Message = $"Alert #{alertId} submitted by {submitter} for duplicate evaluation.",
+            RelatedRecordType = "DuplicateAlert",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _fomsDb.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            alertId,
+            message = $"Submitted to Financial Manager for review (Alert #{alertId})"
+        });
+    }
+
+    [HttpPost("/api/ai/alerts/{id}/decision")]
+    [HttpPost("/ai/alerts/{id}/decision")]
+    public async Task<IActionResult> SubmitAlertDecision(string id, [FromBody] AlertDecisionDto dto)
+    {
+        var (role, username, userId) = GetCallerContext();
+        if (!role.Equals("Financial Manager", StringComparison.OrdinalIgnoreCase) && !role.Equals("FM", StringComparison.OrdinalIgnoreCase) && !role.Equals("Head Accountant", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(403, new { success = false, message = "Permission Denied: Only Financial Managers can record final duplicate decisions." });
+        }
+
+        var review = await _fomsDb.AIReviewHistories.FirstOrDefaultAsync(r => r.DocumentNumber == id || r.ReviewId.ToString() == id);
+        
+        // Separation of Duties: Submitter cannot decide their own alert!
+        if (review != null && !string.IsNullOrWhiteSpace(review.Reviewer))
+        {
+            if (review.Reviewer.Equals(username, StringComparison.OrdinalIgnoreCase) || review.Reviewer.Equals(userId, StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(403, new { success = false, message = "Violation of Separation of Duties: The submitter cannot decide their own alert." });
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Remarks))
+        {
+            return BadRequest(new { success = false, message = "Audit notes / remarks are required for all decisions." });
+        }
+
+        string newStatus = "Pending Review";
+        if (dto.Decision == "DUPLICATE")
+        {
+            if (string.IsNullOrWhiteSpace(dto.DuplicateReason) || string.IsNullOrWhiteSpace(dto.RecommendedAction))
+            {
+                return BadRequest(new { success = false, message = "Duplicate Reason and Recommended Action are required when marking as Duplicate." });
+            }
+            newStatus = "Confirmed Duplicate";
+        }
+        else if (dto.Decision == "UNIQUE")
+        {
+            newStatus = "Cleared as Unique";
+        }
+        else if (dto.Decision == "RETURNED")
+        {
+            newStatus = "Returned";
+        }
+
+        if (review == null)
+        {
+            review = new AIReviewHistory
+            {
+                DocumentNumber = id,
+                FinalDecision = newStatus,
+                Reviewer = username,
+                DecisionReason = $"[{dto.Decision}] {dto.Remarks}",
+                ReviewedDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false
+            };
+            _fomsDb.AIReviewHistories.Add(review);
+        }
+        else
+        {
+            review.FinalDecision = newStatus;
+            review.Reviewer = username;
+            review.DecisionReason = $"[{dto.Decision}] {dto.Remarks}";
+            review.ReviewedDate = DateTime.UtcNow;
+        }
+
+        _fomsDb.AuditLogs.Add(new AuditLog
+        {
+            action = "REVIEW_DECISION",
+            module = "AI Duplicate Detection",
+            role = "Financial Manager",
+            affected_record_id = review.ReviewId,
+            remarks = $"Financial Manager decision: {newStatus}. Reason: {dto.DuplicateReason ?? "N/A"}. Action: {dto.RecommendedAction ?? "N/A"}. Notes: {dto.Remarks}",
+            created_at = DateTime.UtcNow
+        });
+
+        _fomsDb.Notifications.Add(new Notification
+        {
+            RecipientRole = "Accountant",
+            Type = "DUPLICATE_DECISION_SUBMITTED",
+            Title = $"Review Decision on Alert #{id}",
+            Message = $"Financial Manager {username} decided: {newStatus}. Notes: {dto.Remarks}",
+            RelatedRecordType = "DuplicateAlert",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _fomsDb.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            status = newStatus,
+            message = $"Decision recorded successfully: {newStatus}"
+        });
+    }
+
+    [HttpPost("/api/ai/documents/confirm-unique")]
+    [HttpPost("/ai/documents/confirm-unique")]
+    public async Task<IActionResult> ConfirmUniqueDocumentEndpoint([FromBody] ConfirmUniqueDto dto)
+    {
+        var (role, username, userId) = GetCallerContext();
+        var docNo = dto.DocumentNo ?? $"DOC-UNI-{DateTime.UtcNow.Ticks % 100000:D5}";
+
+        var review = new AIReviewHistory
+        {
+            DocumentNumber = docNo,
+            FinalDecision = "AI Cleared",
+            Reviewer = username,
+            DecisionReason = "Document verified unique with similarity score below 60%. Saved to Unique Documents.",
+            ReviewedDate = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            IsDeleted = false
+        };
+        _fomsDb.AIReviewHistories.Add(review);
+
+        _fomsDb.AuditLogs.Add(new AuditLog
+        {
+            action = "CONFIRM_UNIQUE",
+            module = "AI Duplicate Detection",
+            role = role,
+            affected_record_id = review.ReviewId,
+            remarks = $"Accountant confirmed document {docNo} as unique. Status: AI Cleared.",
+            created_at = DateTime.UtcNow
+        });
+
+        await _fomsDb.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            message = "Document confirmed as unique and saved to Unique Documents (AI Cleared)."
+        });
     }
 }
