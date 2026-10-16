@@ -413,7 +413,7 @@ const AccountantView = ({ token, user, arRecords }: any) => {
   const [loading, setLoading] = useState(true);
   
   const [selectedPriority, setSelectedPriority] = useState<any | null>(null);
-  const [decision, setDecision] = useState('Accept Recommendation');
+  const [requestType, setRequestType] = useState('Request Approval for Payment Demand Letter');
   const [remarks, setRemarks] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -441,7 +441,13 @@ const AccountantView = ({ token, user, arRecords }: any) => {
     return serverPriorities.map((p: any) => {
       const overdue = p.daysOverdue ?? p.overdue_days ?? getDaysOverdue(p.dueDate || p.due_date);
       const invNum = p.invoiceNumber || p.invoice_number;
-      const rejectedRec = recs.find(rec => (rec.priority?.invoice_number === invNum || rec.invoice_number === invNum) && rec.review_status === 'Reject Priority Assignment');
+      const matchingRec = recs.find(rec => (rec.priority?.invoice_number === invNum || rec.invoice_number === invNum));
+      const rejectedRec = matchingRec && matchingRec.review_status === 'Reject Priority Assignment';
+      const isEscalated = matchingRec && (
+        matchingRec.review_status === 'Escalated to Finance Manager' || 
+        matchingRec.review_status === 'Pending Manager Review' || 
+        matchingRec.review_status === 'Pending Review'
+      );
 
       return {
         id: p.id,
@@ -455,7 +461,9 @@ const AccountantView = ({ token, user, arRecords }: any) => {
         overdue_days: overdue,
         is_rejected: !!rejectedRec,
         rejected_remarks: rejectedRec?.remarks || 'Manager requested revision.',
-        rec_id: rejectedRec?.id || null,
+        is_escalated: !!isEscalated,
+        escalated_info: matchingRec,
+        rec_id: matchingRec?.id || null,
         createdBy: p.createdBy,
       };
     });
@@ -463,7 +471,13 @@ const AccountantView = ({ token, user, arRecords }: any) => {
 
   const handleOpenModal = (row: any) => {
     setSelectedPriority(row);
-    setDecision('Accept Recommendation');
+    if (row.overdue_days > 0 && String(row.suggested_action).toLowerCase().includes('demand letter')) {
+      setRequestType('Request Approval for Payment Demand Letter');
+    } else if (row.overdue_days > 0) {
+      setRequestType('Escalate Overdue Account to Finance Manager');
+    } else {
+      setRequestType('Log Client Follow-up (Routine Call/Email)');
+    }
     setRemarks('');
   };
 
@@ -479,17 +493,25 @@ const AccountantView = ({ token, user, arRecords }: any) => {
         ? `/ai/collection/recommendations/${selectedPriority.rec_id}/review`
         : `/ai/collection/recommendations/new`;
         
+      const isRoutineFollowUp = requestType.includes('Log Client Follow-up');
       await http.post(endpoint, {
         priority_id: selectedPriority.id,
-        decision,
-        remarks,
-        recommendedAction: remarks,
+        decision: isRoutineFollowUp ? 'Client Followed Up' : 'Escalated to Finance Manager',
+        request_type: requestType,
+        remarks: remarks || (isRoutineFollowUp ? 'Accountant completed client follow-up.' : 'Escalated to Finance Manager for review and decision.'),
+        recommendedAction: requestType,
+        escalated_by: user?.fullName || user?.name || 'Accountant',
       });
-      toast.success(`Priority updated and submitted!`, 'Success');
+      toast.success(
+        isRoutineFollowUp 
+          ? 'Follow-up note logged successfully.' 
+          : 'Request escalated to Finance Manager for decision.',
+        'Accountant Action Submitted'
+      );
       setSelectedPriority(null);
       fetchRecommendations();
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to submit priority', 'Error');
+      toast.error(e?.message || 'Failed to submit request', 'Error');
     } finally {
       setModalLoading(false);
     }
@@ -605,14 +627,37 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                         title={isCreator ? 'You cannot act on your own record' : undefined}
                         style={{
                           width: '100%', padding: '12px 0',
-                          background: isCreator ? '#94A3B8' : row.is_rejected ? '#DC2626' : '#0D9488',
+                          background: isCreator ? '#94A3B8' : row.is_rejected ? '#DC2626' : row.is_escalated ? '#2563EB' : '#0D9488',
                           color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13,
-                          cursor: isCreator ? 'not-allowed' : 'pointer', transition: 'background 0.2s'
+                          cursor: isCreator ? 'not-allowed' : 'pointer', transition: 'background 0.2s',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
                         onMouseEnter={e => { if (!isCreator) e.currentTarget.style.opacity = '0.9'; }}
                         onMouseLeave={e => { if (!isCreator) e.currentTarget.style.opacity = '1'; }}
                       >
-                        {isCreator ? 'Cannot Act (Own Record)' : row.is_rejected ? 'Revise Recommendation' : 'Review Recommendation'}
+                        {isCreator ? (
+                          'Cannot Act (Own Record)'
+                        ) : row.is_rejected ? (
+                          <>
+                            <i className="ti ti-reload" />
+                            <span>Revise &amp; Re-escalate</span>
+                          </>
+                        ) : row.is_escalated ? (
+                          <>
+                            <i className="ti ti-clock" />
+                            <span>Escalated to FM (Pending Decision)</span>
+                          </>
+                        ) : overdue > 0 ? (
+                          <>
+                            <i className="ti ti-arrow-up-right" />
+                            <span>Review &amp; Escalate to Manager</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="ti ti-eye" />
+                            <span>View Account Details</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -692,35 +737,104 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                 </div>
               </div>
 
-              {/* FINANCE REVIEW */}
+              {/* ACCOUNTANT ACTION & FINANCE MANAGER ESCALATION */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
-                  <i className="ti ti-file-invoice" style={{ fontSize: 18 }} /> FINANCE REVIEW
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <i className="ti ti-send" style={{ fontSize: 18, color: '#0D9488' }} /> FINANCE MANAGER ASSISTANCE &amp; ESCALATION
+                  </div>
+                  {selectedPriority.overdue_days > 0 && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', padding: '2px 8px', borderRadius: 6 }}>
+                      {selectedPriority.overdue_days} Days Overdue
+                    </span>
+                  )}
                 </div>
-                
+
+                <div style={{ background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: '0.82rem', color: '#0F766E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <i className="ti ti-info-circle" style={{ fontSize: 16, color: '#0D9488', marginTop: 1, flexShrink: 0 }} />
+                  <span>
+                    As an <strong>Accountant</strong>, you can review this recommendation and ask for help / escalate to the <strong>Finance Manager</strong> if the account is overdue. The Finance Manager will review the request and authorize the final decision.
+                  </span>
+                </div>
+
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>Review Decision</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+                    Action / Assistance Request
+                  </label>
                   <div style={{ position: 'relative' }}>
-                    <select value={decision} onChange={e => setDecision(e.target.value)} style={{ width: '100%', appearance: 'none', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', outline: 'none' }}>
-                      <option value="Accept Recommendation">Accept Recommendation</option>
-                      <option value="Reviewed & Closed">Reviewed &amp; Closed</option>
-                      <option value="Reject Priority Assignment">Reject Priority Assignment</option>
+                    <select
+                      value={requestType}
+                      onChange={e => setRequestType(e.target.value)}
+                      style={{ width: '100%', appearance: 'none', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', outline: 'none', background: '#fff' }}
+                    >
+                      <option value="Request Approval for Payment Demand Letter">Request Approval for Payment Demand Letter</option>
+                      <option value="Escalate Overdue Account to Finance Manager">Escalate Overdue Account to Finance Manager</option>
+                      <option value="Request Payment Plan / Settlement Authorization">Request Payment Plan / Settlement Authorization</option>
+                      <option value="Log Client Follow-up (Routine Call/Email)">Log Client Follow-up (Routine Call/Email - No Escalation)</option>
                     </select>
                     <i className="ti ti-chevron-down" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: '#64748B', pointerEvents: 'none' }} />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>Remarks / Validation Notes (Optional)</label>
-                  <textarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional validation steps or extra context..." rows={3} style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', outline: 'none', resize: 'vertical' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+                    Accountant Notes / Reason for Escalation
+                  </label>
+                  <textarea
+                    value={remarks}
+                    onChange={e => setRemarks(e.target.value)}
+                    placeholder={
+                      requestType.includes('Log Client Follow-up')
+                        ? "Enter notes regarding your client follow-up or payment commitment..."
+                        : "Describe the overdue situation and specify why Finance Manager intervention/decision is requested..."
+                    }
+                    rows={3}
+                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', outline: 'none', resize: 'vertical' }}
+                  />
                 </div>
               </div>
 
               {/* Buttons */}
-              <div style={{ display: 'flex', gap: 16, marginTop: 32 }}>
-                <button onClick={() => setSelectedPriority(null)} style={{ flex: 1, padding: '12px', background: '#fff', border: '1px solid #CBD5E1', borderRadius: '8px', fontWeight: 700, color: '#0F172A', cursor: 'pointer' }}>Cancel</button>
-                <button disabled={modalLoading} onClick={handleSubmit} style={{ flex: 1, padding: '12px', background: modalLoading ? '#94A3B8' : '#0D9488', border: 'none', borderRadius: '8px', fontWeight: 700, color: '#fff', cursor: modalLoading ? 'not-allowed' : 'pointer' }}>
-                  {modalLoading ? 'Saving...' : 'Log Decision'}
+              <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPriority(null)}
+                  style={{ flex: 1, padding: '12px', background: '#fff', border: '1px solid #CBD5E1', borderRadius: '8px', fontWeight: 700, color: '#475569', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={modalLoading}
+                  onClick={handleSubmit}
+                  style={{
+                    flex: 1.8,
+                    padding: '12px',
+                    background: modalLoading ? '#94A3B8' : '#0D9488',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    color: '#fff',
+                    cursor: modalLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {modalLoading ? (
+                    'Submitting...'
+                  ) : requestType.includes('Log Client Follow-up') ? (
+                    <>
+                      <i className="ti ti-check" />
+                      <span>Log Follow-up</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ti ti-send" />
+                      <span>Escalate to Finance Manager</span>
+                    </>
+                  )}
                 </button>
               </div>
 
