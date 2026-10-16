@@ -26,6 +26,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 }) => {
   const [invoice, setInvoice] = useState<Invoice | null>(initialInvoice || null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -128,21 +129,59 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Trigger print if requested
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('printable-invoice-document');
+    if (!element) {
+      window.print();
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = (html2pdfModule as any).default || html2pdfModule;
+      const cleanInvNum = (invoice?.invoiceNumber || invoice?.id || 'Invoice').replace(/[^a-zA-Z0-9-_]/g, '_');
+      const clientName = (invoice?.clientName || 'Client').replace(/[^a-zA-Z0-9-_]/g, '_');
+      const filename = `Invoice_${cleanInvNum}_${clientName}.pdf`;
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          scrollY: 0,
+          scrollX: 0,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      };
+
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.warn('html2pdf generation error, falling back to window.print():', err);
+      window.print();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Trigger PDF or print if requested
   useEffect(() => {
     if (isOpen && autoPrint && invoice && !isLoading && !error) {
       const timer = setTimeout(() => {
-        window.print();
+        handleDownloadPdf();
       }, 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen, autoPrint, invoice, isLoading, error]);
 
   if (!isOpen) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   return createPortal(
     <div
@@ -335,6 +374,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             </div>
           ) : invoice ? (
             <div
+              id="printable-invoice-document"
               style={{
                 background: '#FFFFFF',
                 borderRadius: 12,
@@ -363,12 +403,21 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         >
           <Button title="Close" variant="secondary" onClick={onClose} />
           {invoice && !isLoading && !error && (
-            <Button
-              title="Print Invoice"
-              variant="primary"
-              icon="ti-printer"
-              onClick={handlePrint}
-            />
+            <>
+              <Button
+                title={isDownloading ? "Generating PDF..." : "Download PDF"}
+                variant="primary"
+                icon={isDownloading ? "ti-loader-2 ti-spin" : "ti-file-type-pdf"}
+                onClick={handleDownloadPdf}
+                disabled={isDownloading}
+              />
+              <Button
+                title="Print"
+                variant="secondary"
+                icon="ti-printer"
+                onClick={handlePrint}
+              />
+            </>
           )}
         </div>
       </div>

@@ -233,9 +233,9 @@ export const InvoicingDesk: React.FC = () => {
       icon: 'ti-send',
       onClick: (row: any) => handleTransition(row.id, 'Pending Approval', `Invoice ${row.invoiceNumber} resubmitted for approval`),
     },
-    'Print': {
-      label: 'Print',
-      icon: 'ti-printer',
+    'Download PDF': {
+      label: 'Download PDF',
+      icon: 'ti-file-type-pdf',
       onClick: (row: any) => {
         setModalInvoice(row);
         setModalInvoiceId(row.id);
@@ -586,9 +586,9 @@ export const InvoicingDesk: React.FC = () => {
                             fontWeight: 600,
                             cursor: 'pointer',
                           }}
-                          title="Print Invoice"
+                          title="Download PDF"
                         >
-                          <i className="ti ti-printer" />
+                          <i className="ti ti-file-type-pdf" />
                         </button>
                       )}
                     </div>
