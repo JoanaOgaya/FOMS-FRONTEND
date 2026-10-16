@@ -49,6 +49,12 @@ public class StarsIntegrationService : IStarsIntegrationService
         return CryptographicOperations.FixedTimeEquals(a, b);
     }
 
+    private static DateTime? ParseUtcDate(string? dateStr)
+    {
+        if (string.IsNullOrWhiteSpace(dateStr)) return null;
+        return DateTime.TryParse(dateStr, out var d) ? (d.Kind == DateTimeKind.Utc ? d : DateTime.SpecifyKind(d, DateTimeKind.Utc)) : null;
+    }
+
     /// <summary>
     /// Integration 1 (FOMS → STARS): Pushes a finalized invoice to STARS for client endorsement delivery.
     /// </summary>
@@ -72,8 +78,8 @@ public class StarsIntegrationService : IStarsIntegrationService
             ClientContactNumber = client?.ContactNumber ?? "09170000000",
             ClientEmail = client?.Email ?? "billing@client.com",
             InvoiceAmount = invoice.TotalAmount,
-            BillingDate = DateTime.TryParse(invoice.BillingDate, out var bd) ? bd : DateTime.UtcNow,
-            DueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : (DateTime?)null,
+            BillingDate = ParseUtcDate(invoice.BillingDate) ?? DateTime.UtcNow,
+            DueDate = ParseUtcDate(invoice.DueDate),
             InvoiceDocumentUrl = $"https://foms.blob.core.windows.net/invoices/{invoice.InvoiceNo}.pdf",
             Remarks = remarks ?? "Finalized invoice ready for client endorsement"
         };
@@ -304,7 +310,7 @@ public class StarsIntegrationService : IStarsIntegrationService
             TotalAmount = invoice.TotalAmount,
             AmountPaid = invoice.AmountPaid,
             OutstandingBalance = invoice.Balance > 0 ? invoice.Balance : (invoice.TotalAmount - invoice.AmountPaid),
-            NextDueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : (DateTime?)null,
+            NextDueDate = ParseUtcDate(invoice.DueDate),
             LastPaymentDate = DateTime.UtcNow,
             Timestamp = DateTime.UtcNow
         };
@@ -366,7 +372,7 @@ public class StarsIntegrationService : IStarsIntegrationService
             ClientEmail = client?.Email ?? "billing@client.com",
             ClientAddress = client?.Address ?? "Metro Manila, Philippines",
             AmountDue = invoice.Balance > 0 ? invoice.Balance : invoice.TotalAmount,
-            DueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : DateTime.UtcNow.AddDays(-15),
+            DueDate = ParseUtcDate(invoice.DueDate) ?? DateTime.UtcNow.AddDays(-15),
             DaysOverdue = invoice.DaysOverdue > 0 ? invoice.DaysOverdue : 15,
             AgingStatus = !string.IsNullOrWhiteSpace(invoice.AgingBucket) ? invoice.AgingBucket : "1-30",
             AlertTimestamp = DateTime.UtcNow,
