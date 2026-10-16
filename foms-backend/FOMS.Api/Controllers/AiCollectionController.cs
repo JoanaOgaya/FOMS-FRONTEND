@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using FOMS.Domain.Entities.SqlServer;
 using FOMS.Infrastructure.Persistence;
 
 namespace FOMS.Api.Controllers;
@@ -16,6 +15,107 @@ public class AiCollectionController : ApiControllerBase
 {
     private readonly FomsDbContext _fomsDb;
 
+    public class RecommendationModel
+    {
+        public string id { get; set; } = string.Empty;
+        public string review_status { get; set; } = "Pending Review";
+        public string? reviewed_at { get; set; }
+        public string? reviewed_by { get; set; }
+        public string? reviewer_role { get; set; }
+        public string? remarks { get; set; }
+        public string? recommended_action { get; set; }
+        public string? request_type { get; set; }
+        public PriorityModel? priority { get; set; }
+    }
+
+    public class PriorityModel
+    {
+        public string id { get; set; } = string.Empty;
+        public string normalized_invoice_number { get; set; } = string.Empty;
+        public string invoice_number { get; set; } = string.Empty;
+        public string client_name { get; set; } = string.Empty;
+        public decimal outstanding_balance { get; set; }
+        public string priority_level { get; set; } = "Normal Priority";
+        public int priority_score { get; set; } = 50;
+        public int overdue_days { get; set; } = 0;
+        public string due_date { get; set; } = string.Empty;
+        public string suggested_action { get; set; } = string.Empty;
+    }
+
+    private static readonly object _lock = new object();
+    private static readonly List<RecommendationModel> _recommendations = new List<RecommendationModel>
+    {
+        new RecommendationModel
+        {
+            id = "REC-001",
+            review_status = "Accepted Recommendation",
+            reviewed_at = DateTime.UtcNow.AddHours(-2).ToString("o"),
+            reviewed_by = "Accountant User",
+            reviewer_role = "Accountant",
+            remarks = "Recommended priority follow-up call with client finance team.",
+            recommended_action = "Payment overdue by 24 days. Priority rank #1. Auto follow-up email suggested.",
+            priority = new PriorityModel
+            {
+                id = "PRIO-001",
+                normalized_invoice_number = "LZD-2026-0001",
+                invoice_number = "LZD-2026-0001",
+                client_name = "Lazada Philippines",
+                outstanding_balance = 50000.00m,
+                priority_level = "High Priority",
+                priority_score = 88,
+                overdue_days = 14,
+                due_date = DateTime.UtcNow.AddDays(15).ToString("yyyy-MM-dd"),
+                suggested_action = "Send official payment demand letter and coordinate with treasury."
+            }
+        },
+        new RecommendationModel
+        {
+            id = "REC-002",
+            review_status = "Accepted Recommendation",
+            reviewed_at = DateTime.UtcNow.AddHours(-5).ToString("o"),
+            reviewed_by = "Accountant User",
+            reviewer_role = "Accountant",
+            remarks = "Client agreed to settle within the week.",
+            recommended_action = "Routine semi-monthly settlement review.",
+            priority = new PriorityModel
+            {
+                id = "PRIO-002",
+                normalized_invoice_number = "BI-2026-0001",
+                invoice_number = "BI-2026-0001",
+                client_name = "Lazada Philippines",
+                outstanding_balance = 30000.00m,
+                priority_level = "Medium Priority",
+                priority_score = 65,
+                overdue_days = 5,
+                due_date = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd"),
+                suggested_action = "Follow up via email regarding overdue billing."
+            }
+        },
+        new RecommendationModel
+        {
+            id = "REC-003",
+            review_status = "Accepted Recommendation",
+            reviewed_at = DateTime.UtcNow.AddHours(-12).ToString("o"),
+            reviewed_by = "Accountant User",
+            reviewer_role = "Accountant",
+            remarks = "Low risk client with consistent weekly payment record.",
+            recommended_action = "Routine courtesy notification sent.",
+            priority = new PriorityModel
+            {
+                id = "PRIO-003",
+                normalized_invoice_number = "SHP-2026-0001",
+                invoice_number = "SHP-2026-0001",
+                client_name = "Shopee Philippines",
+                outstanding_balance = 12500.00m,
+                priority_level = "Low Priority",
+                priority_score = 25,
+                overdue_days = 0,
+                due_date = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd"),
+                suggested_action = "Routine payment tracking scheduled for standard billing cycle."
+            }
+        }
+    };
+
     public AiCollectionController(FomsDbContext fomsDb)
     {
         _fomsDb = fomsDb;
@@ -23,151 +123,141 @@ public class AiCollectionController : ApiControllerBase
 
     [HttpGet("api/ai/collection/recommendations")]
     [HttpGet("ai/collection/recommendations")]
-    public async Task<IActionResult> GetRecommendations([FromQuery] string? status)
+    public IActionResult GetRecommendations([FromQuery] string? status)
     {
-        var invoices = await _fomsDb.Invoices.AsNoTracking().ToListAsync();
-        var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
-
-        var recommendations = new List<object>
+        lock (_lock)
         {
-            new
-            {
-                id = "REC-001",
-                review_status = "Accepted Recommendation",
-                reviewed_at = DateTime.UtcNow.AddHours(-2).ToString("o"),
-                reviewed_by = "Accountant User",
-                reviewer_role = "Accountant",
-                remarks = "Recommended priority follow-up call with client finance team.",
-                recommended_action = "Payment overdue by 24 days. Priority rank #1. Auto follow-up email suggested.",
-                priority = new
-                {
-                    normalized_invoice_number = "LZD-2026-0001",
-                    invoice_number = "LZD-2026-0001",
-                    client_name = "Lazada Philippines",
-                    outstanding_balance = 50000.00m,
-                    priority_level = "High Priority",
-                    due_date = DateTime.UtcNow.AddDays(15).ToString("yyyy-MM-dd")
-                }
-            },
-            new
-            {
-                id = "REC-002",
-                review_status = "Accepted Recommendation",
-                reviewed_at = DateTime.UtcNow.AddHours(-5).ToString("o"),
-                reviewed_by = "Accountant User",
-                reviewer_role = "Accountant",
-                remarks = "Client agreed to settle within the week.",
-                recommended_action = "Routine semi-monthly settlement review.",
-                priority = new
-                {
-                    normalized_invoice_number = "BI-2026-0001",
-                    invoice_number = "BI-2026-0001",
-                    client_name = "Lazada Philippines",
-                    outstanding_balance = 30000.00m,
-                    priority_level = "Medium Priority",
-                    due_date = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd")
-                }
-            },
-            new
-            {
-                id = "REC-003",
-                review_status = "Accepted Recommendation",
-                reviewed_at = DateTime.UtcNow.AddHours(-12).ToString("o"),
-                reviewed_by = "Accountant User",
-                reviewer_role = "Accountant",
-                remarks = "Low risk client with consistent weekly payment record.",
-                recommended_action = "Routine courtesy notification sent.",
-                priority = new
-                {
-                    normalized_invoice_number = "SHP-2026-0001",
-                    invoice_number = "SHP-2026-0001",
-                    client_name = "Shopee Philippines",
-                    outstanding_balance = 12500.00m,
-                    priority_level = "Low Priority",
-                    due_date = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd")
-                }
-            }
-        };
-
-        return Ok(recommendations);
+            return Ok(_recommendations.ToList());
+        }
     }
 
     [HttpPost("api/ai/collection/recommendations/{id}/review")]
     [HttpPost("ai/collection/recommendations/{id}/review")]
-    public IActionResult ReviewRecommendation(string id, [FromBody] dynamic body)
+    [HttpPost("api/ai/collection/recommendations/{id}/escalate")]
+    [HttpPost("ai/collection/recommendations/{id}/escalate")]
+    public IActionResult ReviewRecommendation(string id, [FromBody] JsonElement body)
     {
-        return Ok(new { success = true, message = "Manager decision saved successfully." });
+        return SaveDecisionOrEscalation(id, body);
+    }
+
+    [HttpPost("api/ai/collection/recommendations/escalate")]
+    [HttpPost("ai/collection/recommendations/escalate")]
+    [HttpPost("api/ai/collection/recommendations/new")]
+    [HttpPost("ai/collection/recommendations/new")]
+    [HttpPost("api/ai/collection/recommendations")]
+    [HttpPost("ai/collection/recommendations")]
+    public IActionResult EscalateGeneral([FromBody] JsonElement body)
+    {
+        string? targetId = null;
+        if (body.TryGetProperty("rec_id", out var recProp)) targetId = recProp.GetString();
+        if (string.IsNullOrEmpty(targetId) && body.TryGetProperty("id", out var idProp)) targetId = idProp.GetString();
+        if (string.IsNullOrEmpty(targetId) && body.TryGetProperty("priority_id", out var prioProp)) targetId = prioProp.GetString();
+
+        return SaveDecisionOrEscalation(targetId ?? "REC-NEW", body);
+    }
+
+    private IActionResult SaveDecisionOrEscalation(string id, JsonElement body)
+    {
+        lock (_lock)
+        {
+            string? decision = null;
+            if (body.TryGetProperty("decision", out var dProp)) decision = dProp.GetString();
+
+            string? remarks = null;
+            if (body.TryGetProperty("remarks", out var rProp)) remarks = rProp.GetString();
+
+            string? requestType = null;
+            if (body.TryGetProperty("request_type", out var rtProp)) requestType = rtProp.GetString();
+
+            string? priorityId = null;
+            if (body.TryGetProperty("priority_id", out var pProp)) priorityId = pProp.GetString();
+
+            string? recommendedAction = null;
+            if (body.TryGetProperty("recommendedAction", out var raProp)) recommendedAction = raProp.GetString();
+
+            string? escalatedBy = null;
+            if (body.TryGetProperty("escalated_by", out var ebProp)) escalatedBy = ebProp.GetString();
+
+            var existing = _recommendations.FirstOrDefault(r => 
+                r.id.Equals(id, StringComparison.OrdinalIgnoreCase) || 
+                (r.priority != null && r.priority.id.Equals(id, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(priorityId) && r.priority != null && r.priority.id.Equals(priorityId, StringComparison.OrdinalIgnoreCase))
+            );
+
+            if (existing != null)
+            {
+                existing.review_status = decision ?? "Escalated to Finance Manager";
+                existing.reviewed_at = DateTime.UtcNow.ToString("o");
+                existing.remarks = remarks ?? existing.remarks;
+                existing.request_type = requestType ?? existing.request_type;
+                if (!string.IsNullOrEmpty(recommendedAction)) existing.recommended_action = recommendedAction;
+                if (!string.IsNullOrEmpty(escalatedBy)) existing.reviewed_by = escalatedBy;
+            }
+            else
+            {
+                var newRec = new RecommendationModel
+                {
+                    id = string.IsNullOrEmpty(id) || id == "REC-NEW" ? $"REC-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}" : id,
+                    review_status = decision ?? "Escalated to Finance Manager",
+                    reviewed_at = DateTime.UtcNow.ToString("o"),
+                    reviewed_by = escalatedBy ?? "Accountant User",
+                    reviewer_role = "Accountant",
+                    remarks = remarks ?? "Escalated to Finance Manager for review and decision.",
+                    recommended_action = recommendedAction ?? requestType ?? "Escalated priority account",
+                    request_type = requestType,
+                    priority = new PriorityModel
+                    {
+                        id = priorityId ?? "PRIO-NEW",
+                        normalized_invoice_number = "INV-ESC",
+                        invoice_number = "INV-ESC",
+                        client_name = "Client Account",
+                        outstanding_balance = 0,
+                        priority_level = "High Priority",
+                        due_date = DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd")
+                    }
+                };
+                _recommendations.Add(newRec);
+            }
+
+            return Ok(new { success = true, message = "Saved successfully." });
+        }
     }
 
     [HttpGet("api/ai/collection/priorities")]
     [HttpGet("ai/collection/priorities")]
-    public async Task<IActionResult> GetPriorities()
+    public IActionResult GetPriorities()
     {
-        var priorities = new List<object>
+        lock (_lock)
         {
-            new
+            var priorities = _recommendations.Select(r => new
             {
-                id = "PRIO-001",
-                invoiceNumber = "LZD-2026-0001",
-                invoice_number = "LZD-2026-0001",
-                clientName = "Lazada Philippines",
-                client_name = "Lazada Philippines",
-                outstandingBalance = 50000.00m,
-                outstanding_balance = 50000.00m,
-                dueDate = DateTime.UtcNow.AddDays(15).ToString("yyyy-MM-dd"),
-                due_date = DateTime.UtcNow.AddDays(15).ToString("yyyy-MM-dd"),
-                priorityLevel = "High Priority",
-                priority_level = "High Priority",
-                priorityScore = 88,
-                priority_score = 88,
-                daysOverdue = 14,
-                overdue_days = 14,
-                suggestedAction = "Send official payment demand letter and coordinate with treasury.",
-                suggested_action = "Send official payment demand letter and coordinate with treasury."
-            },
-            new
-            {
-                id = "PRIO-002",
-                invoiceNumber = "BI-2026-0001",
-                invoice_number = "BI-2026-0001",
-                clientName = "Lazada Philippines",
-                client_name = "Lazada Philippines",
-                outstandingBalance = 30000.00m,
-                outstanding_balance = 30000.00m,
-                dueDate = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd"),
-                due_date = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd"),
-                priorityLevel = "Medium Priority",
-                priority_level = "Medium Priority",
-                priorityScore = 65,
-                priority_score = 65,
-                daysOverdue = 5,
-                overdue_days = 5,
-                suggestedAction = "Follow up via email regarding overdue billing.",
-                suggested_action = "Follow up via email regarding overdue billing."
-            },
-            new
-            {
-                id = "PRIO-003",
-                invoiceNumber = "SHP-2026-0001",
-                invoice_number = "SHP-2026-0001",
-                clientName = "Shopee Philippines",
-                client_name = "Shopee Philippines",
-                outstandingBalance = 12500.00m,
-                outstanding_balance = 12500.00m,
-                dueDate = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd"),
-                due_date = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd"),
-                priorityLevel = "Low Priority",
-                priority_level = "Low Priority",
-                priorityScore = 25,
-                priority_score = 25,
-                daysOverdue = 0,
-                overdue_days = 0,
-                suggestedAction = "Routine payment tracking scheduled for standard billing cycle.",
-                suggested_action = "Routine payment tracking scheduled for standard billing cycle."
-            }
-        };
+                id = r.priority?.id ?? r.id,
+                invoiceNumber = r.priority?.invoice_number ?? "N/A",
+                invoice_number = r.priority?.invoice_number ?? "N/A",
+                clientName = r.priority?.client_name ?? "Unknown",
+                client_name = r.priority?.client_name ?? "Unknown",
+                outstandingBalance = r.priority?.outstanding_balance ?? 0,
+                outstanding_balance = r.priority?.outstanding_balance ?? 0,
+                dueDate = r.priority?.due_date ?? "",
+                due_date = r.priority?.due_date ?? "",
+                priorityLevel = r.priority?.priority_level ?? "Normal Priority",
+                priority_level = r.priority?.priority_level ?? "Normal Priority",
+                priorityScore = r.priority?.priority_score ?? 50,
+                priority_score = r.priority?.priority_score ?? 50,
+                daysOverdue = r.priority?.overdue_days ?? 0,
+                overdue_days = r.priority?.overdue_days ?? 0,
+                suggestedAction = r.priority?.suggested_action ?? r.recommended_action ?? "",
+                suggested_action = r.priority?.suggested_action ?? r.recommended_action ?? "",
+                rec_id = r.id,
+                review_status = r.review_status,
+                request_type = r.request_type,
+                remarks = r.remarks,
+                reviewed_by = r.reviewed_by,
+                reviewed_at = r.reviewed_at
+            }).ToList();
 
-        return Ok(priorities);
+            return Ok(priorities);
+        }
     }
 
     [HttpGet("api/ai/dashboard/alerts")]
