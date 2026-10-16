@@ -102,7 +102,7 @@ public class ExecutiveDashboardControllerTests
         Assert.Equal("Invoice approved", recentActivity[0].GetProperty("action").GetString());
         Assert.Equal("EMP-001", recentActivity[0].GetProperty("userFullName").GetString());
 
-        var auditPageResult = Assert.IsType<OkObjectResult>(await new AuditLogsController(fomsDb).GetAll());
+        var auditPageResult = Assert.IsType<OkObjectResult>(await new AuditLogsController(appDb).GetAll());
         using var auditPageDocument = JsonDocument.Parse(JsonSerializer.Serialize(auditPageResult.Value));
         Assert.NotNull(auditPageDocument.RootElement);
     }
