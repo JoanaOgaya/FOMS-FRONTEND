@@ -54,6 +54,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<OfficialReceiptSequence> OfficialReceiptSequences => Set<OfficialReceiptSequence>();
     public DbSet<PayrollDeductionLine> PayrollDeductionLines => Set<PayrollDeductionLine>();
     public DbSet<PaymentHistory> PaymentHistories => Set<PaymentHistory>();
+    public DbSet<StarsInvoiceEndorsementLink> StarsInvoiceEndorsementLinks => Set<StarsInvoiceEndorsementLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
