@@ -34,6 +34,8 @@ import FinancialAdjustments from './pages/FinancialAdjustments';
 import LiquidationValidation from './pages/LiquidationValidation';
 import CashFlowManagement from './pages/CashFlowManagement';
 import AIDuplicateScan from './pages/AIDuplicateScan';
+import MySubmissions from './pages/MySubmissions';
+import { ManualReviewQueue } from './pages/ManualReviewQueue';
 import UniqueDocuments from './pages/UniqueDocuments';
 import FlaggedDuplicates from './pages/FlaggedDuplicates';
 import ReviewHistory from './pages/ReviewHistory';
@@ -62,6 +64,8 @@ const PAGES: Record<ModuleKey, React.ComponentType> = {
   liquidations: LiquidationValidation,
   cashFlow: CashFlowManagement,
   duplicateScan: AIDuplicateScan,
+  mySubmissions: MySubmissions,
+  manualReviewQueue: ManualReviewQueue,
   uniqueDocuments: UniqueDocuments,
   flaggedDuplicates: FlaggedDuplicates,
   reviewHistory: ReviewHistory,
