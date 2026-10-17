@@ -144,7 +144,12 @@ const ManagerView = ({ token, user, arRecords }: any) => {
         : [];
         
       const mapped = logged.map((r: any) => {
-        const role = r.reviewer_role || 'Accountant';
+        const role = r.reviewer_role || (r.manager_decision ? 'Finance Manager' : 'Accountant');
+        const accountantReq = r.accountant_request_type || r.request_type || r.recommended_action || '';
+        const accountantNote = r.accountant_notes || r.remarks || '';
+        const accountantNm = r.accountant_name || r.reviewed_by || 'Accountant';
+        const accountantDt = r.accountant_date ? new Date(r.accountant_date).toLocaleString() : (r.reviewed_at ? new Date(r.reviewed_at).toLocaleString() : 'N/A');
+
         return {
           id: String(r.id),
           status: 'VERIFIED',
@@ -156,11 +161,25 @@ const ManagerView = ({ token, user, arRecords }: any) => {
           balance: `₱${(r.priority?.outstanding_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
           priorityLevel: r.priority?.priority_level || 'HIGH PRIORITY',
           dueDate: r.priority?.due_date || 'N/A',
-          decision: r.review_status || 'Pending',
-          loggedBy: getEmployeeNameByRole(role, r.reviewed_by || r.reviewer_username || 'User'),
-          loggedByRole: role,
-          actionTaken: r.remarks || 'No action taken',
-          remarks: r.recommended_action || 'No remarks',
+          decision: r.manager_decision || r.review_status || 'Pending',
+          loggedBy: r.manager_name || (r.reviewed_by ? getEmployeeNameByRole(role, r.reviewed_by) : 'Finance Manager'),
+          loggedByRole: r.manager_name ? 'Finance Manager' : role,
+
+          // Two-way accountant escalation fields
+          requestType: accountantReq,
+          accountantNotes: accountantNote,
+          accountantName: accountantNm,
+          accountantDate: accountantDt,
+
+          // Two-way manager decision fields
+          managerDecision: r.manager_decision,
+          managerActionTaken: r.manager_action_taken || '',
+          managerRemarks: r.manager_remarks || '',
+          managerName: r.manager_name,
+          managerDate: r.manager_date ? new Date(r.manager_date).toLocaleString() : null,
+
+          actionTaken: r.manager_action_taken || r.remarks || 'No action taken',
+          remarks: r.manager_remarks || r.recommended_action || 'No remarks',
         };
       });
       
@@ -179,9 +198,9 @@ const ManagerView = ({ token, user, arRecords }: any) => {
 
   const handleOpenModal = (row: any) => {
     setSelectedRecord(row);
-    setDecision('Accept & Close');
-    setActionTaken('');
-    setRemarks('');
+    setDecision(row.managerDecision || 'Accept & Close');
+    setActionTaken(row.managerActionTaken || '');
+    setRemarks(row.managerRemarks || '');
   };
 
   const handleSubmit = async () => {
@@ -196,6 +215,8 @@ const ManagerView = ({ token, user, arRecords }: any) => {
       await http.post(`/ai/collection/recommendations/${realId}/review`, {
         decision,
         remarks: actionTaken,
+        actionTaken: actionTaken,
+        managerRemarks: remarks,
         recommendedAction: remarks,
       });
       toast.success(`Decision saved successfully.`, 'Manager Review Logged');
@@ -308,6 +329,44 @@ const ManagerView = ({ token, user, arRecords }: any) => {
                       </div>
                     )}
 
+                    {/* What Accountant Sent to Finance Manager (Reflected on Manager Card) */}
+                    {(row.requestType || row.accountantNotes) && (
+                      <div style={{ background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#0F766E', marginBottom: 4 }}>
+                          <i className="ti ti-send" style={{ fontSize: 14, color: '#0D9488' }} />
+                          <span>Accountant Request: {row.requestType}</span>
+                        </div>
+                        {row.accountantNotes && (
+                          <div style={{ color: '#115E59', fontStyle: 'italic', marginBottom: 4 }}>
+                            "{row.accountantNotes}"
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#14B8A6' }}>
+                          Submitted by {row.accountantName} • {row.accountantDate}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Manager Decision (if already recorded) */}
+                    {row.managerDecision && (
+                      <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#0F172A', marginBottom: 2 }}>
+                          <i className="ti ti-circle-check" style={{ fontSize: 14, color: '#059669' }} />
+                          <span>Manager Decision: {row.managerDecision}</span>
+                        </div>
+                        {row.managerActionTaken && (
+                          <div style={{ color: '#334155', marginBottom: 2 }}>
+                            <strong>Action:</strong> {row.managerActionTaken}
+                          </div>
+                        )}
+                        {row.managerRemarks && (
+                          <div style={{ color: '#64748B', fontStyle: 'italic' }}>
+                            <strong>Directives:</strong> "{row.managerRemarks}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Logged By */}
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontWeight: 700, fontSize: 14 }}>
@@ -333,7 +392,7 @@ const ManagerView = ({ token, user, arRecords }: any) => {
                         onMouseEnter={e => { if (actCheck.allowed) e.currentTarget.style.opacity = '0.9'; }}
                         onMouseLeave={e => { if (actCheck.allowed) e.currentTarget.style.opacity = '1'; }}
                       >
-                        {!actCheck.allowed ? (actCheck.reason || 'Restricted') : 'Final Resolve'}
+                        {!actCheck.allowed ? (actCheck.reason || 'Restricted') : row.managerDecision ? 'Update Decision' : 'Final Resolve'}
                       </button>
                     </div>
                   </div>
@@ -362,15 +421,15 @@ const ManagerView = ({ token, user, arRecords }: any) => {
                 </div>
               </div>
               <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', marginBottom: 20 }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Accountant Audit Trail</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Accountant Escalation &amp; Request</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.875rem' }}>
-                  <div><strong style={{ color: '#0F172A' }}>Initial Decision:</strong> <span style={{ color: '#475569' }}>{selectedRecord.decision}</span></div>
-                  <div><strong style={{ color: '#0F172A' }}>Logged By:</strong> <span style={{ color: '#475569' }}>{selectedRecord.loggedBy} ({selectedRecord.loggedByRole})</span></div>
-                  <div><strong style={{ color: '#0F172A' }}>Timestamp:</strong> <span style={{ color: '#475569' }}>{selectedRecord.timestamp}</span></div>
+                  <div><strong style={{ color: '#0F172A' }}>Assistance Request:</strong> <span style={{ color: '#0D9488', fontWeight: 700 }}>{selectedRecord.requestType}</span></div>
+                  <div><strong style={{ color: '#0F172A' }}>Submitted By:</strong> <span style={{ color: '#475569' }}>{selectedRecord.accountantName}</span></div>
+                  <div><strong style={{ color: '#0F172A' }}>Submitted On:</strong> <span style={{ color: '#475569' }}>{selectedRecord.accountantDate}</span></div>
                 </div>
-                <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', marginTop: 12, border: '1px solid #E2E8F0', fontSize: '0.85rem' }}>
-                  <strong style={{ color: '#0F172A' }}>Action Taken:</strong> <span style={{ color: '#475569' }}>{selectedRecord.actionTaken}</span><br/>
-                  <strong style={{ color: '#0F172A' }}>Notes:</strong> <span style={{ color: '#475569' }}>{selectedRecord.remarks}</span>
+                <div style={{ background: '#F0FDFA', padding: '12px', borderRadius: '8px', marginTop: 12, border: '1px solid #CCFBF1', fontSize: '0.85rem' }}>
+                  <div style={{ fontWeight: 700, color: '#0F766E', marginBottom: 4 }}>Accountant Notes / Reason for Escalation:</div>
+                  <div style={{ color: '#115E59', fontStyle: 'italic' }}>"{selectedRecord.accountantNotes}"</div>
                 </div>
               </div>
               <div>
@@ -456,10 +515,24 @@ const AccountantView = ({ token, user, arRecords }: any) => {
         (p.id && rec.priority?.id === p.id)
       ));
       const rejectedRec = matchingRec && matchingRec.review_status === 'Reject Priority Assignment';
+
+      const rec = matchingRec || p;
+      const accountantRequest = p.accountant_request_type || p.request_type || rec?.accountant_request_type || rec?.request_type;
+      const accountantNotes = p.accountant_notes || p.remarks || rec?.accountant_notes || rec?.remarks;
+      const accountantName = p.accountant_name || rec?.accountant_name || rec?.reviewed_by;
+      const accountantDate = p.accountant_date || rec?.accountant_date || rec?.reviewed_at;
+
+      const managerDecision = p.manager_decision || rec?.manager_decision;
+      const managerActionTaken = p.manager_action_taken || rec?.manager_action_taken;
+      const managerRemarks = p.manager_remarks || rec?.manager_remarks;
+      const managerName = p.manager_name || rec?.manager_name;
+      const managerDate = p.manager_date || rec?.manager_date;
+
       const isEscalated = p.is_escalated || (matchingRec && (
         matchingRec.review_status === 'Escalated to Finance Manager' || 
         matchingRec.review_status === 'Pending Manager Review' || 
-        matchingRec.review_status === 'Pending Review'
+        matchingRec.review_status === 'Pending Review' ||
+        !!accountantRequest
       ));
 
       return {
@@ -478,6 +551,20 @@ const AccountantView = ({ token, user, arRecords }: any) => {
         escalated_info: matchingRec || p,
         rec_id: matchingRec?.id || p.rec_id || null,
         createdBy: p.createdBy,
+
+        // Two-way accountant escalation
+        accountant_request: accountantRequest,
+        accountant_notes: accountantNotes,
+        accountant_name: accountantName,
+        accountant_date: accountantDate,
+
+        // Two-way finance manager decision & directives
+        manager_decision: managerDecision,
+        manager_action_taken: managerActionTaken,
+        manager_remarks: managerRemarks,
+        manager_name: managerName,
+        manager_date: managerDate,
+        is_manager_decided: !!managerDecision,
       };
     });
   }, [serverPriorities, recs]);
@@ -543,6 +630,10 @@ const AccountantView = ({ token, user, arRecords }: any) => {
           remarks: notesText,
           recommended_action: requestType,
           request_type: requestType,
+          accountant_request_type: requestType,
+          accountant_notes: notesText,
+          accountant_name: userName,
+          accountant_date: new Date().toISOString(),
           priority: {
             id: selectedPriority.id,
             invoice_number: selectedPriority.invoice_number,
@@ -572,6 +663,10 @@ const AccountantView = ({ token, user, arRecords }: any) => {
               is_escalated: !isRoutineFollowUp,
               review_status: decisionText,
               request_type: requestType,
+              accountant_request_type: requestType,
+              accountant_notes: notesText,
+              accountant_name: userName,
+              accountant_date: new Date().toISOString(),
               remarks: notesText
             };
           }
@@ -586,6 +681,7 @@ const AccountantView = ({ token, user, arRecords }: any) => {
         'Accountant Action Submitted'
       );
       setSelectedPriority(null);
+      fetchRecommendations();
     } catch (e: any) {
       console.warn('API error during escalation, updating state locally:', e);
       // Even if network blips, preserve the action locally
@@ -718,6 +814,49 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                       </div>
                     </div>
 
+                    {/* What Accountant Sent to Finance Manager (Reflected on Card) */}
+                    {row.accountant_request && (
+                      <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#1D4ED8', marginBottom: 4 }}>
+                          <i className="ti ti-send" style={{ fontSize: 14 }} />
+                          <span>Escalated to FM: {row.accountant_request}</span>
+                        </div>
+                        {row.accountant_notes && (
+                          <div style={{ color: '#2563EB', fontStyle: 'italic', marginBottom: 2 }}>
+                            "{row.accountant_notes}"
+                          </div>
+                        )}
+                        {row.accountant_date && (
+                          <div style={{ fontSize: 11, color: '#60A5FA' }}>
+                            Submitted: {new Date(row.accountant_date).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* What Finance Manager Decided (Reflected back to Accountant) */}
+                    {row.manager_decision && (
+                      <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: '#15803D', marginBottom: 4 }}>
+                          <i className="ti ti-circle-check" style={{ fontSize: 14 }} />
+                          <span>FM Decision: {row.manager_decision}</span>
+                        </div>
+                        {row.manager_action_taken && (
+                          <div style={{ color: '#166534', marginBottom: 2 }}>
+                            <strong>FM Action Taken:</strong> {row.manager_action_taken}
+                          </div>
+                        )}
+                        {row.manager_remarks && (
+                          <div style={{ color: '#15803D', fontStyle: 'italic', marginBottom: 2 }}>
+                            <strong>FM Directives:</strong> "{row.manager_remarks}"
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#22C55E' }}>
+                          Resolved by {row.manager_name || 'Finance Manager'} {row.manager_date ? `• ${new Date(row.manager_date).toLocaleString()}` : ''}
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ marginTop: 'auto', paddingTop: 8 }}>
                       <button
                         onClick={() => handleOpenModal(row)}
@@ -725,7 +864,7 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                         title={isCreator ? 'You cannot act on your own record' : undefined}
                         style={{
                           width: '100%', padding: '12px 0',
-                          background: isCreator ? '#94A3B8' : row.is_rejected ? '#DC2626' : row.is_escalated ? '#2563EB' : '#0D9488',
+                          background: isCreator ? '#94A3B8' : row.manager_decision ? '#059669' : row.is_rejected ? '#DC2626' : row.is_escalated ? '#2563EB' : '#0D9488',
                           color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13,
                           cursor: isCreator ? 'not-allowed' : 'pointer', transition: 'background 0.2s',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -735,6 +874,11 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                       >
                         {isCreator ? (
                           'Cannot Act (Own Record)'
+                        ) : row.manager_decision ? (
+                          <>
+                            <i className="ti ti-circle-check" />
+                            <span>FM Decision Received: View Directives</span>
+                          </>
                         ) : row.is_rejected ? (
                           <>
                             <i className="ti ti-reload" />
@@ -848,12 +992,44 @@ const AccountantView = ({ token, user, arRecords }: any) => {
                   )}
                 </div>
 
-                <div style={{ background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 8, padding: '12px 14px', marginBottom: 16, fontSize: '0.82rem', color: '#0F766E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <i className="ti ti-info-circle" style={{ fontSize: 16, color: '#0D9488', marginTop: 1, flexShrink: 0 }} />
-                  <span>
-                    As an <strong>Accountant</strong>, you can review this recommendation and ask for help / escalate to the <strong>Finance Manager</strong> if the account is overdue. The Finance Manager will review the request and authorize the final decision.
-                  </span>
-                </div>
+                {/* Finance Manager Decision & Directives (Reflected back to Accountant) */}
+                {selectedPriority.manager_decision && (
+                  <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, color: '#15803D', fontSize: '0.9rem', marginBottom: 8 }}>
+                      <i className="ti ti-circle-check" style={{ fontSize: 18 }} />
+                      <span>FINANCE MANAGER RESOLUTION &amp; DIRECTIVES</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.85rem' }}>
+                      <div><strong style={{ color: '#0F172A' }}>Official Decision:</strong> <span style={{ color: '#15803D', fontWeight: 700 }}>{selectedPriority.manager_decision}</span></div>
+                      {selectedPriority.manager_action_taken && (
+                        <div><strong style={{ color: '#0F172A' }}>Action Authorized:</strong> <span style={{ color: '#334155' }}>{selectedPriority.manager_action_taken}</span></div>
+                      )}
+                      {selectedPriority.manager_remarks && (
+                        <div><strong style={{ color: '#0F172A' }}>Manager Directives:</strong> <span style={{ color: '#166534', fontStyle: 'italic' }}>"{selectedPriority.manager_remarks}"</span></div>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: '#65A30D', marginTop: 4 }}>
+                        Authorized by {selectedPriority.manager_name || 'Finance Manager'} {selectedPriority.manager_date ? `on ${new Date(selectedPriority.manager_date).toLocaleString()}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* What Accountant previously sent to FM */}
+                {selectedPriority.accountant_request && (
+                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: '0.85rem' }}>
+                    <div style={{ fontWeight: 800, color: '#1D4ED8', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: 4 }}>
+                      Previous Escalation Sent to Finance Manager
+                    </div>
+                    <div style={{ color: '#1E40AF', marginBottom: 2 }}>
+                      <strong>Requested:</strong> {selectedPriority.accountant_request}
+                    </div>
+                    {selectedPriority.accountant_notes && (
+                      <div style={{ color: '#2563EB', fontStyle: 'italic' }}>
+                        <strong>Your Notes:</strong> "{selectedPriority.accountant_notes}"
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#475569', marginBottom: 8 }}>

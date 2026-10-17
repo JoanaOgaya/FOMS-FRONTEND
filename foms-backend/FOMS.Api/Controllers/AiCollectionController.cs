@@ -25,6 +25,19 @@ public class AiCollectionController : ApiControllerBase
         public string? remarks { get; set; }
         public string? recommended_action { get; set; }
         public string? request_type { get; set; }
+
+        // Two-way communication between Accountant and Finance Manager
+        public string? accountant_notes { get; set; }
+        public string? accountant_request_type { get; set; }
+        public string? accountant_name { get; set; }
+        public string? accountant_date { get; set; }
+
+        public string? manager_decision { get; set; }
+        public string? manager_action_taken { get; set; }
+        public string? manager_remarks { get; set; }
+        public string? manager_name { get; set; }
+        public string? manager_date { get; set; }
+
         public PriorityModel? priority { get; set; }
     }
 
@@ -54,6 +67,15 @@ public class AiCollectionController : ApiControllerBase
             reviewer_role = "Accountant",
             remarks = "Recommended priority follow-up call with client finance team.",
             recommended_action = "Payment overdue by 24 days. Priority rank #1. Auto follow-up email suggested.",
+            accountant_request_type = "Request Approval for Payment Demand Letter",
+            accountant_notes = "Account is 14 days overdue. Client requested payment plan, seeking FM decision.",
+            accountant_name = "Accountant User",
+            accountant_date = DateTime.UtcNow.AddHours(-2).ToString("o"),
+            manager_decision = "Proceed with Legal Escalation",
+            manager_action_taken = "Approved issuance of formal payment demand letter.",
+            manager_remarks = "Coordinate with Treasury and Legal for official dispatch.",
+            manager_name = "Finance Manager",
+            manager_date = DateTime.UtcNow.AddHours(-1).ToString("o"),
             priority = new PriorityModel
             {
                 id = "PRIO-001",
@@ -77,6 +99,10 @@ public class AiCollectionController : ApiControllerBase
             reviewer_role = "Accountant",
             remarks = "Client agreed to settle within the week.",
             recommended_action = "Routine semi-monthly settlement review.",
+            accountant_request_type = "Log Client Follow-up (Routine Call/Email)",
+            accountant_notes = "Spoke with client finance team. Promised check release on Friday.",
+            accountant_name = "Accountant User",
+            accountant_date = DateTime.UtcNow.AddHours(-5).ToString("o"),
             priority = new PriorityModel
             {
                 id = "PRIO-002",
@@ -178,20 +204,54 @@ public class AiCollectionController : ApiControllerBase
             string? escalatedBy = null;
             if (body.TryGetProperty("escalated_by", out var ebProp)) escalatedBy = ebProp.GetString();
 
+            string? actionTaken = null;
+            if (body.TryGetProperty("actionTaken", out var atProp)) actionTaken = atProp.GetString();
+
+            string? managerRemarks = null;
+            if (body.TryGetProperty("managerRemarks", out var mrProp)) managerRemarks = mrProp.GetString();
+
             var existing = _recommendations.FirstOrDefault(r => 
                 r.id.Equals(id, StringComparison.OrdinalIgnoreCase) || 
                 (r.priority != null && r.priority.id.Equals(id, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrEmpty(priorityId) && r.priority != null && r.priority.id.Equals(priorityId, StringComparison.OrdinalIgnoreCase))
             );
 
+            bool isManagerAction = decision != null && (
+                decision.Contains("Accept & Close", StringComparison.OrdinalIgnoreCase) ||
+                decision.Contains("Legal Escalation", StringComparison.OrdinalIgnoreCase) ||
+                decision.Contains("Reject Priority Assignment", StringComparison.OrdinalIgnoreCase) ||
+                decision.Contains("Reviewed & Closed", StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrEmpty(actionTaken)
+            );
+
             if (existing != null)
             {
-                existing.review_status = decision ?? "Escalated to Finance Manager";
-                existing.reviewed_at = DateTime.UtcNow.ToString("o");
-                existing.remarks = remarks ?? existing.remarks;
-                existing.request_type = requestType ?? existing.request_type;
-                if (!string.IsNullOrEmpty(recommendedAction)) existing.recommended_action = recommendedAction;
-                if (!string.IsNullOrEmpty(escalatedBy)) existing.reviewed_by = escalatedBy;
+                if (isManagerAction)
+                {
+                    existing.manager_decision = decision ?? "Accept & Close";
+                    existing.manager_action_taken = actionTaken ?? remarks ?? "Manager reviewed and recorded decision.";
+                    existing.manager_remarks = managerRemarks ?? recommendedAction ?? remarks ?? string.Empty;
+                    existing.manager_name = "Finance Manager";
+                    existing.manager_date = DateTime.UtcNow.ToString("o");
+                    existing.review_status = decision ?? "Reviewed & Closed";
+                    existing.reviewed_at = DateTime.UtcNow.ToString("o");
+                    existing.reviewed_by = "Finance Manager";
+                    existing.reviewer_role = "Finance Manager";
+                }
+                else
+                {
+                    existing.accountant_request_type = requestType ?? existing.accountant_request_type;
+                    existing.accountant_notes = remarks ?? existing.accountant_notes;
+                    existing.accountant_name = escalatedBy ?? existing.accountant_name ?? "Accountant User";
+                    existing.accountant_date = DateTime.UtcNow.ToString("o");
+                    existing.request_type = requestType ?? existing.request_type;
+                    existing.remarks = remarks ?? existing.remarks;
+                    existing.review_status = decision ?? "Escalated to Finance Manager";
+                    existing.reviewed_at = DateTime.UtcNow.ToString("o");
+                    existing.reviewed_by = escalatedBy ?? existing.reviewed_by ?? "Accountant User";
+                    existing.reviewer_role = "Accountant";
+                    if (!string.IsNullOrEmpty(recommendedAction)) existing.recommended_action = recommendedAction;
+                }
             }
             else
             {
@@ -201,10 +261,19 @@ public class AiCollectionController : ApiControllerBase
                     review_status = decision ?? "Escalated to Finance Manager",
                     reviewed_at = DateTime.UtcNow.ToString("o"),
                     reviewed_by = escalatedBy ?? "Accountant User",
-                    reviewer_role = "Accountant",
+                    reviewer_role = isManagerAction ? "Finance Manager" : "Accountant",
                     remarks = remarks ?? "Escalated to Finance Manager for review and decision.",
                     recommended_action = recommendedAction ?? requestType ?? "Escalated priority account",
                     request_type = requestType,
+                    accountant_request_type = requestType,
+                    accountant_notes = remarks,
+                    accountant_name = escalatedBy ?? "Accountant User",
+                    accountant_date = DateTime.UtcNow.ToString("o"),
+                    manager_decision = isManagerAction ? decision : null,
+                    manager_action_taken = isManagerAction ? actionTaken : null,
+                    manager_remarks = isManagerAction ? managerRemarks : null,
+                    manager_name = isManagerAction ? "Finance Manager" : null,
+                    manager_date = isManagerAction ? DateTime.UtcNow.ToString("o") : null,
                     priority = new PriorityModel
                     {
                         id = priorityId ?? "PRIO-NEW",
@@ -250,10 +319,21 @@ public class AiCollectionController : ApiControllerBase
                 suggested_action = r.priority?.suggested_action ?? r.recommended_action ?? "",
                 rec_id = r.id,
                 review_status = r.review_status,
-                request_type = r.request_type,
+                request_type = r.request_type ?? r.accountant_request_type,
                 remarks = r.remarks,
                 reviewed_by = r.reviewed_by,
-                reviewed_at = r.reviewed_at
+                reviewed_at = r.reviewed_at,
+
+                accountant_notes = r.accountant_notes,
+                accountant_request_type = r.accountant_request_type,
+                accountant_name = r.accountant_name,
+                accountant_date = r.accountant_date,
+
+                manager_decision = r.manager_decision,
+                manager_action_taken = r.manager_action_taken,
+                manager_remarks = r.manager_remarks,
+                manager_name = r.manager_name,
+                manager_date = r.manager_date
             }).ToList();
 
             return Ok(priorities);

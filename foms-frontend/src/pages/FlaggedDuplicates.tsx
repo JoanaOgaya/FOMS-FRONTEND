@@ -331,10 +331,10 @@ export const FlaggedDuplicates: React.FC = () => {
                     <td style={{ padding: '14px 18px', color: '#64748B' }}>
                       {item.reviewedAt
                         ? new Date(item.reviewedAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
                         : 'N/A'}
                     </td>
                   </tr>
