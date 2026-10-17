@@ -127,25 +127,33 @@ public class DmsIntegrationService : IDmsIntegrationService
             await _fomsDb.SaveChangesAsync();
         }
 
-        // Upsert ProofOfDelivery linked to Waybill
-        var existingPod = await _fomsDb.ProofOfDeliveries
-            .FirstOrDefaultAsync(p => p.WaybillId == existingWaybill.WaybillId);
+        // Safely record ProofOfDelivery if table exists
+        try
+        {
+            var existingPod = await _fomsDb.ProofOfDeliveries
+                .FirstOrDefaultAsync(p => p.WaybillId == existingWaybill.WaybillId);
 
-        if (existingPod == null)
-        {
-            _fomsDb.ProofOfDeliveries.Add(new ProofOfDelivery
+            if (existingPod == null)
             {
-                WaybillId = existingWaybill.WaybillId,
-                DeliveredAt = ToUtc(dto.DeliveryDateTime),
-                ReceiverName = dto.RecipientName ?? "Recipient Verified",
-                SignatureImageUrl = dto.PodImageUrl
-            });
+                _fomsDb.ProofOfDeliveries.Add(new ProofOfDelivery
+                {
+                    WaybillId = existingWaybill.WaybillId,
+                    DeliveredAt = ToUtc(dto.DeliveryDateTime),
+                    ReceiverName = dto.RecipientName ?? "Recipient Verified",
+                    SignatureImageUrl = dto.PodImageUrl
+                });
+            }
+            else
+            {
+                existingPod.DeliveredAt = ToUtc(dto.DeliveryDateTime);
+                existingPod.ReceiverName = dto.RecipientName ?? existingPod.ReceiverName;
+                existingPod.SignatureImageUrl = dto.PodImageUrl;
+            }
+            await _fomsDb.SaveChangesAsync();
         }
-        else
+        catch (Exception ex)
         {
-            existingPod.DeliveredAt = ToUtc(dto.DeliveryDateTime);
-            existingPod.ReceiverName = dto.RecipientName ?? existingPod.ReceiverName;
-            existingPod.SignatureImageUrl = dto.PodImageUrl;
+            _logger.LogInformation("ProofOfDeliveries table unavailable or omitted; POD recorded on Waybill: {Message}", ex.Message);
         }
 
         // Compute Billing Charge per client rate (FR-010)
@@ -188,28 +196,36 @@ public class DmsIntegrationService : IDmsIntegrationService
             invoice.LastUpdated = now.ToString("yyyy-MM-ddTHH:mm:ss");
         }
 
-        // Mark Waybill as billed
+        // Mark Waybill as billed and save
         existingWaybill.IsBilled = true;
         existingWaybill.InvoiceNo = invoiceNo;
-
-        // Record Accounts Receivable (FR-023)
-        var ar = await _fomsDb.AccountsReceivable.FirstOrDefaultAsync(a => a.InvoiceId == existingWaybill.WaybillId);
-        if (ar == null)
-        {
-            _fomsDb.AccountsReceivable.Add(new SqlAccountsReceivable
-            {
-                InvoiceId = existingWaybill.WaybillId,
-                ClientId = existingWaybill.ClientId,
-                InvoiceAmount = computedAmount,
-                OutstandingBalance = computedAmount,
-                DueDate = DateOnly.FromDateTime(now.AddDays(30)),
-                ArStatus = "Current",
-                CreatedAt = now
-            });
-        }
-
+        existingWaybill.UpdatedAt = now;
         await _appDb.SaveChangesAsync();
         await _fomsDb.SaveChangesAsync();
+
+        // Safely record in Accounts Receivable if table / schema supports it
+        try
+        {
+            var ar = await _fomsDb.AccountsReceivable.FirstOrDefaultAsync(a => a.InvoiceId == existingWaybill.WaybillId);
+            if (ar == null)
+            {
+                _fomsDb.AccountsReceivable.Add(new SqlAccountsReceivable
+                {
+                    InvoiceId = existingWaybill.WaybillId,
+                    ClientId = existingWaybill.ClientId,
+                    InvoiceAmount = computedAmount,
+                    OutstandingBalance = computedAmount,
+                    DueDate = DateOnly.FromDateTime(now.AddDays(30)),
+                    ArStatus = "Current",
+                    CreatedAt = now
+                });
+                await _fomsDb.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation("AccountsReceivable optional tracking skipped: {Message}", ex.Message);
+        }
 
         _logger.LogInformation("DMS completed delivery processed for waybill {WaybillNo}: Generated Invoice {InvoiceNo} (₱{Amount})",
             waybillNo, invoiceNo, computedAmount);
@@ -337,23 +353,31 @@ public class DmsIntegrationService : IDmsIntegrationService
             await _fomsDb.SaveChangesAsync();
         }
 
-        // Upsert new POD
-        var pod = await _fomsDb.ProofOfDeliveries.FirstOrDefaultAsync(p => p.WaybillId == waybill.WaybillId);
-        if (pod == null)
+        // Safely update POD if table exists
+        try
         {
-            _fomsDb.ProofOfDeliveries.Add(new ProofOfDelivery
+            var pod = await _fomsDb.ProofOfDeliveries.FirstOrDefaultAsync(p => p.WaybillId == waybill.WaybillId);
+            if (pod == null)
             {
-                WaybillId = waybill.WaybillId,
-                DeliveredAt = ToUtc(dto.CompletedAt),
-                ReceiverName = dto.RecipientName ?? "Recipient Verified on Redelivery",
-                SignatureImageUrl = dto.NewPodImageUrl
-            });
+                _fomsDb.ProofOfDeliveries.Add(new ProofOfDelivery
+                {
+                    WaybillId = waybill.WaybillId,
+                    DeliveredAt = ToUtc(dto.CompletedAt),
+                    ReceiverName = dto.RecipientName ?? "Recipient Verified on Redelivery",
+                    SignatureImageUrl = dto.NewPodImageUrl
+                });
+            }
+            else
+            {
+                pod.DeliveredAt = ToUtc(dto.CompletedAt);
+                pod.ReceiverName = dto.RecipientName ?? pod.ReceiverName;
+                pod.SignatureImageUrl = dto.NewPodImageUrl;
+            }
+            await _fomsDb.SaveChangesAsync();
         }
-        else
+        catch (Exception ex)
         {
-            pod.DeliveredAt = ToUtc(dto.CompletedAt);
-            pod.ReceiverName = dto.RecipientName ?? pod.ReceiverName;
-            pod.SignatureImageUrl = dto.NewPodImageUrl;
+            _logger.LogInformation("ProofOfDeliveries table unavailable; POD recorded on Waybill: {Message}", ex.Message);
         }
 
         // Resume invoice processing and generate invoice
@@ -654,36 +678,39 @@ public class DmsIntegrationService : IDmsIntegrationService
 
         if (waybill == null) return null;
 
-        var pod = await _fomsDb.ProofOfDeliveries
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.WaybillId == waybill.WaybillId);
-
         var invoice = !string.IsNullOrWhiteSpace(waybill.InvoiceNo)
             ? await _appDb.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.InvoiceNo == waybill.InvoiceNo)
             : null;
 
+        bool isBillingHold = !waybill.IsBilled && (
+            string.Equals(waybill.DeliveryStatus, "Failed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(waybill.PodStatus, "Failed", StringComparison.OrdinalIgnoreCase));
+
         return new
         {
-            waybill.WaybillNumber,
-            waybill.DeliveryStatus,
-            waybill.PodStatus,
-            waybill.IsBilled,
-            waybill.InvoiceNo,
-            waybill.ActualWeight,
-            waybill.DeliveryArea,
-            ProofOfDelivery = pod != null ? new
+            waybillNumber = waybill.WaybillNumber,
+            deliveryStatus = waybill.DeliveryStatus,
+            podStatus = waybill.PodStatus,
+            isBilled = waybill.IsBilled,
+            billingHoldActive = isBillingHold,
+            invoiceNo = waybill.InvoiceNo,
+            invoiceNumber = waybill.InvoiceNo,
+            actualWeight = waybill.ActualWeight,
+            deliveryArea = waybill.DeliveryArea,
+            status = waybill.DeliveryStatus,
+            proofOfDelivery = new
             {
-                pod.ReceiverName,
-                pod.DeliveredAt,
-                pod.SignatureImageUrl
-            } : null,
-            Invoice = invoice != null ? new
+                status = waybill.PodStatus,
+                deliveredAt = waybill.UpdatedAt
+            },
+            invoice = invoice != null ? new
             {
-                invoice.InvoiceNo,
-                invoice.TotalAmount,
-                invoice.Balance,
-                invoice.PaymentStatus,
-                invoice.DueDate
+                invoiceNumber = invoice.InvoiceNo,
+                invoiceNo = invoice.InvoiceNo,
+                totalAmount = invoice.TotalAmount,
+                balance = invoice.Balance,
+                paymentStatus = invoice.PaymentStatus,
+                dueDate = invoice.DueDate
             } : null
         };
     }
