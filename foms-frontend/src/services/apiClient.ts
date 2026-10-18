@@ -6,7 +6,9 @@ import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 
 const SESSION_KEY = 'foms_session';
 
-const baseURL: string = import.meta.env.VITE_API_URL ?? '/api';
+const baseURL: string =
+  import.meta.env.VITE_API_URL ??
+  'https://fomsintegration-amfve2fdccbdgbgy.eastasia-01.azurewebsites.net';
 
 export class ApiError extends Error {
   status: number;
