@@ -11,6 +11,10 @@ import { onUnauthorized, session } from '../services/apiClient';
 import { clearQueryCache } from '../hooks/useQuery';
 import { riskService } from '../services/ai/risk.service';
 import { LANDING_PATH } from '../utils/roleAccess';
+import { bootstrapIncomingAuth, getCentralLoginUrl } from '../services/centralAuth';
+
+// Bootstrap any SSO auth params returned when entering FOMS from Speedex Central Portal
+bootstrapIncomingAuth();
 
 const INACTIVITY_TIMEOUT_MS = Number(import.meta.env.VITE_INACTIVITY_TIMEOUT_MS) || 30 * 60 * 1000;
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll'];
@@ -24,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(() => !!session.get());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const endSession = useCallback((from?: string) => {
+  const endSession = useCallback((reason: string = 'logged_out') => {
     session.clear();
     clearQueryCache();
     riskService.clearCache();
@@ -37,16 +41,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // storage access safeguard
     }
-    navigate('/login', { replace: true, state: from ? { from } : null });
-  }, [navigate]);
+    window.location.href = `${getCentralLoginUrl()}?action=logout&reason=${encodeURIComponent(reason)}&system=foms`;
+  }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((options?: { reason?: string } | unknown) => {
+    const reason = (options && typeof options === 'object' && 'reason' in (options as Record<string, unknown>) && typeof (options as Record<string, unknown>).reason === 'string')
+      ? (options as { reason: string }).reason
+      : 'logged_out';
+
     try {
       sessionStorage.setItem('loggedOut', 'true');
     } catch {
       // storage access safeguard
     }
-    authService.logout().catch(() => undefined).finally(() => endSession());
+    authService.logout().catch(() => undefined).finally(() => endSession(reason));
   }, [endSession]);
 
   // Restore session from the server (role is never read from storage).
@@ -60,10 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     onUnauthorized(() => {
-      const from = window.location.pathname && window.location.pathname !== '/login' && window.location.pathname !== '/'
-        ? window.location.pathname + (window.location.search || '')
-        : undefined;
-      endSession(from);
+      endSession('session_expired');
     });
     return () => onUnauthorized(null);
   }, [endSession]);
@@ -72,12 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const userId = user?.employeeId;
   useEffect(() => () => clearQueryCache(), [userId]);
 
-  // Inactivity auto-logout
+  // Inactivity auto-logout (Retaining 30-minute window per business requirements)
   useEffect(() => {
     if (!user) return undefined;
     const reset = () => {
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(logout, INACTIVITY_TIMEOUT_MS);
+      timer.current = setTimeout(() => logout({ reason: 'inactivity' }), INACTIVITY_TIMEOUT_MS);
     };
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, reset));
     reset();

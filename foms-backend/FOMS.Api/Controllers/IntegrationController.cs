@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using FOMS.Application.Configuration;
 using FOMS.Application.Contracts;
+using FOMS.Application.DTOs;
 using FOMS.Application.Interfaces;
 using FOMS.Infrastructure.Services;
 
@@ -14,13 +16,16 @@ namespace FOMS.Api.Controllers;
 public class IntegrationController : ControllerBase
 {
     private readonly IStarsIntegrationService _starsService;
+    private readonly IUserService _userService;
     private readonly StarsIntegrationOptions _options;
 
     public IntegrationController(
         IStarsIntegrationService starsService,
+        IUserService userService,
         IOptions<StarsIntegrationOptions> options)
     {
         _starsService = starsService;
+        _userService = userService;
         _options = options.Value;
     }
 
@@ -112,4 +117,54 @@ public class IntegrationController : ControllerBase
         var link = await _starsService.GetEndorsementLinkAsync(invoiceNo);
         return link != null ? Ok(link) : NotFound(new { message = $"No endorsement link found for invoice '{invoiceNo}'." });
     }
+
+    /// <summary>
+    /// Integration 2 (STARS → FOMS): Provision staff user/account from STARS to FOMS.
+    /// Secured via X-Api-Key.
+    /// </summary>
+    [HttpPost("api/integration/stars/provision-user")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ProvisionUser([FromBody] StarsProvisionUserDto dto)
+    {
+        var authError = ValidateApiKey();
+        if (authError != null) return authError;
+
+        if (string.IsNullOrWhiteSpace(dto.EmployeeId) || string.IsNullOrWhiteSpace(dto.Username))
+            return BadRequest(new { isSuccess = false, message = "EmployeeId and Username are required." });
+
+        try
+        {
+            var user = await _userService.CreateAsync(new UserCreateDto
+            {
+                EmployeeId = dto.EmployeeId,
+                Username = dto.Username,
+                FullName = !string.IsNullOrWhiteSpace(dto.FullName) ? dto.FullName : dto.Username,
+                Email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : $"{dto.Username.ToLower()}@speedex.com",
+                Password = !string.IsNullOrWhiteSpace(dto.Password) ? dto.Password : "Password@123",
+                Role = !string.IsNullOrWhiteSpace(dto.Role) ? dto.Role : "Accountant",
+                Phone = dto.Phone,
+                SalaryRate = dto.SalaryRate,
+                DateHired = dto.DateHired
+            });
+
+            return Ok(new { isSuccess = true, message = "User provisioned successfully into FOMS.", user });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { isSuccess = false, message = ex.Message });
+        }
+    }
+}
+
+public class StarsProvisionUserDto
+{
+    public string EmployeeId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string? FullName { get; set; }
+    public string? Email { get; set; }
+    public string? Password { get; set; }
+    public string? Role { get; set; }
+    public string? Phone { get; set; }
+    public decimal? SalaryRate { get; set; }
+    public DateTime? DateHired { get; set; }
 }

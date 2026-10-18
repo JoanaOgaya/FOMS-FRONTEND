@@ -31,5 +31,5 @@ export interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: (options?: { reason?: string } | unknown) => void;
 }
