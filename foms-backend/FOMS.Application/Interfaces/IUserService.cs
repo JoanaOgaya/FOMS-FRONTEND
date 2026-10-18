@@ -13,4 +13,5 @@ public interface IUserService
     Task<bool> DeleteAsync(string id);
     Task<IEnumerable<RoleDto>> GetRolesAsync();
     Task<RoleDto> CreateRoleAsync(RoleCreateDto request);
+    Task<(bool exists, string matchedBy)> CheckExistsAsync(string? email, string? employeeId);
 }

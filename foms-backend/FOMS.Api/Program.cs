@@ -124,10 +124,25 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyMethod()
-                  .AllowAnyHeader()
-                  .AllowCredentials();
+            policy.SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin)) return false;
+                try
+                {
+                    var uri = new Uri(origin);
+                    return uri.Host == "localhost"
+                        || uri.Host == "127.0.0.1"
+                        || uri.Host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase)
+                        || allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+                }
+                catch
+                {
+                    return false;
+                }
+            })
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
         }
     });
 });

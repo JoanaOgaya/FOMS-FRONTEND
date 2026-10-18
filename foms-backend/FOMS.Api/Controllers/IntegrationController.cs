@@ -154,6 +154,24 @@ public class IntegrationController : ControllerBase
             return BadRequest(new { isSuccess = false, message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Cross-system uniqueness probe: checks whether an email or employee ID is already in use in FOMS.
+    /// Authenticated by shared X-Api-Key.
+    /// </summary>
+    [HttpGet("api/integration/stars/check-user-exists")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CheckUserExists([FromQuery] string? email, [FromQuery] string? employeeId)
+    {
+        var authError = ValidateApiKey();
+        if (authError != null) return authError;
+
+        if (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(employeeId))
+            return BadRequest(new { exists = false, message = "Either email or employeeId must be provided." });
+
+        var (exists, matchedBy) = await _userService.CheckExistsAsync(email, employeeId);
+        return Ok(new { exists, system = "FOMS", matchedBy });
+    }
 }
 
 public class StarsProvisionUserDto

@@ -417,4 +417,44 @@ public class StarsIntegrationService : IStarsIntegrationService
         return await _context.StarsInvoiceEndorsementLinks
             .FirstOrDefaultAsync(l => l.InvoiceNumber == invoiceNo);
     }
+
+    public async Task<(bool exists, string message)> CheckUserExistsInStarsAsync(string? email, string? employeeId = null)
+    {
+        if (!IsConfigured)
+            return (false, "STARS integration is not configured on this server");
+
+        try
+        {
+            var clientHttp = _httpFactory.CreateClient(HttpClientName);
+            clientHttp.Timeout = TimeSpan.FromSeconds(10);
+
+            var query = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrWhiteSpace(email)) query.Add($"email={Uri.EscapeDataString(email.Trim())}");
+            if (!string.IsNullOrWhiteSpace(employeeId)) query.Add($"employeeNumber={Uri.EscapeDataString(employeeId.Trim())}");
+            var queryString = string.Join("&", query);
+
+            var endpoint = $"{_options.StarsBaseUrl!.TrimEnd('/')}/api/integration/check-user-exists?{queryString}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            req.Headers.Add(ApiKeyHeaderName, _options.OutboundApiKey);
+
+            var res = await clientHttp.SendAsync(req);
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+                if (body.TryGetProperty("exists", out var existsProp) && existsProp.GetBoolean())
+                {
+                    var matched = body.TryGetProperty("matchedBy", out var m) ? m.GetString() : "email";
+                    return (true, $"User already exists in STARS (matched by {matched}).");
+                }
+                return (false, "Available");
+            }
+
+            return (false, $"STARS check returned HTTP {(int)res.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query STARS for user uniqueness check");
+            return (false, $"STARS check skipped: {ex.Message}");
+        }
+    }
 }
