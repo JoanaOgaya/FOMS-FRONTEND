@@ -1,0 +1,68 @@
+/* ── Confirm dialog overlay ──────────────────────────────────────────────── */
+
+.dt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(11, 20, 55, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  animation: dt-fade-in 0.15s ease;
+}
+
+.dt-dialog {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  max-width: 420px;
+  width: 100%;
+  margin: 16px;
+  box-shadow: var(--sh4, 0 16px 48px rgba(15, 23, 42, 0.2));
+  animation: dt-zoom-in 0.18s ease;
+  text-align: center;
+}
+
+.dt-dialog-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.dt-dialog-icon i { font-size: 24px; color: #DC2626; }
+
+.dt-dialog-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--tp, #0F172A);
+  margin: 0 0 8px;
+}
+
+.dt-dialog-msg {
+  font-size: 13.5px;
+  color: var(--tt, #6B7280);
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+
+.dt-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* Animations and keyframes */
+@keyframes dt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dt-zoom-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}

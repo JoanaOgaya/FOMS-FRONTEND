@@ -1,0 +1,280 @@
+﻿Legacy entity,Legacy table in FOMS_Official,Legacy field,C# type,FOMS_Official SQL type,Nullability,Primary key,Relationship candidate (verify),FOMS_DB candidate table,FOMS_DB candidate field,FOMS_DB SQL type,Mapping classification,Migration/backfill notes
+Role,Roles,role_id,int,int,NOT NULL,YES,Roles.role_id,Roles,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Role,Roles,role_name,string,nvarchar(450),NOT NULL,NO,,Roles,Name,nvarchar(max),Direct candidate - validate semantics,Role-label candidate
+Role,Roles,created_at,DateTime?,datetime2,NULL,NO,,Roles,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+User,Users,user_id,int,int,NOT NULL,YES,Users.user_id,Employees,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+User,Users,employee_number,string?,nvarchar(450),NULL,NO,,Employees,Username,nvarchar(max),Direct candidate - validate semantics,EmployeeNumber absent in destination; verify identity semantics
+User,Users,full_name,string,nvarchar(max),NOT NULL,NO,,Employees,Name,nvarchar(max),Direct candidate - validate semantics,Name candidate
+User,Users,username,string,nvarchar(450),NOT NULL,NO,,Employees,Username,nvarchar(max),Direct candidate - validate semantics,Username identity candidate
+User,Users,password_hash,string,nvarchar(max),NOT NULL,NO,,Employees,PasswordHash,nvarchar(max),Direct candidate - validate semantics,Never overwrite credentials; hashes differ for all 4 matched usernames
+User,Users,role_id,int,int,NOT NULL,NO,Roles.role_id,Employees,Role,nvarchar(max),Foreign-key crosswalk required,Resolve source role name; destination role is text
+User,Users,is_active,bool?,bit,NULL,NO,,Employees,IsActive,bit,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+User,Users,created_at,DateTime?,datetime2,NULL,NO,,Employees,CreatedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+User,Users,updated_at,DateTime?,datetime2,NULL,NO,,Employees,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Client,Clients,client_id,int,int,NOT NULL,YES,Clients.client_id,Clients,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Client,Clients,dms_client_id,string?,nvarchar(max),NULL,NO,,Clients,DmsClientId,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,client_code,string?,nvarchar(max),NULL,NO,,Clients,ClientCode,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,company_name,string,nvarchar(max),NOT NULL,NO,,Clients,BusinessName,nvarchar(max),Direct candidate - validate semantics,No current source client name match; stage manual review
+Client,Clients,address,string?,nvarchar(max),NULL,NO,,Clients,Address,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,contact_person,string?,nvarchar(max),NULL,NO,,Clients,ContactPerson,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,contact_number,string?,nvarchar(max),NULL,NO,,Clients,ContactNumber,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,email,string?,nvarchar(max),NULL,NO,,Clients,Email,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,is_active,bool?,bit,NULL,NO,,Clients,IsActive,bit,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,synced_from_dms,bool?,bit,NULL,NO,,Clients,SyncedFromDms,bit,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,last_synced_at,DateTime?,datetime2,NULL,NO,,Clients,LastSyncedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,created_at,DateTime?,datetime2,NULL,NO,,Clients,CreatedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Client,Clients,updated_at,DateTime?,datetime2,NULL,NO,,Clients,UpdatedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+ClientFinanceSetting,ClientFinanceSettings,client_id,int,int,NOT NULL,YES,Clients.client_id,ClientFinanceSettings,ClientId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+ClientFinanceSetting,ClientFinanceSettings,billing_terms,string?,nvarchar(max),NULL,NO,,ClientFinanceSettings,BillingTerms,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,payment_terms,string?,nvarchar(max),NULL,NO,,ClientFinanceSettings,PaymentTerms,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,credit_terms_days,int?,int,NULL,NO,,ClientFinanceSettings,CreditTermsDays,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,tax_type,string?,nvarchar(max),NULL,NO,,ClientFinanceSettings,TaxType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,oda_rate_applicable,bool?,bit,NULL,NO,,ClientFinanceSettings,OdaRateApplicable,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,finance_status,string?,nvarchar(max),NULL,NO,,ClientFinanceSettings,FinanceStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,created_at,DateTime?,datetime2,NULL,NO,,ClientFinanceSettings,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientFinanceSetting,ClientFinanceSettings,updated_at,DateTime?,datetime2,NULL,NO,,ClientFinanceSettings,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,rate_id,int,int,NOT NULL,YES,,ShipmentRates,RateId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+ClientRate,ClientRates,client_id,int,int,NOT NULL,NO,Clients.client_id,ShipmentRates,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+ClientRate,ClientRates,service_type,string?,nvarchar(max),NULL,NO,,ShipmentRates,ServiceType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,delivery_area,string?,nvarchar(max),NULL,NO,,ShipmentRates,Destination,nvarchar(max),Direct candidate - validate semantics,Review pricing normalization
+ClientRate,ClientRates,minimum_kg,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,RatePerKg,"decimal(18,2)",Direct candidate - validate semantics,Not equivalent without formula
+ClientRate,ClientRates,minimum_rate,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,MinimumCharge,"decimal(18,2)",Direct candidate - validate semantics,Review pricing semantics
+ClientRate,ClientRates,excess_rate_per_kg,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,RatePerKg,"decimal(18,2)",Direct candidate - validate semantics,Review pricing formula
+ClientRate,ClientRates,oda_rate,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,OdaRate,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,fuel_surcharge_rate,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,FuelSurchargeRate,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,valuation_rate,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRates,ValuationRate,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,effective_from,DateOnly?,date,NULL,NO,,ShipmentRates,EffectiveFrom,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,effective_to,DateOnly?,date,NULL,NO,,ShipmentRates,EffectiveTo,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,is_active,bool?,bit,NULL,NO,,ShipmentRates,IsActive,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,created_at,DateTime?,datetime2,NULL,NO,,ShipmentRates,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ClientRate,ClientRates,updated_at,DateTime?,datetime2,NULL,NO,,ShipmentRates,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Invoice,Invoices,invoice_id,int,int,NOT NULL,YES,Invoices.invoice_id,Invoices,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Invoice,Invoices,invoice_number,string,nvarchar(max),NOT NULL,NO,,Invoices,InvoiceNo,nvarchar(450),Transform/review required,Natural-key candidate
+Invoice,Invoices,client_id,int,int,NOT NULL,NO,Clients.client_id,Invoices,ClientId,nvarchar(450),Foreign-key crosswalk required,Resolve client crosswalk
+Invoice,Invoices,billing_period,string?,nvarchar(max),NULL,NO,,Invoices,BillingPeriod,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Invoice,Invoices,due_date,DateOnly?,date,NULL,NO,,Invoices,DueDate,nvarchar(max),Transform/review required,Type/shape differs; define conversion and reject truncation.
+Invoice,Invoices,total_amount,decimal,"decimal(18,2)",NOT NULL,NO,,Invoices,TotalAmount,"decimal(18,2)",Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Invoice,Invoices,paid_amount,decimal?,"decimal(18,2)",NULL,NO,,Invoices,AmountPaid,"decimal(18,2)",Direct candidate - validate semantics,Amount candidate
+Invoice,Invoices,outstanding_balance,decimal?,"decimal(18,2)",NULL,NO,,Invoices,Balance,"decimal(18,2)",Direct candidate - validate semantics,Amount candidate
+Invoice,Invoices,invoice_status,string?,nvarchar(max),NULL,NO,,Invoices,PaymentStatus,nvarchar(max),Direct candidate - validate semantics,Review status semantics
+Invoice,Invoices,validation_status,string?,nvarchar(max),NULL,NO,,Invoices,PaymentValidationStatus,nvarchar(max),Direct candidate - validate semantics,Review status semantics
+Invoice,Invoices,created_at,DateTime?,datetime2,NULL,NO,,Invoices,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Invoice,Invoices,updated_at,DateTime?,datetime2,NULL,NO,,Invoices,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,ar_id,int,int,NOT NULL,YES,,ReceivableBalances,Id,nvarchar(450),Key crosswalk required,Record key crosswalk
+AccountsReceivable,AccountsReceivable,invoice_id,int,int,NOT NULL,NO,Invoices.invoice_id,ReceivableBalances,InvoiceId,nvarchar(450),Foreign-key crosswalk required,Resolve invoice crosswalk
+AccountsReceivable,AccountsReceivable,client_id,int,int,NOT NULL,NO,Clients.client_id,ReceivableBalances,ClientId,nvarchar(450),Foreign-key crosswalk required,Resolve client crosswalk
+AccountsReceivable,AccountsReceivable,invoice_amount,decimal,"decimal(18,2)",NOT NULL,NO,,ReceivableBalances,InvoiceAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,paid_amount,decimal?,"decimal(18,2)",NULL,NO,,ReceivableBalances,PaidAmount,"decimal(18,2)",Direct candidate - validate semantics,Amount candidate
+AccountsReceivable,AccountsReceivable,outstanding_balance,decimal?,"decimal(18,2)",NULL,NO,,ReceivableBalances,BalanceAmount,"decimal(18,2)",Direct candidate - validate semantics,Amount candidate
+AccountsReceivable,AccountsReceivable,overpayment_amount,decimal?,"decimal(18,2)",NULL,NO,,ReceivableBalances,OverpaymentAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,ar_status,string?,nvarchar(max),NULL,NO,,ReceivableBalances,ArStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,due_date,DateOnly?,date,NULL,NO,,ReceivableBalances,DueDate,datetime2,Transform/review required,Type/shape differs; define conversion and reject truncation.
+AccountsReceivable,AccountsReceivable,aging_bucket,string?,nvarchar(max),NULL,NO,,ReceivableBalances,AgingBucket,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,collection_priority,string?,nvarchar(max),NULL,NO,,ReceivableBalances,CollectionPriority,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,refund_status,string?,nvarchar(max),NULL,NO,,ReceivableBalances,RefundStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,created_at,DateTime?,datetime2,NULL,NO,,ReceivableBalances,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AccountsReceivable,AccountsReceivable,updated_at,DateTime?,datetime2,NULL,NO,,ReceivableBalances,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Payment,Payments,payment_id,int,int,NOT NULL,YES,Payments.payment_id,Payments,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Payment,Payments,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,Payments,InvoiceId,nvarchar(max),Foreign-key crosswalk required,Resolve invoice crosswalk
+Payment,Payments,client_id,int?,int,NULL,NO,Clients.client_id,Payments,ClientId,nvarchar(max),Foreign-key crosswalk required,Resolve client crosswalk
+Payment,Payments,amount,decimal,"decimal(18,2)",NOT NULL,NO,,Payments,Amount,"decimal(18,2)",Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,payment_method,string?,nvarchar(max),NULL,NO,,Payments,PaymentMethod,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,reference_number,string?,nvarchar(max),NULL,NO,,Payments,ReferenceNumber,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,proof_of_payment_path,string?,nvarchar(max),NULL,NO,,Payments,ProofImageUrl,nvarchar(max),Direct candidate - validate semantics,Path/URL semantics review
+Payment,Payments,payment_status,string?,nvarchar(max),NULL,NO,,Payments,PaymentStatus,nvarchar(max),Direct candidate - validate semantics,Review status semantics
+Payment,Payments,submitted_at,DateTime?,datetime2,NULL,NO,,Payments,SubmittedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,validated_at,DateTime?,datetime2,NULL,NO,,Payments,ValidatedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,validated_by,int?,int,NULL,NO,Users.user_id,Payments,ValidatedBy,nvarchar(max),Foreign-key crosswalk required,Resolve user identity crosswalk
+Payment,Payments,rejected_at,DateTime?,datetime2,NULL,NO,,Payments,RejectedAt,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,rejected_by,int?,int,NULL,NO,Users.user_id,Payments,RejectedBy,nvarchar(max),Foreign-key crosswalk required,Resolve user identity crosswalk
+Payment,Payments,rejection_reason,string?,nvarchar(max),NULL,NO,,Payments,RejectionReason,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+Payment,Payments,remarks,string?,nvarchar(max),NULL,NO,,Payments,Remarks,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+PaymentHistory,PaymentHistory,history_id,int,int,NOT NULL,YES,,PaymentHistories,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+PaymentHistory,PaymentHistory,payment_id,int?,int,NULL,NO,Payments.payment_id,PaymentHistories,PaymentId,nvarchar(max),Foreign-key crosswalk required,Resolve payment crosswalk
+PaymentHistory,PaymentHistory,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,PaymentHistories,InvoiceId,nvarchar(max),Foreign-key crosswalk required,Resolve invoice crosswalk
+PaymentHistory,PaymentHistory,status,string?,nvarchar(max),NULL,NO,,PaymentHistories,Status,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+PaymentHistory,PaymentHistory,action,string?,nvarchar(max),NULL,NO,,PaymentHistories,Action,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+PaymentHistory,PaymentHistory,remarks,string?,nvarchar(max),NULL,NO,,PaymentHistories,Remarks,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+PaymentHistory,PaymentHistory,performed_by,int?,int,NULL,NO,Users.user_id,PaymentHistories,PerformedBy,nvarchar(max),Foreign-key crosswalk required,Resolve user crosswalk
+PaymentHistory,PaymentHistory,performed_role,string?,nvarchar(max),NULL,NO,,PaymentHistories,PerformedRole,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+PaymentHistory,PaymentHistory,created_at,DateTime?,datetime2,NULL,NO,,PaymentHistories,CreatedAt,datetime2,Direct candidate - validate semantics,Timestamp candidate
+Notification,Notifications,notification_id,int,int,NOT NULL,YES,,Notifications,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Notification,Notifications,recipient_user_id,int?,int,NULL,NO,Users.user_id,Notifications,RecipientUserId,nvarchar(max),Foreign-key crosswalk required,Resolve user crosswalk
+Notification,Notifications,recipient_role,string?,nvarchar(max),NULL,NO,,Notifications,RecipientRole,nvarchar(max),Direct candidate - validate semantics,Role candidate
+Notification,Notifications,type,string?,nvarchar(max),NULL,NO,,Notifications,Type,nvarchar(max),Direct candidate - validate semantics,Direct candidate
+Notification,Notifications,title,string?,nvarchar(max),NULL,NO,,Notifications,Title,nvarchar(max),Direct candidate - validate semantics,Direct candidate
+Notification,Notifications,message,string?,nvarchar(max),NULL,NO,,Notifications,Description,nvarchar(max),Direct candidate - validate semantics,Text candidate
+Notification,Notifications,related_record_type,string?,nvarchar(max),NULL,NO,,Notifications,RelatedRecordType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Notification,Notifications,related_record_id,int?,int,NULL,NO,,Notifications,RelatedInvoiceId,nvarchar(max),Transform/review required,Only invoices; route other entity types separately
+Notification,Notifications,is_read,bool?,bit,NULL,NO,,Notifications,Read,bit,Direct candidate - validate semantics,Boolean candidate
+Notification,Notifications,created_at,DateTime?,datetime2,NULL,NO,,Notifications,CreatedAt,datetime2,Direct candidate - validate semantics,Timestamp candidate
+AuditLog,AuditLogs,audit_id,int,int,NOT NULL,YES,,AppAuditLogs,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+AuditLog,AuditLogs,user_id,int?,int,NULL,NO,Users.user_id,AppAuditLogs,UserId,nvarchar(max),Foreign-key crosswalk required,Resolve user crosswalk
+AuditLog,AuditLogs,role,string?,nvarchar(max),NULL,NO,,AppAuditLogs,Role,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AuditLog,AuditLogs,action,string,nvarchar(max),NOT NULL,NO,,AppAuditLogs,Action,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+AuditLog,AuditLogs,module,string,nvarchar(max),NOT NULL,NO,,AppAuditLogs,EntityName,nvarchar(max),Direct candidate - validate semantics,Module/entity meaning review
+AuditLog,AuditLogs,affected_record_type,string?,nvarchar(max),NULL,NO,,AppAuditLogs,EntityName,nvarchar(max),Direct candidate - validate semantics,Combine only under approved event mapping
+AuditLog,AuditLogs,affected_record_id,int?,int,NULL,NO,,AppAuditLogs,EntityId,nvarchar(max),Transform/review required,Resolve referenced record key
+AuditLog,AuditLogs,before_value,string?,nvarchar(max),NULL,NO,,AppAuditLogs,BeforeValue,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+AuditLog,AuditLogs,after_value,string?,nvarchar(max),NULL,NO,,AppAuditLogs,AfterValue,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+AuditLog,AuditLogs,remarks,string?,nvarchar(max),NULL,NO,,AppAuditLogs,Details,nvarchar(max),Direct candidate - validate semantics,Preserve detail without losing remarks
+AuditLog,AuditLogs,created_at,DateTime?,datetime2,NULL,NO,,AppAuditLogs,LoggedAt,datetime2,Direct candidate - validate semantics,Timestamp candidate
+Waybill,Waybills,waybill_id,int,int,NOT NULL,YES,Waybills.waybill_id,ShipmentRecords,Id,nvarchar(450),Key crosswalk required,Integer source key to string-key crosswalk
+Waybill,Waybills,waybill_number,string,nvarchar(max),NOT NULL,NO,,ShipmentRecords,Id,nvarchar(450),Transform/review required,No destination waybill-number column; additive migration candidate
+Waybill,Waybills,client_id,int,int,NOT NULL,NO,Clients.client_id,ShipmentRecords,ClientId,nvarchar(450),Foreign-key crosswalk required,Resolve client crosswalk
+Waybill,Waybills,origin,string?,nvarchar(max),NULL,NO,,ShipmentRecords,Origin,nvarchar(max),Direct candidate - validate semantics,Direct candidate
+Waybill,Waybills,destination,string?,nvarchar(max),NULL,NO,,ShipmentRecords,Destination,nvarchar(max),Direct candidate - validate semantics,Direct candidate
+Waybill,Waybills,delivery_area,string?,nvarchar(max),NULL,NO,,ShipmentRecords,DeliveryArea,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,actual_weight,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRecords,WeightKg,"decimal(18,2)",Direct candidate - validate semantics,Confirm unit
+Waybill,Waybills,length_cm,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRecords,LengthCm,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,width_cm,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRecords,WidthCm,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,height_cm,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRecords,HeightCm,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,number_of_boxes,int?,int,NULL,NO,,ShipmentRecords,NumberOfBoxes,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,declared_value,decimal?,"decimal(18,2)",NULL,NO,,ShipmentRecords,DeclaredValue,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,delivery_status,string?,nvarchar(max),NULL,NO,,ShipmentRecords,Status,nvarchar(max),Direct candidate - validate semantics,Review state semantics
+Waybill,Waybills,pod_status,string?,nvarchar(max),NULL,NO,,ShipmentRecords,PodStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,is_billed,bool,bit,NOT NULL,NO,,ShipmentRecords,IsBilled,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,ShipmentRecords,InvoiceId,MISSING,Foreign-key crosswalk required,Resolve Invoices.invoice_id via parent crosswalk.
+Waybill,Waybills,created_at,DateTime?,datetime2,NULL,NO,,ShipmentRecords,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Waybill,Waybills,updated_at,DateTime?,datetime2,NULL,NO,,ShipmentRecords,UpdatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+BillingDocument,BillingDocuments,billing_doc_id,int,int,NOT NULL,YES,,BillingDocuments,BillingDocId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+BillingDocument,BillingDocuments,waybill_id,int,int,NOT NULL,NO,Waybills.waybill_id,BillingDocuments,WaybillId,MISSING,Foreign-key crosswalk required,Resolve Waybills.waybill_id via parent crosswalk.
+BillingDocument,BillingDocuments,client_id,int,int,NOT NULL,NO,Clients.client_id,BillingDocuments,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+BillingDocument,BillingDocuments,computed_amount,decimal,"decimal(18,2)",NOT NULL,NO,,BillingDocuments,ComputedAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+BillingDocument,BillingDocuments,validation_status,string?,nvarchar(max),NULL,NO,,BillingDocuments,ValidationStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+BillingDocument,BillingDocuments,ctc_status,string?,nvarchar(max),NULL,NO,,BillingDocuments,CtcStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+BillingDocument,BillingDocuments,validated_by,int?,int,NULL,NO,Users.user_id,BillingDocuments,ValidatedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+BillingDocument,BillingDocuments,validated_at,DateTime?,datetime2,NULL,NO,,BillingDocuments,ValidatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+BillingDocument,BillingDocuments,created_at,DateTime?,datetime2,NULL,NO,,BillingDocuments,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceLineItem,InvoiceLineItems,line_item_id,int,int,NOT NULL,YES,,InvoiceLineItems,LineItemId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+InvoiceLineItem,InvoiceLineItems,invoice_id,int,int,NOT NULL,NO,Invoices.invoice_id,InvoiceLineItems,InvoiceId,MISSING,Foreign-key crosswalk required,Resolve Invoices.invoice_id via parent crosswalk.
+InvoiceLineItem,InvoiceLineItems,waybill_id,int?,int,NULL,NO,Waybills.waybill_id,InvoiceLineItems,WaybillId,MISSING,Foreign-key crosswalk required,Resolve Waybills.waybill_id via parent crosswalk.
+InvoiceLineItem,InvoiceLineItems,description,string?,nvarchar(max),NULL,NO,,InvoiceLineItems,Description,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceLineItem,InvoiceLineItems,quantity,int,int,NOT NULL,NO,,InvoiceLineItems,Quantity,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceLineItem,InvoiceLineItems,unit_price,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceLineItems,UnitPrice,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceLineItem,InvoiceLineItems,line_total,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceLineItems,LineTotal,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceLineItem,InvoiceLineItems,created_at,DateTime?,datetime2,NULL,NO,,InvoiceLineItems,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceComputation,InvoiceComputations,computation_id,int,int,NOT NULL,YES,,InvoiceComputations,ComputationId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+InvoiceComputation,InvoiceComputations,invoice_id,int,int,NOT NULL,NO,Invoices.invoice_id,InvoiceComputations,InvoiceId,MISSING,Foreign-key crosswalk required,Resolve Invoices.invoice_id via parent crosswalk.
+InvoiceComputation,InvoiceComputations,subtotal,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceComputations,Subtotal,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceComputation,InvoiceComputations,vat_amount,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceComputations,VatAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceComputation,InvoiceComputations,discount_amount,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceComputations,DiscountAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceComputation,InvoiceComputations,total_amount,decimal,"decimal(18,2)",NOT NULL,NO,,InvoiceComputations,TotalAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+InvoiceComputation,InvoiceComputations,computed_by,int?,int,NULL,NO,Users.user_id,InvoiceComputations,ComputedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+InvoiceComputation,InvoiceComputations,computed_at,DateTime?,datetime2,NULL,NO,,InvoiceComputations,ComputedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FomsOfficialReceipt,OfficialReceipts,or_id,int,int,NOT NULL,YES,,OfficialReceipts,Id,nvarchar(450),Key crosswalk required,Integer source receipt key needs a reviewed crosswalk.
+FomsOfficialReceipt,OfficialReceipts,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,PaymentCollections,InvoiceId,nvarchar(450),Foreign-key crosswalk required,Resolve payment collection; not a direct receipt mapping.
+FomsOfficialReceipt,OfficialReceipts,payment_id,int?,int,NULL,NO,Payments.payment_id,OfficialReceipts,PaymentCollectionId,nvarchar(450),Foreign-key crosswalk required,Legacy value refers to Payments; modern target expects PaymentCollections. Requires explicit bridge.
+FomsOfficialReceipt,OfficialReceipts,client_id,int?,int,NULL,NO,Clients.client_id,OfficialReceipts,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+FomsOfficialReceipt,OfficialReceipts,or_number,string,nvarchar(max),NOT NULL,NO,,OfficialReceipts,ReceiptNumber,nvarchar(max),Direct candidate - validate semantics,Receipt natural-key candidate.
+FomsOfficialReceipt,OfficialReceipts,issued_amount,decimal,"decimal(18,2)",NOT NULL,NO,,OfficialReceipts,IssuedAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FomsOfficialReceipt,OfficialReceipts,issued_by,string?,nvarchar(max),NULL,NO,,OfficialReceipts,IssuedBy,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FomsOfficialReceipt,OfficialReceipts,issued_at,DateTime?,datetime2,NULL,NO,,OfficialReceipts,IssuedDate,datetime2,Direct candidate - validate semantics,Timestamp candidate.
+FomsOfficialReceipt,OfficialReceipts,pdf_path,string?,nvarchar(max),NULL,NO,,OfficialReceipts,PdfPath,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FomsOfficialReceipt,OfficialReceipts,status,string?,nvarchar(max),NULL,NO,,OfficialReceipts,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashInflow,CashInflows,inflow_id,int,int,NOT NULL,YES,,CashFlowTransactions,InflowId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+CashInflow,CashInflows,payment_id,int?,int,NULL,NO,Payments.payment_id,CashFlowTransactions,PaymentId,MISSING,Foreign-key crosswalk required,Resolve Payments.payment_id via parent crosswalk.
+CashInflow,CashInflows,client_id,int?,int,NULL,NO,Clients.client_id,CashFlowTransactions,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+CashInflow,CashInflows,amount,decimal,"decimal(18,2)",NOT NULL,NO,,CashFlowTransactions,Amount,"decimal(18,2)",Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashInflow,CashInflows,source,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,Source,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashInflow,CashInflows,reference_number,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,ReferenceNumber,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashInflow,CashInflows,status,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashInflow,CashInflows,transaction_date,DateTime?,datetime2,NULL,NO,,CashFlowTransactions,TransactionDate,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashInflow,CashInflows,created_at,DateTime?,datetime2,NULL,NO,,CashFlowTransactions,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashOutflow,CashOutflows,outflow_id,int,int,NOT NULL,YES,,CashFlowTransactions,OutflowId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+CashOutflow,CashOutflows,category,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,Category,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashOutflow,CashOutflows,description,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,Description,nvarchar(max),Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashOutflow,CashOutflows,amount,decimal,"decimal(18,2)",NOT NULL,NO,,CashFlowTransactions,Amount,"decimal(18,2)",Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashOutflow,CashOutflows,approved_by,int?,int,NULL,NO,Users.user_id,CashFlowTransactions,ApprovedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+CashOutflow,CashOutflows,status,string?,nvarchar(max),NULL,NO,,CashFlowTransactions,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashOutflow,CashOutflows,transaction_date,DateTime?,datetime2,NULL,NO,,CashFlowTransactions,TransactionDate,datetime2,Direct candidate - validate semantics,"Types compatible; verify semantics, max length, and uniqueness."
+CashOutflow,CashOutflows,created_at,DateTime?,datetime2,NULL,NO,,CashFlowTransactions,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashAdvance,CashAdvances,cash_advance_id,int,int,NOT NULL,YES,CashAdvances.cash_advance_id,CashAdvances,CashAdvanceId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+CashAdvance,CashAdvances,employee_id,int?,int,NULL,NO,,CashAdvances,EmployeeId,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashAdvance,CashAdvances,amount,decimal,"decimal(18,2)",NOT NULL,NO,,CashAdvances,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashAdvance,CashAdvances,purpose,string?,nvarchar(max),NULL,NO,,CashAdvances,Purpose,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashAdvance,CashAdvances,status,string?,nvarchar(max),NULL,NO,,CashAdvances,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CashAdvance,CashAdvances,approved_by,int?,int,NULL,NO,Users.user_id,CashAdvances,ApprovedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+CashAdvance,CashAdvances,created_at,DateTime?,datetime2,NULL,NO,,CashAdvances,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,liquidation_id,int,int,NOT NULL,YES,Liquidations.liquidation_id,Liquidations,LiquidationId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+Liquidation,Liquidations,reference_number,string?,nvarchar(max),NULL,NO,,Liquidations,ReferenceNumber,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,cash_advance_id,int?,int,NULL,NO,CashAdvances.cash_advance_id,Liquidations,CashAdvanceId,MISSING,Foreign-key crosswalk required,Resolve CashAdvances.cash_advance_id via parent crosswalk.
+Liquidation,Liquidations,submitted_by,int?,int,NULL,NO,Users.user_id,Liquidations,SubmittedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+Liquidation,Liquidations,submitted_by_name,string?,nvarchar(max),NULL,NO,,Liquidations,SubmittedByName,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,total_amount,decimal,"decimal(18,2)",NOT NULL,NO,,Liquidations,TotalAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,leftover_cash,decimal?,"decimal(18,2)",NULL,NO,,Liquidations,LeftoverCash,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,reimbursement_amount,decimal?,"decimal(18,2)",NULL,NO,,Liquidations,ReimbursementAmount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,status,string?,nvarchar(max),NULL,NO,,Liquidations,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,validated_by,int?,int,NULL,NO,Users.user_id,Liquidations,ValidatedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+Liquidation,Liquidations,validated_at,DateTime?,datetime2,NULL,NO,,Liquidations,ValidatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,date_submitted,DateTime?,datetime2,NULL,NO,,Liquidations,DateSubmitted,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Liquidation,Liquidations,created_at,DateTime?,datetime2,NULL,NO,,Liquidations,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationLineItem,LiquidationLineItems,line_item_id,int,int,NOT NULL,YES,,LiquidationLineItems,LineItemId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+LiquidationLineItem,LiquidationLineItems,liquidation_id,int,int,NOT NULL,NO,Liquidations.liquidation_id,LiquidationLineItems,LiquidationId,MISSING,Foreign-key crosswalk required,Resolve Liquidations.liquidation_id via parent crosswalk.
+LiquidationLineItem,LiquidationLineItems,description,string?,nvarchar(max),NULL,NO,,LiquidationLineItems,Description,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationLineItem,LiquidationLineItems,amount,decimal,"decimal(18,2)",NOT NULL,NO,,LiquidationLineItems,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationLineItem,LiquidationLineItems,receipt_attached,bool,bit,NOT NULL,NO,,LiquidationLineItems,ReceiptAttached,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationLineItem,LiquidationLineItems,created_at,DateTime?,datetime2,NULL,NO,,LiquidationLineItems,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationDocument,LiquidationDocuments,document_id,int,int,NOT NULL,YES,,LiquidationDocuments,DocumentId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+LiquidationDocument,LiquidationDocuments,liquidation_id,int,int,NOT NULL,NO,Liquidations.liquidation_id,LiquidationDocuments,LiquidationId,MISSING,Foreign-key crosswalk required,Resolve Liquidations.liquidation_id via parent crosswalk.
+LiquidationDocument,LiquidationDocuments,document_type,string?,nvarchar(max),NULL,NO,,LiquidationDocuments,DocumentType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationDocument,LiquidationDocuments,file_path,string?,nvarchar(max),NULL,NO,,LiquidationDocuments,FilePath,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+LiquidationDocument,LiquidationDocuments,uploaded_at,DateTime?,datetime2,NULL,NO,,LiquidationDocuments,UploadedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,adjustment_id,int,int,NOT NULL,YES,,FinancialAdjustments,AdjustmentId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+FinancialAdjustment,FinancialAdjustments,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,FinancialAdjustments,InvoiceId,MISSING,Foreign-key crosswalk required,Resolve Invoices.invoice_id via parent crosswalk.
+FinancialAdjustment,FinancialAdjustments,client_id,int?,int,NULL,NO,Clients.client_id,FinancialAdjustments,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+FinancialAdjustment,FinancialAdjustments,adjustment_type,string?,nvarchar(max),NULL,NO,,FinancialAdjustments,AdjustmentType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,amount,decimal,"decimal(18,2)",NOT NULL,NO,,FinancialAdjustments,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,reason,string?,nvarchar(max),NULL,NO,,FinancialAdjustments,Reason,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,requested_by,int?,int,NULL,NO,Users.user_id,FinancialAdjustments,RequestedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+FinancialAdjustment,FinancialAdjustments,status,string?,nvarchar(max),NULL,NO,,FinancialAdjustments,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,approved_by,int?,int,NULL,NO,Users.user_id,FinancialAdjustments,ApprovedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+FinancialAdjustment,FinancialAdjustments,approved_at,DateTime?,datetime2,NULL,NO,,FinancialAdjustments,ApprovedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+FinancialAdjustment,FinancialAdjustments,created_at,DateTime?,datetime2,NULL,NO,,FinancialAdjustments,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CreditMemo,CreditMemos,credit_memo_id,int,int,NOT NULL,YES,,CreditMemos,CreditMemoId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+CreditMemo,CreditMemos,invoice_id,int?,int,NULL,NO,Invoices.invoice_id,CreditMemos,InvoiceId,MISSING,Foreign-key crosswalk required,Resolve Invoices.invoice_id via parent crosswalk.
+CreditMemo,CreditMemos,client_id,int?,int,NULL,NO,Clients.client_id,CreditMemos,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+CreditMemo,CreditMemos,amount,decimal,"decimal(18,2)",NOT NULL,NO,,CreditMemos,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CreditMemo,CreditMemos,reason,string?,nvarchar(max),NULL,NO,,CreditMemos,Reason,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CreditMemo,CreditMemos,status,string?,nvarchar(max),NULL,NO,,CreditMemos,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CreditMemo,CreditMemos,approved_by,int?,int,NULL,NO,Users.user_id,CreditMemos,ApprovedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+CreditMemo,CreditMemos,approved_at,DateTime?,datetime2,NULL,NO,,CreditMemos,ApprovedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+CreditMemo,CreditMemos,created_at,DateTime?,datetime2,NULL,NO,,CreditMemos,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+RefundRequest,RefundRequests,refund_id,int,int,NOT NULL,YES,,RefundRequests,RefundId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+RefundRequest,RefundRequests,payment_id,int?,int,NULL,NO,Payments.payment_id,RefundRequests,PaymentId,MISSING,Foreign-key crosswalk required,Resolve Payments.payment_id via parent crosswalk.
+RefundRequest,RefundRequests,client_id,int?,int,NULL,NO,Clients.client_id,RefundRequests,ClientId,MISSING,Foreign-key crosswalk required,Resolve Clients.client_id via parent crosswalk.
+RefundRequest,RefundRequests,amount,decimal,"decimal(18,2)",NOT NULL,NO,,RefundRequests,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+RefundRequest,RefundRequests,reason,string?,nvarchar(max),NULL,NO,,RefundRequests,Reason,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+RefundRequest,RefundRequests,status,string?,nvarchar(max),NULL,NO,,RefundRequests,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+RefundRequest,RefundRequests,processed_by,int?,int,NULL,NO,Users.user_id,RefundRequests,ProcessedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+RefundRequest,RefundRequests,created_at,DateTime?,datetime2,NULL,NO,,RefundRequests,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,settlement_id,int,int,NOT NULL,YES,,Settlements,SettlementId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+Settlement,Settlements,record_type,string?,nvarchar(max),NULL,NO,,Settlements,RecordType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,courier_trip,string?,nvarchar(max),NULL,NO,,Settlements,CourierTrip,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,amount,decimal,"decimal(18,2)",NOT NULL,NO,,Settlements,Amount,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,submitted_by,int?,int,NULL,NO,Users.user_id,Settlements,SubmittedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+Settlement,Settlements,submitted_at,DateTime?,datetime2,NULL,NO,,Settlements,SubmittedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,status,string?,nvarchar(max),NULL,NO,,Settlements,Status,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,validated_by,int?,int,NULL,NO,Users.user_id,Settlements,ValidatedBy,MISSING,Foreign-key crosswalk required,Resolve Users.user_id via parent crosswalk.
+Settlement,Settlements,validated_at,DateTime?,datetime2,NULL,NO,,Settlements,ValidatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+Settlement,Settlements,created_at,DateTime?,datetime2,NULL,NO,,Settlements,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIReviewHistory,AIReviewHistory,review_id,int,int,NOT NULL,YES,,AIReviewHistory,review_id,int,Key crosswalk required,Never assume source integer key equals destination string key.
+AIReviewHistory,AIReviewHistory,document_number,string?,nvarchar(max),NULL,NO,,AIReviewHistory,document_number,nvarchar(100),Transform/review required,Additive schema or explicit exclusion decision required.
+AIReviewHistory,AIReviewHistory,final_decision,string?,nvarchar(max),NULL,NO,,AIReviewHistory,final_decision,nvarchar(100),Transform/review required,Additive schema or explicit exclusion decision required.
+AIReviewHistory,AIReviewHistory,reviewer,string?,nvarchar(max),NULL,NO,,AIReviewHistory,reviewer,nvarchar(100),Transform/review required,"Types compatible; verify semantics, max length, and uniqueness."
+AIReviewHistory,AIReviewHistory,decision_reason,string?,nvarchar(max),NULL,NO,,AIReviewHistory,decision_reason,nvarchar(500),Transform/review required,Additive schema or explicit exclusion decision required.
+AIReviewHistory,AIReviewHistory,reviewed_date,DateTime?,datetime2,NULL,NO,,AIReviewHistory,reviewed_date,datetime2,Direct candidate - validate semantics,Additive schema or explicit exclusion decision required.
+AIReviewHistory,AIReviewHistory,created_at,DateTime?,datetime2,NULL,NO,,AIReviewHistory,created_at,datetime2,Direct candidate - validate semantics,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,output_id,int,int,NOT NULL,YES,,AIOutputHistory,OutputId,MISSING,Key crosswalk required,Never assume source integer key equals destination string key.
+AIOutputHistory,AIOutputHistory,output_type,string?,nvarchar(max),NULL,NO,,AIOutputHistory,OutputType,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,source_reference,string?,nvarchar(max),NULL,NO,,AIOutputHistory,SourceReference,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,processing_status,string?,nvarchar(max),NULL,NO,,AIOutputHistory,ProcessingStatus,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,model_name,string?,nvarchar(max),NULL,NO,,AIOutputHistory,ModelName,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,version,string?,nvarchar(max),NULL,NO,,AIOutputHistory,Version,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,message,string?,nvarchar(max),NULL,NO,,AIOutputHistory,Message,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+AIOutputHistory,AIOutputHistory,created_at,DateTime?,datetime2,NULL,NO,,AIOutputHistory,CreatedAt,MISSING,No destination column,Additive schema or explicit exclusion decision required.
+ProofOfDelivery,ProofOfDeliveries,Id,int,int,NOT NULL,YES,ProofOfDeliveries.WaybillId -> Waybills.waybill_id,ProofOfDeliveries,Id,MISSING,Key crosswalk required,Integer source key to destination string key; destination POD workflow table absent.
+ProofOfDelivery,ProofOfDeliveries,WaybillId,int,int,NOT NULL,NO,Waybills.waybill_id,ShipmentRecords,Id,nvarchar(450),Foreign-key crosswalk required,Map the source WaybillId to ShipmentRecords.Id; do not map it to a client key.
+ProofOfDelivery,ProofOfDeliveries,DeliveredAt,DateTime,datetime2,NOT NULL,NO,,ProofOfDeliveries,DeliveredAt,MISSING,No destination column,Additive proof-of-delivery workflow migration required.
+ProofOfDelivery,ProofOfDeliveries,ReceiverName,string,nvarchar(max),NOT NULL,NO,,ProofOfDeliveries,ReceiverName,MISSING,No destination column,Additive proof-of-delivery workflow migration required.
+ProofOfDelivery,ProofOfDeliveries,SignatureImageUrl,string?,nvarchar(max),NULL,NO,,ProofOfDeliveries,SignatureImageUrl,MISSING,No destination column,Additive proof-of-delivery workflow migration required.

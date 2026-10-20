@@ -1,0 +1,45 @@
+/* ── TableContainer: wraps a DataTable and its related controls ──────────── */
+
+/* ── Direct div children that are NOT DataTable internals get horizontal padding ── */
+.table-container > div:not(.dt-root) {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* ── First direct div child (the title / header section) gets top padding ── */
+.table-container > div:not(.dt-root):first-of-type {
+  padding-top: 28px;
+}
+
+/* ── DataTable root: reset any stray margins ── */
+.table-container > .dt-root {
+  margin: 0;
+}
+
+/* ── DataTable toolbar: 28px top so search bar has breathing room from card edge ── */
+.table-container .dt-toolbar {
+  padding: 28px 24px 16px 24px;
+  margin-bottom: 0;
+}
+
+/* ── Table wrapper: add horizontal margin for padding effect ── */
+.table-container .dt-table-wrap {
+  margin: 0 24px;
+  width: calc(100% - 48px);
+}
+
+/* ── Pagination: 24px horizontal, 16px/20px vertical ── */
+.table-container .dt-pagination {
+  padding: 16px 24px 20px 24px;
+  margin-top: 0;
+}
+
+/* ── Active filter chips row ── */
+.table-container .dt-active-chips {
+  padding: 0 24px 12px 24px;
+}
+
+/* ── Bulk action bar ── */
+.table-container .dt-bulk-bar {
+  margin: 0 24px 12px 24px;
+}

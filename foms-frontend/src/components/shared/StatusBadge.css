@@ -1,0 +1,51 @@
+.badge { 
+  display: inline-flex; 
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px; 
+  border-radius: 9999px; 
+  font-family: var(--fb, 'Inter', sans-serif);
+  font-size: 12px; 
+  letter-spacing: 0.2px; 
+  text-transform: capitalize;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+/* 1. Success (Green variants e.g. ACTIVE, DONE, SUCCESS) */
+.badge-success { 
+  background: #E6F4EA;
+  color: #00796B; 
+}
+
+/* 2. Danger (Red variants e.g. FAILED, OUTFLOW, OVERDUE) */
+.badge-danger { 
+  background: #FEF2F2; 
+  color: #EF4444; 
+}
+
+/* 3. Neutral (Grey variants e.g. DEACTIVATED, RETURNED) */
+.badge-neutral { 
+  background: #F1F5F9; 
+  color: #64748B; 
+}
+
+/* 4. Info (Blue variants e.g. IN TRANSIT, SUBMITTED) */
+.badge-info { 
+  background: #EFF6FF; 
+  color: #3B82F6; 
+}
+
+/* 5. Primary (Purple variants e.g. ASSIGNED, NEW PAYMENT) */
+.badge-primary { 
+  background: #F5F3FF; 
+  color: #8B5CF6; 
+}
+
+/* 6. Warning (Orange variants e.g. PENDING, PROCESSING) */
+.badge-warning { 
+  background: #FFFBEB; 
+  color: #D97706; 
+}

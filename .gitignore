@@ -1,0 +1,49 @@
+# Node dependencies
+**/node_modules/
+**/dist/
+**/build/
+build-ts/
+*.cjs
+
+# Dotnet build folders
+**/bin/
+**/obj/
+.vs/
+.vscode/
+
+# Python cache & virtual environments
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.venv/
+venv/
+ENV/
+.pytest_cache/
+
+# Databases & local volumes data
+pgdata/
+mongodata/
+
+# Local configuration and secret files
+**/.env
+**/.env.*
+!**/.env.example
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+secrets.json
+**/*service-account*.json
+**/*service_account*.json
+*.key
+*.pem
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+ai-service/error.log
+submissions.json
+foms-backend/test_output*
+foms-backend/query
+foms-backend/package-lock.json

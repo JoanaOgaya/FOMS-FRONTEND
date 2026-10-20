@@ -1,0 +1,6 @@
+@FOMS.Api_HostAddress = http://localhost:5007
+
+GET {{FOMS.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
