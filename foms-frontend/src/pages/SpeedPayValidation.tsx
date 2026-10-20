@@ -32,15 +32,20 @@ export const SpeedPayValidation: React.FC = () => {
   } = useQuery(
     'speedpay:validation_list',
     async () => {
-      const [spRes, invRes, cliRes] = await Promise.all([
+      const [spRes, invRes, cliRes] = await Promise.allSettled([
         speedpayService.list({ pageSize: 100 }),
         invoicesService.list({ pageSize: 100 }),
         clientsService.list({ pageSize: 100 }),
       ]);
+
+      if (spRes.status === 'rejected') {
+        throw spRes.reason;
+      }
+
       return {
-        speedPay: spRes.items || [],
-        invoices: invRes.items || [],
-        clients: cliRes.items || [],
+        speedPay: spRes.value.items || [],
+        invoices: invRes.status === 'fulfilled' ? invRes.value.items || [] : [],
+        clients: cliRes.status === 'fulfilled' ? cliRes.value.items || [] : [],
       };
     }
   );
@@ -107,9 +112,10 @@ export const SpeedPayValidation: React.FC = () => {
   );
 
   // ─── Handle Validate/Reject ────────────────────
-  const handleValidate = async (sub: any) => {
-    if ((validationStatus === 'Reject' || validationStatus === 'Return') && !rejectionReason.trim()) {
-      toast.error(`Please provide a ${validationStatus === 'Reject' ? 'rejection' : 'return'} reason.`, 'Required Field Missing');
+  const handleValidate = async (sub: any, actionOverride?: 'Approve' | 'Reject' | 'Endorse' | 'Return') => {
+    const action = actionOverride || validationStatus;
+    if ((action === 'Reject' || action === 'Return') && !rejectionReason.trim()) {
+      toast.error(`Please provide a ${action === 'Reject' ? 'rejection' : 'return'} reason.`, 'Required Field Missing');
       return;
     }
 
@@ -121,7 +127,7 @@ export const SpeedPayValidation: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      if (validationStatus === 'Approve') {
+      if (action === 'Approve') {
         // Pre-save duplicate check on payment reference number
         if (sub.referenceNumber && canCheckDuplicateInForm(user?.role, 'speedpay')) {
           const check = await runPreCheck({
@@ -137,26 +143,32 @@ export const SpeedPayValidation: React.FC = () => {
         }
 
         await speedpayService.validate(sub.id, { status: 'Validated', notes: 'Approved via SpeedPay Validation' });
-        // Mark payment or invoice as paid
         if (sub.invoiceId) {
-          await invoicesService.update(sub.invoiceId, { status: 'Paid' as any });
+          try {
+            await invoicesService.update(sub.invoiceId, { paymentStatus: 'Paid' as any });
+          } catch {
+            // Handled automatically by backend status update
+          }
         }
         toast.success(`Payment from ${sub.clientName} approved. Invoice marked as Paid.`, 'Payment Validated');
-      } else if (validationStatus === 'Reject') {
+      } else if (action === 'Reject') {
         await speedpayService.validate(sub.id, { status: 'Rejected', notes: rejectionReason });
         toast.error(`Payment from ${sub.clientName} has been Rejected.`, 'Payment Rejected');
-      } else if (validationStatus === 'Endorse') {
+      } else if (action === 'Endorse') {
         await speedpayService.update(sub.id, { status: 'Pending Finance Validation' as any, notes: 'Endorsed for final validation by Accountant' } as any);
         toast.success(`Payment from ${sub.clientName} endorsed to Finance Manager.`, 'Endorsed');
-      } else if (validationStatus === 'Return') {
+      } else if (action === 'Return') {
         await speedpayService.update(sub.id, { status: 'Returned / Needs Correction' as any, notes: rejectionReason } as any);
         toast.error(`Payment from ${sub.clientName} returned for correction.`, 'Payment Returned');
       }
       
       await refetch();
       setSelectedSubmission(null);
+      setValidationStatus('');
+      setRejectionReason('');
     } catch (err: any) {
-      toast.error(err?.message ?? 'Action failed.', 'Validation Error');
+      const errMsg = err?.response?.data?.details || err?.response?.data?.message || err?.message || 'Action failed.';
+      toast.error(errMsg, 'Validation Error');
     } finally {
       setIsSubmitting(false);
     }
@@ -581,7 +593,7 @@ export const SpeedPayValidation: React.FC = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: '12px', fontSize: '0.75rem', color: '#94A3B8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>
-                        #{row.referenceNumber || row.id}
+                        {row.referenceNumber || row.id}
                       </span>
                       <span>{new Date(row.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
@@ -607,7 +619,7 @@ export const SpeedPayValidation: React.FC = () => {
                       onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
                     >
                       <i className="ti ti-eye" />
-                      View Details
+                      {row.status === 'Pending Validation' ? 'Review & Validate' : 'View Details'}
                     </button>
                   </div>
                 </div>
@@ -754,12 +766,31 @@ export const SpeedPayValidation: React.FC = () => {
                   )}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 4 }}>
                     <button onClick={() => setSelectedSubmission(null)} style={{ background: 'transparent', color: '#64748B', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+                    {user?.role !== Role.ACCOUNTANT && (
+                      <button
+                        type="button"
+                        onClick={() => handleValidate(selectedSubmission, 'Approve')}
+                        disabled={isSubmitting}
+                        style={{
+                          padding: '10px 20px',
+                          borderRadius: 6,
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: 14,
+                          cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                          background: '#0D9488',
+                          color: '#fff',
+                        }}
+                      >
+                        {isSubmitting ? 'Processing...' : 'Approve'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleValidate(selectedSubmission)}
                       disabled={isSubmitting || validationStatus === '' || ((validationStatus === 'Reject' || validationStatus === 'Return') && !rejectionReason.trim())}
                       style={{ padding: '10px 24px', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: 14, cursor: (isSubmitting || validationStatus === '') ? 'not-allowed' : 'pointer', background: (isSubmitting || validationStatus === '') ? '#94A3B8' : '#0F172A', color: '#fff' }}
                     >
-                      {isSubmitting ? 'Processing...' : 'Submit Validation'}
+                      {isSubmitting ? 'Processing...' : 'Confirm Validation'}
                     </button>
                   </div>
                 </div>

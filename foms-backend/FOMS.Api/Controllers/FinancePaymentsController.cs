@@ -688,7 +688,7 @@ public class FinancePaymentsController : ControllerBase
 
         var lastPayment = await _context.Payments
             .AsNoTracking()
-            .Where(p => p.OrNumber.StartsWith(yearPrefix))
+            .Where(p => p.OrNumber != null && p.OrNumber.StartsWith(yearPrefix))
             .OrderByDescending(p => p.OrNumber)
             .FirstOrDefaultAsync();
 

@@ -397,13 +397,13 @@ export default function RecordSettlement() {
                       <div>
                         <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.04em' }}>SETTLEMENT AMOUNT</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: row.type === 'Leftover return' ? '#10B981' : '#3B82F6', marginTop: '2px' }}>
-                          ₱{row.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          ₱{(Number(row.amount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748B' }}>EXPENSES</div>
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginTop: '2px' }}>
-                          ₱{row.totalExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          ₱{(Number(row.totalExpenses) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </div>
                       </div>
                     </div>

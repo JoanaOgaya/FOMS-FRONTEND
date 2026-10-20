@@ -663,12 +663,12 @@ body.modal-open .app-layout {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 8px 12px;
   border-radius: var(--r-sm);
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   position: relative;
@@ -676,25 +676,31 @@ body.modal-open .app-layout {
   white-space: nowrap;
   border-left: 3px solid transparent;
   flex-shrink: 0;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
-  border-left-color: rgba(0, 169, 157, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  border-left-color: rgba(0, 169, 157, 0.45);
 }
 
 .nav-item.active {
-  background: rgba(0, 169, 157, 0.12);
-  color: #fff;
+  background: rgba(0, 169, 157, 0.15);
+  color: #FFFFFF;
+  font-weight: 600;
   border-left-color: var(--teal);
 }
 
 .nav-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.75;
   transition: opacity 0.2s;
 }
 

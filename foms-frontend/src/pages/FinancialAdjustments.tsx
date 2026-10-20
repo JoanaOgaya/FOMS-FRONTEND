@@ -608,7 +608,7 @@ export default function FinancialAdjustments() {
                           <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0D9488' }}>{formatCurrency(row.amount)}</span>
                         </div>
                         <div style={{ fontSize: '0.82rem', color: '#475569', fontStyle: 'italic', borderTop: '1px solid #E2E8F0', paddingTop: '8px' }}>
-                          "{row.reason}"
+                          {row.reason}
                         </div>
                       </div>
 

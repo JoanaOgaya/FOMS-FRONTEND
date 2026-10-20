@@ -541,9 +541,20 @@ const PaymentsContent: React.FC = () => {
     try {
       if (verificationStatus === 'Reject') {
         await updatePayment(viewPayment.id, { status: 'Rejected' });
+        try {
+          await speedpayService.validate(viewPayment.id, { status: 'Rejected', notes: rejectionReason });
+        } catch {
+          // May not be a SpeedPay record
+        }
         toast.error(`Payment rejected.`, 'Payment Rejected');
       } else {
-        await updatePayment(viewPayment.id, { status: 'Validated', validatedBy: user?.fullName, validatedAt: new Date().toISOString() });
+        const nextStatus = isFinanceManager ? 'Approved' : 'Validated';
+        await updatePayment(viewPayment.id, { status: nextStatus, validatedBy: user?.fullName, validatedAt: new Date().toISOString() });
+        try {
+          await speedpayService.validate(viewPayment.id, { status: 'Validated', notes: 'Validated via Payment Summary modal' });
+        } catch {
+          // May not be a SpeedPay record
+        }
 
         const invoice = invoices.find((i: Invoice) => i.id === viewPayment.invoiceId);
         if (invoice) {
@@ -561,7 +572,7 @@ const PaymentsContent: React.FC = () => {
           recordedBy: user?.fullName || 'System'
         });
 
-        toast.success(`Payment validated. Invoice and AR updated.`, 'Payment Validated');
+        toast.success(`Payment marked as ${nextStatus}. Invoice and AR updated.`, 'Payment Validated');
       }
       addAuditLog({
         userId: user?.employeeId || 'System',
@@ -812,8 +823,13 @@ const PaymentsContent: React.FC = () => {
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Company Name <span style={{ color: '#EF4444' }}>*</span></label>
-                  <input required type="text" placeholder="Enter Company Name" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+                  <input required list="payments-client-datalist" type="text" placeholder="Enter Company Name" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
                     style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#0F172A', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                  <datalist id="payments-client-datalist">
+                    {clients.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>First Name</label>
@@ -1235,8 +1251,13 @@ const PaymentsContent: React.FC = () => {
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Company Name <span style={{ color: '#EF4444' }}>*</span></label>
-                <input required type="text" placeholder="Enter Company Name" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+                <input required list="payments-client-datalist" type="text" placeholder="Enter Company Name" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#0F172A', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                <datalist id="payments-client-datalist">
+                  {clients.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>First Name</label>
@@ -1917,26 +1938,31 @@ const PaymentsContent: React.FC = () => {
               {
                 key: 'clientName', label: 'CLIENT', sortable: true,
                 render: (row: any) => (
-                  <div>
+                  <div style={{ minWidth: '160px', paddingRight: '8px' }}>
                     <div
                       onClick={() => row.clientId && navigate(`/payments/${row.clientId}`)}
-                      style={{ fontWeight: 700, color: '#0F172A', cursor: row.clientId ? 'pointer' : 'default' }}
+                      style={{ fontWeight: 700, color: '#0F172A', cursor: row.clientId ? 'pointer' : 'default', lineHeight: 1.35, fontSize: '13.5px' }}
                     >
                       {row.clientName}
                     </div>
-                    {row.clientId && <div style={{ fontSize: 11, color: '#94A3B8' }}>{row.clientId}</div>}
+                    {row.clientId && <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontWeight: 500 }}>{row.clientId}</div>}
                   </div>
                 )
               },
               {
                 key: 'invoiceNumber', label: 'REFERENCE / INVOICE',
                 render: (row: any) => (
-                  <div>
-                    <div style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 12, color: '#0F172A' }}>{row.invoiceNumber}</div>
+                  <div style={{ minWidth: '150px' }}>
+                    <div style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 13, color: '#0F172A' }}>{row.invoiceNumber}</div>
                     <span style={{
-                      display: 'inline-block', marginTop: 2,
-                      fontSize: 10, fontWeight: 700,
+                      display: 'inline-block', marginTop: 4,
+                      fontSize: 10.5, fontWeight: 700,
                       color: '#0D9488',
+                      background: '#F0FDFA',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      letterSpacing: '0.02em',
+                      border: '1px solid #CCFBF1'
                     }}>
                       {row.classification || 'Client Collection'}
                     </span>
@@ -1946,24 +1972,43 @@ const PaymentsContent: React.FC = () => {
               {
                 key: 'amount', label: 'AMOUNT', sortable: true,
                 render: (row: any) => (
-                  <span style={{ fontWeight: 800, color: '#10B981', fontSize: 14 }}>
+                  <span style={{ fontWeight: 800, color: '#0D9488', fontSize: 14, whiteSpace: 'nowrap' }}>
                     ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </span>
                 )
               },
               {
                 key: 'paymentMethod', label: 'METHOD',
-                render: (row: any) => {
-                  return <span style={{ color: '#000000', fontWeight: 'normal', fontSize: 13 }}>{row.paymentMethod || '—'}</span>;
-                }
+                render: (row: any) => (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    color: '#334155',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    <i className={row.paymentMethod === 'Maya' ? 'ti ti-brand-mastercard' : row.paymentMethod === 'GCash' ? 'ti ti-device-mobile' : 'ti ti-building-bank'} style={{ fontSize: '13px', color: '#0D9488' }} />
+                    {row.paymentMethod || '—'}
+                  </span>
+                )
               },
               {
                 key: 'referenceNumber', label: 'REFERENCE NO.',
-                render: (row: any) => <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>{row.referenceNumber || '—'}</span>
+                render: (row: any) => <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#475569', whiteSpace: 'nowrap', fontWeight: 600 }}>{row.referenceNumber || '—'}</span>
               },
               {
                 key: 'recordedAt', label: 'DATE', sortable: true,
-                render: (row: any) => safeFormatDate(row.recordedAt || row.paymentDate || row.dateRecorded || row.submittedAt || row.createdAt || row.date)
+                render: (row: any) => (
+                  <span style={{ fontSize: 12.5, color: '#64748B', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                    {safeFormatDate(row.recordedAt || row.paymentDate || row.dateRecorded || row.submittedAt || row.createdAt || row.date)}
+                  </span>
+                )
               },
               {
                 key: 'status', label: 'STATUS',
@@ -2335,36 +2380,92 @@ const PaymentsContent: React.FC = () => {
                   </div>
                 </Card>
 
-                {/* Accountant Verification Card */}
-                {isAccountant && viewPayment.status === 'Pending Validation' && (
-                  <Card style={{ padding: '24px', borderTop: '4px solid #10B981' }}>
-                    <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', color: '#0F172A', fontWeight: 800 }}>Accountant Verification</h3>
-                    <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                      <select
-                        value={verificationStatus}
-                        onChange={(e) => setVerificationStatus(e.target.value as 'Validate' | 'Reject')}
-                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#0F172A', fontWeight: 600, flex: 1, cursor: 'pointer' }}
+                {/* Verification & Validation Card for Pending Payments */}
+                {(viewPayment.status === 'Pending Finance Validation' || viewPayment.status === 'Pending Validation' || viewPayment.status === 'Under Review') && (
+                  <Card style={{ padding: '24px', borderTop: '4px solid #0D9488', borderRadius: '12px' }}>
+                    <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem', color: '#0F172A', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ti ti-shield-check" style={{ color: '#0D9488', fontSize: '18px' }} />
+                      Payment Validation Actions
+                    </h3>
+                    <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748B' }}>
+                      Status: <strong style={{ color: '#D97706' }}>{viewPayment.status}</strong>. Complete the validation verification below.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setVerificationStatus('Validate')}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: verificationStatus === 'Validate' ? '2px solid #0D9488' : '1px solid #CBD5E1',
+                          background: verificationStatus === 'Validate' ? '#F0FDFA' : '#FFFFFF',
+                          color: verificationStatus === 'Validate' ? '#0F766E' : '#475569',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
                       >
-                        <option value="Validate">Validate Payment</option>
-                        <option value="Reject">Reject Payment</option>
-                      </select>
+                        <i className="ti ti-check" />
+                        {isFinanceManager ? 'Approve & Validate' : 'Validate Payment'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVerificationStatus('Reject')}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: verificationStatus === 'Reject' ? '2px solid #DC2626' : '1px solid #CBD5E1',
+                          background: verificationStatus === 'Reject' ? '#FEF2F2' : '#FFFFFF',
+                          color: verificationStatus === 'Reject' ? '#DC2626' : '#475569',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <i className="ti ti-x" />
+                        Reject
+                      </button>
                     </div>
 
                     {verificationStatus === 'Reject' && (
                       <div style={{ marginBottom: '16px' }}>
                         <textarea
-                          placeholder="Reason for rejection..."
+                          placeholder="Please provide a reason for rejecting this payment..."
                           value={rejectionReason}
                           onChange={(e) => setRejectionReason(e.target.value)}
-                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', resize: 'none', height: '80px', boxSizing: 'border-box' }}
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #FCA5A5',
+                            fontSize: '13px',
+                            resize: 'none',
+                            height: '75px',
+                            boxSizing: 'border-box',
+                            background: '#FFF8F8'
+                          }}
                         />
                       </div>
                     )}
 
                     <Button
-                      title={verificationStatus === 'Validate' ? 'Confirm Validation' : 'Reject Payment'}
+                      title={verificationStatus === 'Validate' ? (isFinanceManager ? 'Confirm Approval & Validate' : 'Confirm Validation') : 'Confirm Rejection'}
                       variant={verificationStatus === 'Validate' ? 'primary' : 'danger'}
                       onClick={() => handleAFMSubmit(viewPayment)}
+                      disabled={submitted || (verificationStatus === 'Reject' && !rejectionReason.trim())}
                       fullWidth
                     />
                   </Card>

@@ -75,12 +75,32 @@ export const InvoicingDesk: React.FC = () => {
 
   const selectedClientId = viewClient ? viewClient.id : null;
 
+  type InvoiceTab = 'All' | 'Pending' | 'Listed' | 'Approved' | 'Needs Revision';
+  const initialTabParam = searchParams.get('tab') || searchParams.get('status') || 'All';
+  const initialNormalizedTab: InvoiceTab =
+    initialTabParam.toLowerCase().includes('pending') ? 'Pending' :
+    initialTabParam.toLowerCase().includes('draft') || initialTabParam.toLowerCase().includes('listed') ? 'Listed' :
+    initialTabParam.toLowerCase().includes('approved') ? 'Approved' :
+    initialTabParam.toLowerCase().includes('revision') ? 'Needs Revision' : 'All';
+
+  const [activeTab, setActiveTab] = useState<InvoiceTab>(initialNormalizedTab);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedClientName, setSelectedClientName] = useState('All');
+
+  // Tab counts for quick lifecycle overview
+  const tabCounts = useMemo(() => {
+    return {
+      all: invoices.length,
+      pending: invoices.filter(i => (i.status as string) === 'Pending Approval' || (i.status as string) === 'Pending').length,
+      listed: invoices.filter(i => (i.status as string) === 'Draft' || (i.status as string) === 'Listed').length,
+      approved: invoices.filter(i => (i.status as string) === 'Approved' || (i.status as string) === 'Sent' || (i.status as string) === 'Paid').length,
+      needsRevision: invoices.filter(i => (i.status as string) === 'Needs Revision' || (i.status as string) === 'Returned for revision').length,
+    };
+  }, [invoices]);
 
   // Enrich invoices with client names, proper waybill counts, and derived status
   const enrichedInvoices = useMemo(() => {
@@ -89,7 +109,7 @@ export const InvoicingDesk: React.FC = () => {
       : invoices;
 
     const activeInvoices = base.filter((inv: Invoice) => {
-      if (!['Draft', 'Needs Revision', 'Pending Approval', 'Approved'].includes(inv.status)) return false;
+      if (!['Draft', 'Needs Revision', 'Pending Approval', 'Approved', 'Sent', 'Paid'].includes(inv.status)) return false;
       if (filterDateFrom || filterDateTo) {
         const itemDate = new Date(inv.createdAt);
         itemDate.setHours(0, 0, 0, 0);
@@ -133,15 +153,26 @@ export const InvoicingDesk: React.FC = () => {
           return false;
         }
       }
-      if (selectedStatus !== 'All' && inv.status !== selectedStatus) {
+      // Explicit Tab Lifecycle Filtering
+      const invStatus = inv.status as string;
+      if (activeTab === 'Pending') {
+        if (invStatus !== 'Pending Approval' && invStatus !== 'Pending') return false;
+      } else if (activeTab === 'Listed') {
+        if (invStatus !== 'Draft' && invStatus !== 'Listed') return false;
+      } else if (activeTab === 'Approved') {
+        if (invStatus !== 'Approved' && invStatus !== 'Sent' && invStatus !== 'Paid') return false;
+      } else if (activeTab === 'Needs Revision') {
+        if (invStatus !== 'Needs Revision' && invStatus !== 'Returned for revision') return false;
+      } else if (selectedStatus !== 'All' && inv.status !== selectedStatus) {
         return false;
       }
+
       if (selectedClientName !== 'All' && inv.clientName !== selectedClientName) {
         return false;
       }
       return true;
     });
-  }, [selectedClientId, invoices, filterDateFrom, filterDateTo, clients, allWaybills, searchQuery, selectedStatus, selectedClientName]);
+  }, [selectedClientId, invoices, filterDateFrom, filterDateTo, clients, allWaybills, searchQuery, activeTab, selectedStatus, selectedClientName]);
 
   const allClients: string[] = useMemo(() => {
     return Array.from(new Set(invoices.map((inv: Invoice) => {
@@ -171,6 +202,24 @@ export const InvoicingDesk: React.FC = () => {
     }
   };
 
+  const handleSendToStars = async (inv: Invoice) => {
+    try {
+      await invoicesService.sendToStars(inv.invoiceNumber);
+      await auditLogsService.create({
+        action: 'SEND_TO_STARS',
+        module: 'InvoicingDesk',
+        recordId: inv.id,
+        recordType: 'Invoice',
+        details: `Dispatched invoice ${inv.invoiceNumber} to STARS integration`,
+        ipAddress: '127.0.0.1',
+      });
+      toast.success(`Invoice ${inv.invoiceNumber} successfully sent to STARS for integration endorsement.`, 'STARS Integration');
+      refetchInvoices();
+    } catch {
+      toast.error('Failed to dispatch invoice to STARS.', 'STARS Error');
+    }
+  };
+
   const tableColumns = [
     { key: 'invoiceNumber', label: 'Invoice No.', sortable: true },
     { key: 'clientName', label: 'Client', sortable: true },
@@ -196,10 +245,10 @@ export const InvoicingDesk: React.FC = () => {
   // Single status-to-actions map defining allowed actions per invoice status
   const STATUS_ACTIONS_MAP: Record<string, string[]> = {
     'Draft': ['View', 'Edit Draft', 'Submit for Approval'],
-    'Pending Approval': ['View'],
+    'Pending Approval': ['View', 'Approve', 'Return for Revision'],
     'Returned for revision': ['View', 'Edit', 'Resubmit'],
     'Needs Revision': ['View', 'Edit', 'Resubmit'],
-    'Approved': ['View', 'Print'],
+    'Approved': ['View', 'Print', 'Download PDF', 'Send to STARS for Integration'],
   };
 
   // Action configurations mapping action names to handlers and icons
@@ -228,6 +277,16 @@ export const InvoicingDesk: React.FC = () => {
       icon: 'ti-send',
       onClick: (row: any) => handleTransition(row.id, 'Pending Approval', `Invoice ${row.invoiceNumber} submitted for approval`),
     },
+    'Approve': {
+      label: 'Approve',
+      icon: 'ti-check',
+      onClick: (row: any) => handleTransition(row.id, 'Approved', `Invoice ${row.invoiceNumber} approved`),
+    },
+    'Return for Revision': {
+      label: 'Return for Revision',
+      icon: 'ti-rotate-2',
+      onClick: (row: any) => handleTransition(row.id, 'Needs Revision', `Invoice ${row.invoiceNumber} returned for revision`),
+    },
     'Resubmit': {
       label: 'Resubmit',
       icon: 'ti-send',
@@ -241,6 +300,11 @@ export const InvoicingDesk: React.FC = () => {
         setModalInvoiceId(row.id);
         setIsAutoPrint(true);
       },
+    },
+    'Send to STARS for Integration': {
+      label: 'Send to STARS for Integration',
+      icon: 'ti-cloud-upload',
+      onClick: (row: any) => handleSendToStars(row),
     },
   };
 
@@ -266,7 +330,16 @@ export const InvoicingDesk: React.FC = () => {
                 <Button title="Edit Invoice" variant="secondary" icon="ti-pencil" onClick={() => navigate(`/invoice-create?edit=${viewInvoice?.id}`)} />
               )}
               {viewInvoice.status === 'Approved' && (
-                <Button title="Mark as Sent" variant="primary" icon="ti-send" onClick={() => handleTransition(viewInvoice!.id, 'Sent', 'Invoice marked as sent')} />
+                <>
+                  <Button title="Send to STARS for Integration" variant="primary" icon="ti-cloud-upload" onClick={() => handleSendToStars(viewInvoice)} />
+                  <Button title="Mark as Sent" variant="secondary" icon="ti-send" onClick={() => handleTransition(viewInvoice!.id, 'Sent', 'Invoice marked as sent')} />
+                </>
+              )}
+              {viewInvoice.status === 'Pending Approval' && (
+                <>
+                  <Button title="Approve Invoice" variant="primary" icon="ti-check" onClick={() => handleTransition(viewInvoice!.id, 'Approved', `Invoice ${viewInvoice!.invoiceNumber} approved`)} />
+                  <Button title="Return for Revision" variant="danger" icon="ti-rotate-2" onClick={() => handleTransition(viewInvoice!.id, 'Needs Revision', `Invoice ${viewInvoice!.invoiceNumber} returned for revision`)} />
+                </>
               )}
             </div>
           </div>
@@ -277,6 +350,59 @@ export const InvoicingDesk: React.FC = () => {
       ) : (
         <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
         
+        {/* Status Lifecycle Filter Tabs */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: '1px solid #E2E8F0', paddingBottom: '14px' }}>
+          {[
+            { key: 'All', label: 'All Invoices', count: tabCounts.all, icon: 'ti-files' },
+            { key: 'Pending', label: 'Pending', count: tabCounts.pending, icon: 'ti-clock' },
+            { key: 'Listed', label: 'Listed', count: tabCounts.listed, icon: 'ti-list-details' },
+            { key: 'Approved', label: 'Approved', count: tabCounts.approved, icon: 'ti-check' },
+            ...(tabCounts.needsRevision > 0 ? [{ key: 'Needs Revision', label: 'Needs Revision', count: tabCounts.needsRevision, icon: 'ti-alert-circle' }] : []),
+          ].map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab.key as any);
+                  setSelectedStatus('All');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '9999px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  border: isActive ? '1px solid #0D9488' : '1px solid #E2E8F0',
+                  background: isActive ? '#0D9488' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : '#475569',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? '0 2px 4px rgba(13, 148, 136, 0.2)' : 'none',
+                }}
+              >
+                <i className={`ti ${tab.icon}`} />
+                <span>{tab.label}</span>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '2px 7px',
+                    borderRadius: '9999px',
+                    background: isActive ? 'rgba(255, 255, 255, 0.25)' : '#F1F5F9',
+                    color: isActive ? '#FFFFFF' : '#64748B',
+                    fontWeight: 800,
+                  }}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Header Row: Title & View Mode Toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -550,46 +676,136 @@ export const InvoicingDesk: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: '6px' }}>
                       {(inv.status === 'Draft' || inv.status === 'Needs Revision') && (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/invoice-create?edit=${inv.id}`)}
-                          style={{
-                            padding: '8px 10px',
-                            background: '#F1F5F9',
-                            color: '#334155',
-                            border: '1px solid #E2E8F0',
-                            borderRadius: '8px',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                          title="Edit Invoice"
-                        >
-                          <i className="ti ti-pencil" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/invoice-create?edit=${inv.id}`)}
+                            style={{
+                              padding: '8px 10px',
+                              background: '#F1F5F9',
+                              color: '#334155',
+                              border: '1px solid #E2E8F0',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Edit Invoice"
+                          >
+                            <i className="ti ti-pencil" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTransition(inv.id, 'Pending Approval', `Invoice ${inv.invoiceNumber} submitted for approval`)}
+                            style={{
+                              padding: '8px 10px',
+                              background: '#F0FDFA',
+                              color: '#0D9488',
+                              border: '1px solid #99F6E4',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Submit for Approval"
+                          >
+                            <i className="ti ti-send" />
+                          </button>
+                        </>
                       )}
                       {inv.status === 'Approved' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalInvoice(inv);
-                            setModalInvoiceId(inv.id);
-                            setIsAutoPrint(true);
-                          }}
-                          style={{
-                            padding: '8px 10px',
-                            background: '#F0FDFA',
-                            color: '#0D9488',
-                            border: '1px solid #99F6E4',
-                            borderRadius: '8px',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                          title="Download PDF"
-                        >
-                          <i className="ti ti-file-type-pdf" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSendToStars(inv)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '8px 12px',
+                              background: '#0D9488',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'background 0.15s ease',
+                              whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                            title="Send to STARS for Integration"
+                          >
+                            <i className="ti ti-cloud-upload" />
+                            Send to STARS for Integration
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalInvoice(inv);
+                              setModalInvoiceId(inv.id);
+                              setIsAutoPrint(true);
+                            }}
+                            style={{
+                              padding: '8px 10px',
+                              background: '#F0FDFA',
+                              color: '#0D9488',
+                              border: '1px solid #99F6E4',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Download PDF"
+                          >
+                            <i className="ti ti-file-type-pdf" />
+                          </button>
+                        </>
+                      )}
+                      {inv.status === 'Pending Approval' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleTransition(inv.id, 'Approved', `Invoice ${inv.invoiceNumber} approved`)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '8px 12px',
+                              background: '#0D9488',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            title="Approve Invoice"
+                          >
+                            <i className="ti ti-check" /> Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTransition(inv.id, 'Needs Revision', `Invoice ${inv.invoiceNumber} returned for revision`)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '8px 10px',
+                              background: '#FEF2F2',
+                              color: '#DC2626',
+                              border: '1px solid #FECACA',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Return for Revision"
+                          >
+                            <i className="ti ti-rotate-2" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -621,6 +837,7 @@ export const InvoicingDesk: React.FC = () => {
         invoiceId={modalInvoiceId}
         initialInvoice={modalInvoice}
         autoPrint={isAutoPrint}
+        onSendToStars={handleSendToStars}
         onClose={() => {
           setModalInvoiceId(null);
           setModalInvoice(null);

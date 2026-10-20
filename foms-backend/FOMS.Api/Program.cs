@@ -25,17 +25,15 @@ for (var dir = currentDir; dir != null; dir = dir.Parent)
             {
                 var key = parts[0].Trim();
                 var val = parts[1].Trim().Trim('"').Trim('\'');
-                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
-                {
-                    Environment.SetEnvironmentVariable(key, val);
-                }
+                Environment.SetEnvironmentVariable(key, val);
                 if (key.Contains("__"))
                 {
                     var configKey = key.Replace("__", ":");
-                    if (string.IsNullOrEmpty(builder.Configuration[configKey]))
-                    {
-                        builder.Configuration[configKey] = val;
-                    }
+                    builder.Configuration[configKey] = val;
+                }
+                else
+                {
+                    builder.Configuration[key] = val;
                 }
             }
         }
@@ -71,15 +69,7 @@ if (secret.Length < 32)
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-var fomsDbConnection = builder.Configuration.GetConnectionString("FomsSqlServer");
-if (string.IsNullOrWhiteSpace(fomsDbConnection))
-    fomsDbConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(fomsDbConnection))
-    fomsDbConnection = Environment.GetEnvironmentVariable("ConnectionStrings__FomsSqlServer");
-if (string.IsNullOrWhiteSpace(fomsDbConnection))
-    fomsDbConnection = Environment.GetEnvironmentVariable("MSSQL_CONNECTION_STRING");
-if (string.IsNullOrWhiteSpace(fomsDbConnection))
-    fomsDbConnection = "Server=localhost\\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;";
+var fomsDbConnection = FOMS.Infrastructure.Configuration.DatabaseConfiguration.GetConnectionString(builder.Configuration);
 
 builder.Services.AddDbContext<FomsDbContext>(options =>
     options.UseSqlServer(fomsDbConnection));

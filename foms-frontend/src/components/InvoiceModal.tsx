@@ -11,6 +11,7 @@ export interface InvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   autoPrint?: boolean;
+  onSendToStars?: (invoice: Invoice) => void;
 }
 
 /**
@@ -23,6 +24,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   isOpen,
   onClose,
   autoPrint = false,
+  onSendToStars,
 }) => {
   const [invoice, setInvoice] = useState<Invoice | null>(initialInvoice || null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -404,6 +406,24 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           <Button title="Close" variant="secondary" onClick={onClose} />
           {invoice && !isLoading && !error && (
             <>
+              {(invoice.status === 'Approved' || invoice.status === 'Sent' || invoice.status === 'Paid') && (
+                <Button
+                  title="Send to STARS for Integration"
+                  variant="primary"
+                  icon="ti-cloud-upload"
+                  onClick={async () => {
+                    if (onSendToStars) {
+                      onSendToStars(invoice);
+                    } else {
+                      try {
+                        await invoicesService.sendToStars(invoice.invoiceNumber);
+                      } catch (err) {
+                        console.warn('STARS integration fallback:', err);
+                      }
+                    }
+                  }}
+                />
+              )}
               <Button
                 title={isDownloading ? "Generating PDF..." : "Download PDF"}
                 variant="primary"

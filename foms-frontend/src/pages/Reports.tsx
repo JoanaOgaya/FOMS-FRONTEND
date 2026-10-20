@@ -99,6 +99,7 @@ const ReportsContent: React.FC = () => {
   const [activeSearch, setActiveSearch] = useState('');
   const [compileDateRange, setCompileDateRange] = useState('All Time');
   const [compileStatus, setCompileStatus] = useState('All Statuses');
+  const [compileClientFilter, setCompileClientFilter] = useState('All');
 
   const handleGenerateReport = () => {
     const today = new Date();
@@ -847,6 +848,27 @@ const ReportsContent: React.FC = () => {
                 <option>Pending Review</option>
                 <option>Resolved</option>
                 <option>Dismissed</option>
+              </select>
+              <i className="ti ti-chevron-down" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748B', fontSize: '13px', pointerEvents: 'none' }} />
+            </div>
+          </div>
+
+          {/* Client Filter */}
+          <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Filter</label>
+            <div style={{ position: 'relative' }}>
+              <select
+                aria-label="Client Filter"
+                value={compileClientFilter}
+                onChange={e => setCompileClientFilter(e.target.value)}
+                style={{ width: '100%', appearance: 'none', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '9px 32px 9px 12px', fontSize: '0.85rem', color: '#0F172A', cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="All">All Clients</option>
+                {clients.map((c: Client) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.id})
+                  </option>
+                ))}
               </select>
               <i className="ti ti-chevron-down" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748B', fontSize: '13px', pointerEvents: 'none' }} />
             </div>

@@ -69,25 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ logoUrl = "/logo.png" }) => {
                   <span className="nav-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                     <i className={item.icon} style={{ fontSize: "18px" }} />
                   </span>
-                  <span className="nav-label" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>{moduleLabel(item, user?.role)}</span>
-                    {item.key === 'manualReviewQueue' && (
-                      <span
-                        style={{
-                          background: '#EF4444',
-                          color: '#FFFFFF',
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          padding: '1px 7px',
-                          borderRadius: '9999px',
-                          marginLeft: '8px',
-                          display: 'inline-block',
-                          lineHeight: '1.4',
-                        }}
-                      >
-                        2
-                      </span>
-                    )}
+                  <span className="nav-label">
+                    {moduleLabel(item, user?.role)}
                   </span>
                 </NavLink>
               </div>

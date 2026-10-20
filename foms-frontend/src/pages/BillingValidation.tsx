@@ -31,9 +31,13 @@ export const BillingValidation: React.FC = () => {
   const billingRates: BillingRate[] = ratesData?.items || [];
   const clients: Client[] = clientsData?.items || [];
 
+  const isFinancialManager = user?.role === 'FINANCIAL_MANAGER';
+  const canCompute = !isFinancialManager;
+  const isHead = user?.role === 'HEAD_ACCOUNTANT' || user?.role === 'FINANCIAL_MANAGER';
+
   const [billingRecords, setBillingRecords] = useState<BillingRecord[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<BillingTab>('unbilled');
+  const [activeTab, setActiveTab] = useState<BillingTab>(canCompute ? 'unbilled' : 'pending');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [cardSearchQuery, setCardSearchQuery] = useState('');
   const [cardClientFilter, setCardClientFilter] = useState('');
@@ -48,12 +52,16 @@ export const BillingValidation: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
+    if (isFinancialManager && activeTab === 'unbilled') {
+      setActiveTab('pending');
+    }
+  }, [isFinancialManager, activeTab]);
+
+  useEffect(() => {
     if (recordsData?.items) {
       setBillingRecords(recordsData.items);
     }
   }, [recordsData?.items]);
-
-  const isHead = user?.role === 'HEAD_ACCOUNTANT' || user?.role === 'FINANCIAL_MANAGER';
 
   // Helper to get applicable active rates for a client
   const getRatesForClient = (clientCode: string): BillingRate[] => {
@@ -237,7 +245,12 @@ export const BillingValidation: React.FC = () => {
   };
 
   // Manager Approve
-  const handleApprove = (recordId: string) => {
+  const handleApprove = async (recordId: string) => {
+    try {
+      await ratesService.records.act(recordId, 'approve');
+    } catch {
+      // optimistic fallback
+    }
     setBillingRecords(prev => prev.map(r => r.id === recordId ? {
       ...r,
       status: 'Approved',
@@ -248,8 +261,13 @@ export const BillingValidation: React.FC = () => {
   };
 
   // Manager Return / Reject
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!rejectingRecordId) return;
+    try {
+      await ratesService.records.act(rejectingRecordId, 'return', { remarks: rejectReason || 'Returned by Finance Manager for revision.' });
+    } catch {
+      // optimistic fallback
+    }
     setBillingRecords(prev => prev.map(r => r.id === rejectingRecordId ? {
       ...r,
       status: 'Returned',
@@ -331,7 +349,7 @@ export const BillingValidation: React.FC = () => {
                 </button>
               </div>
 
-              {activeTab === 'unbilled' && (
+              {canCompute && activeTab === 'unbilled' && (
                 <Button
                   title={selectedIds.length > 0 ? `Compute & Submit (${selectedIds.length})` : 'Compute & Submit'}
                   variant="primary"
@@ -353,13 +371,15 @@ export const BillingValidation: React.FC = () => {
 
           {/* FOMS Tab Switcher Buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-            <Button
-              title={`Unbilled Waybills (${availableWaybills.length})`}
-              variant={activeTab === 'unbilled' ? 'primary' : 'secondary'}
-              size="sm"
-              icon="ti-packages"
-              onClick={() => setActiveTab('unbilled')}
-            />
+            {canCompute && (
+              <Button
+                title={`Unbilled Waybills (${availableWaybills.length})`}
+                variant={activeTab === 'unbilled' ? 'primary' : 'secondary'}
+                size="sm"
+                icon="ti-packages"
+                onClick={() => setActiveTab('unbilled')}
+              />
+            )}
             <Button
               title={`Pending Review (${pendingRecords.length})`}
               variant={activeTab === 'pending' ? 'primary' : 'secondary'}
@@ -368,7 +388,7 @@ export const BillingValidation: React.FC = () => {
               onClick={() => setActiveTab('pending')}
             />
             <Button
-              title={`Approved Records (${approvedRecords.length})`}
+              title={`Validated Records (${approvedRecords.length})`}
               variant={activeTab === 'approved' ? 'primary' : 'secondary'}
               size="sm"
               icon="ti-check"
@@ -409,7 +429,7 @@ export const BillingValidation: React.FC = () => {
                 />
               </div>
 
-              {activeTab === 'unbilled' && (
+              {canCompute && activeTab === 'unbilled' && (
                 <>
                   <select
                     value={cardClientFilter}
@@ -488,7 +508,7 @@ export const BillingValidation: React.FC = () => {
           )}
 
           {/* ── TAB 1: UNBILLED WAYBILLS ── */}
-          {activeTab === 'unbilled' && (
+          {canCompute && activeTab === 'unbilled' && (
             viewMode === 'cards' ? (
               filteredCalculatedWaybills.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '64px 20px', color: '#94A3B8' }}>

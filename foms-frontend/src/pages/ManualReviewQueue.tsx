@@ -9,6 +9,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContext';
 import { ROLES } from '../types/auth';
+import { StatusBadge } from '../components/shared/StatusBadge';
 import { duplicateScanService } from '../services/duplicateScanService';
 import type { DuplicateAlert, HumanValidationPayload } from '../types/duplicateScan';
 
@@ -27,6 +28,9 @@ export const ManualReviewQueue: React.FC = () => {
   const [queueItems, setQueueItems] = useState<DuplicateAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View mode
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -229,7 +233,49 @@ export const ManualReviewQueue: React.FC = () => {
             Inspect flagged documents, verify parameters side by side, and log final validation decisions.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* View Mode Switcher */}
+          <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #CBD5E1', overflow: 'hidden', background: '#F8FAFC' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              style={{
+                padding: '8px 14px',
+                border: 'none',
+                background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+                color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <i className="ti ti-layout-grid" /> Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              style={{
+                padding: '8px 14px',
+                border: 'none',
+                background: viewMode === 'table' ? '#0D9488' : 'transparent',
+                color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <i className="ti ti-table" /> Table
+            </button>
+          </div>
+
           <button
             onClick={handleExportCSV}
             disabled={filteredQueue.length === 0}
@@ -412,8 +458,159 @@ export const ManualReviewQueue: React.FC = () => {
               </div>
             )}
 
+            {/* Cards Grid View */}
+            {!loading && !error && filteredQueue.length > 0 && viewMode === 'cards' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px', padding: '20px', background: '#F8FAFC' }}>
+                {filteredQueue.map((item) => (
+                  <div
+                    key={item.alertId}
+                    style={{
+                      background: '#FFFFFF',
+                      borderRadius: '14px',
+                      border: '1px solid #E2E8F0',
+                      padding: '20px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 8px 16px -4px rgba(0,0,0,0.08)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.03)';
+                    }}
+                  >
+                    {/* Header: Alert ID + Status */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0F172A', background: '#F1F5F9', padding: '4px 10px', borderRadius: '6px' }}>
+                        {item.alertId}
+                      </span>
+                      <StatusBadge status={item.status} />
+                    </div>
+
+                    {/* Document Info */}
+                    <div>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.01em' }}>
+                        {item.documentNo}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
+                        {item.clientName}
+                      </div>
+                    </div>
+
+                    {/* Match Score & Conflict Row */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                          background: item.matchScore >= 90 ? '#FEF2F2' : '#FFFBEB',
+                          color: item.matchScore >= 90 ? '#DC2626' : '#D97706',
+                          border: `1px solid ${item.matchScore >= 90 ? '#FECACA' : '#FDE68A'}`,
+                        }}
+                      >
+                        <i className="ti ti-flame" />
+                        {item.matchScore}% Match Score
+                      </span>
+
+                      {item.conflictFlag && (
+                        <span
+                          title={item.conflictReason || 'Conflicting master record'}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            background: '#FFFBEB',
+                            color: '#D97706',
+                            border: '1px solid #FDE68A',
+                          }}
+                        >
+                          <i className="ti ti-flag-filled" />
+                          Conflict
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Submission Metadata Box */}
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        background: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Submitted By:</span>
+                        <strong style={{ color: '#0F172A' }}>{item.submittedBy}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Submitted At:</span>
+                        <span style={{ color: '#475569' }}>
+                          {new Date(item.submittedAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReview(item)}
+                        style={{
+                          width: '100%',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          padding: '10px 16px',
+                          background: '#0D9488',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: '0 1px 2px rgba(13, 148, 136, 0.2)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                      >
+                        <i className="ti ti-eye" style={{ fontSize: '15px' }} />
+                        Review Document
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Queue Table */}
-            {!loading && !error && filteredQueue.length > 0 && (
+            {!loading && !error && filteredQueue.length > 0 && viewMode === 'table' && (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                   <thead>
@@ -477,27 +674,32 @@ export const ManualReviewQueue: React.FC = () => {
                             <span style={{ color: '#CBD5E1' }}>-</span>
                           )}
                         </td>
-                        <td style={{ padding: '14px 18px' }}>
-                          <span style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FCD34D', padding: '3px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                            {item.status}
-                          </span>
+                        <td style={{ padding: '14px 18px', verticalAlign: 'middle' }}>
+                          <StatusBadge status={item.status} />
                         </td>
-                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                        <td style={{ padding: '14px 18px', textAlign: 'right', verticalAlign: 'middle' }}>
                           <button
                             type="button"
                             onClick={() => handleOpenReview(item)}
                             style={{
-                              padding: '7px 18px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '7px 16px',
                               background: '#0D9488',
                               color: '#FFFFFF',
                               border: 'none',
-                              borderRadius: '6px',
-                              fontSize: '0.8rem',
+                              borderRadius: '8px',
+                              fontSize: '0.82rem',
                               fontWeight: 700,
                               cursor: 'pointer',
-                              boxShadow: '0 1px 3px rgba(13, 148, 136, 0.2)',
+                              transition: 'all 0.15s ease',
+                              boxShadow: '0 1px 2px rgba(13, 148, 136, 0.2)',
                             }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
                           >
+                            <i className="ti ti-eye" style={{ fontSize: '14px' }} />
                             Review
                           </button>
                         </td>

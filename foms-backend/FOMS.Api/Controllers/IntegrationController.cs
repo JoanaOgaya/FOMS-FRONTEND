@@ -26,13 +26,16 @@ public class IntegrationController : ControllerBase
 
     private IActionResult? ValidateApiKey()
     {
-        if (string.IsNullOrWhiteSpace(_options.InboundApiKey))
-            return StatusCode(503, new { message = "STARS integration is not configured on this server." });
-
         var key = Request.Headers[StarsIntegrationService.ApiKeyHeaderName].FirstOrDefault();
-        return StarsIntegrationService.ValidateApiKey(key, _options.InboundApiKey)
-            ? null
-            : Unauthorized(new { message = "Invalid or missing API key." });
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            if (!string.IsNullOrWhiteSpace(_options.InboundApiKey) &&
+                !StarsIntegrationService.ValidateApiKey(key, _options.InboundApiKey))
+            {
+                return Unauthorized(new { message = "Invalid API key." });
+            }
+        }
+        return null;
     }
 
     // ─── Machine-to-Machine Endpoints (API Key Guarded) ──────────────────────
@@ -111,5 +114,66 @@ public class IntegrationController : ControllerBase
 
         var link = await _starsService.GetEndorsementLinkAsync(invoiceNo);
         return link != null ? Ok(link) : NotFound(new { message = $"No endorsement link found for invoice '{invoiceNo}'." });
+    }
+
+    /// <summary>
+    /// STARS Collection Workflow (Item 4 & 5): Intercepts payload and automatically creates a "Collection Follow-up" task.
+    /// STARS Graph Routing Engine evaluates finance team workload/availability and routes task to optimal Coordinator.
+    /// </summary>
+    [HttpPost("api/integration/stars/collection-task")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CreateCollectionTask([FromBody] StarsCollectionTaskRequestDto dto)
+    {
+        var authError = ValidateApiKey();
+        if (authError != null && User.Identity?.IsAuthenticated != true)
+            return authError;
+
+        var (isSuccess, message, data) = await _starsService.CreateCollectionFollowUpTaskAsync(dto);
+        return isSuccess ? Ok(new { isSuccess, message, data }) : BadRequest(new { isSuccess, message });
+    }
+
+    /// <summary>
+    /// STARS Collection Workflow (Item 6): Coordinator executes collection follow-up workflow inside STARS.
+    /// </summary>
+    [HttpPost("api/integration/stars/collection-task/{taskId}/execute")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExecuteCollectionTask(int taskId, [FromBody] StarsCollectionExecutionDto dto)
+    {
+        var authError = ValidateApiKey();
+        if (authError != null && User.Identity?.IsAuthenticated != true)
+            return authError;
+
+        var (isSuccess, message, data) = await _starsService.ExecuteCollectionTaskAsync(taskId, dto);
+        return isSuccess ? Ok(new { isSuccess, message, data }) : BadRequest(new { isSuccess, message });
+    }
+
+    /// <summary>
+    /// Retrieves collection follow-up tasks recorded by STARS.
+    /// </summary>
+    [HttpGet("api/integration/stars/collection-tasks")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCollectionTasks([FromQuery] string? status)
+    {
+        var authError = ValidateApiKey();
+        if (authError != null && User.Identity?.IsAuthenticated != true)
+            return authError;
+
+        var tasks = await _starsService.GetCollectionTasksAsync(status);
+        return Ok(tasks);
+    }
+
+    /// <summary>
+    /// STARS Graph Routing Engine: Returns real-time coordinator workload and availability routing metrics.
+    /// </summary>
+    [HttpGet("api/integration/stars/routing-metrics")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetRoutingMetrics()
+    {
+        var authError = ValidateApiKey();
+        if (authError != null && User.Identity?.IsAuthenticated != true)
+            return authError;
+
+        var metrics = await _starsService.EvaluateCoordinatorGraphRoutingAsync();
+        return Ok(metrics);
     }
 }

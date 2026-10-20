@@ -201,11 +201,14 @@ const ClientManagementInner: React.FC = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (id) {
+      const clientRecord = clients.find(c => c.id === id);
       try {
         await clientsService.update(id, {
+          clientCode: (clientRecord as any)?.clientCode || clientRecord?.id || id,
           name: formData.name,
           contactPerson: formData.contactPerson,
           phone: formData.contactNumber,
+          contactNumber: formData.contactNumber,
           address: formData.address,
           billingSchedule: formData.billingSchedule as any,
           status: formData.status as any,
@@ -221,14 +224,26 @@ const ClientManagementInner: React.FC = () => {
         refetchClients();
         toast.success(`Client ${id} successfully updated.`);
         setIsEditMode(false);
-      } catch {
-        toast.error('Failed to update client.');
+      } catch (err: any) {
+        if (err?.status === 409 || err?.response?.status === 409 || err?.message?.includes('conflict') || err?.message?.includes('version')) {
+          toast.error('This record was changed by someone else. Please refresh and try again.');
+        } else {
+          toast.error('Failed to update client.');
+        }
       }
     }
   };
 
+  const [isSubmittingNew, setIsSubmittingNew] = useState(false);
+
   const handleAddNewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingNew) return;
+    if (clients.some(c => c.name.trim().toLowerCase() === formData.name.trim().toLowerCase())) {
+      toast.error('A client with this name already exists.');
+      return;
+    }
+    setIsSubmittingNew(true);
     try {
       const payload: Partial<Client> = {
         name: formData.name,
@@ -266,12 +281,41 @@ const ClientManagementInner: React.FC = () => {
       });
     } catch {
       toast.error('Failed to create client.');
+    } finally {
+      setIsSubmittingNew(false);
     }
   };
 
   if (id) {
     const editingClient = clients.find(c => c.id === id);
-    if (!editingClient) return <div>Client not found</div>;
+    if (!editingClient) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748B' }}>
+          <p style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '16px' }}>
+            Client {id} not found
+          </p>
+          <button
+            type="button"
+            onClick={() => refetchClients()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              background: '#0D9488',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <i className="ti ti-refresh" /> Retry
+          </button>
+        </div>
+      );
+    }
 
     // QA-003: Draft invoices belong only in the invoice list/workspace.
     // Client Accounts billing history displays only Pending, Approved, Rejected, and Paid invoices.
@@ -319,10 +363,63 @@ const ClientManagementInner: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Header Card */}
             <div style={{ background: '#0F172A', color: 'white', padding: '32px 24px', borderRadius: '12px' }}>
-              <p style={{ margin: '0 0 8px', fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Company Code</p>
-              <h2 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 700, color: 'white' }}>{editingClient.id} · {editingClient.name}</h2>
-              <div style={{ width: 'fit-content' }}>
-                <StatusBadge status={editingClient.status} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <p style={{ margin: '0 0 8px', fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Company Code</p>
+                  <h2 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 700, color: 'white' }}>{editingClient.id} · {editingClient.name}</h2>
+                  <div style={{ width: 'fit-content' }}>
+                    <StatusBadge status={editingClient.status} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/clients')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      color: '#FFFFFF',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
+                  >
+                    <i className="ti ti-arrow-left" style={{ fontSize: '16px' }} />
+                    Back to Clients
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditMode(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      background: '#0D9488',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#0F766E')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#0D9488')}
+                  >
+                    <i className="ti ti-edit" style={{ fontSize: '16px' }} />
+                    Edit Profile
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1048,7 +1145,7 @@ const ClientManagementInner: React.FC = () => {
               <div style={{ padding: '24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#64748B', letterSpacing: '0.05em' }}>EDIT CLIENT</h2>
-                  <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: 700, color: '#0F172A' }}>{editingClient.id}</h3>
+                  <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: 700, color: '#0F172A' }}>Client ID: {editingClient.id}</h3>
                 </div>
                 <button onClick={() => setIsEditMode(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94A3B8' }}>×</button>
               </div>
@@ -1092,7 +1189,20 @@ const ClientManagementInner: React.FC = () => {
                   </div>
                   <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                     <Button variant="secondary" title="Cancel" type="button" onClick={() => setIsEditMode(false)} />
-                    <Button variant="primary" title="Save Changes" type="submit" />
+                    <Button
+                      variant="primary"
+                      title="Save Changes"
+                      type="submit"
+                      disabled={
+                        formData.name === editingClient.name &&
+                        formData.contactPerson === editingClient.contactPerson &&
+                        formData.contactNumber === (editingClient.phone || '') &&
+                        formData.address === editingClient.address &&
+                        formData.rateType === 'Standard' &&
+                        formData.billingSchedule === editingClient.billingSchedule &&
+                        formData.status === editingClient.status
+                      }
+                    />
                   </div>
                 </form>
               </div>

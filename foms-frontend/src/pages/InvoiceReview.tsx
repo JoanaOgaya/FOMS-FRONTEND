@@ -365,13 +365,32 @@ export const InvoiceReview: React.FC = () => {
                   <StatusBadge status={row.pendingCount > 0 ? 'Pending' : 'Approved'} />
                 )
               },
-              { key: 'totalAmount', label: 'Total Value', render: (row: any) => formatCurrency(row.totalAmount) }
-            ]}
-            actions={[
+              { key: 'totalAmount', label: 'Total Value', render: (row: any) => formatCurrency(row.totalAmount) },
               {
-                label: 'View Details',
-                icon: 'ti-eye',
-                onClick: (row: any) => navigate(`/invoice-review/${row.id}`)
+                key: 'reviewAction',
+                label: 'Action',
+                render: (row: any) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inv = invoices.find(i => i.clientId === row.id || i.clientName === row.clientName);
+                      if (inv) setSelectedInvoice(inv);
+                      else navigate(`/invoice-review/${row.id}`);
+                    }}
+                    style={{
+                      background: '#0D9488',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Review Invoice
+                  </button>
+                )
               }
             ]}
           />

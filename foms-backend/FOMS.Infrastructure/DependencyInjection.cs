@@ -11,15 +11,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("FomsSqlServer");
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__FomsSqlServer");
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = Environment.GetEnvironmentVariable("MSSQL_CONNECTION_STRING");
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = "Server=localhost\\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;";
+        var connectionString = Configuration.DatabaseConfiguration.GetConnectionString(configuration);
 
         services.AddDbContext<ApplicationDbContext>(options =>
         {

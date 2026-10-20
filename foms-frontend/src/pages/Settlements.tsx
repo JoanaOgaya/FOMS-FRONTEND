@@ -20,6 +20,8 @@ const Settlements: React.FC = () => {
   const { toast } = useToast();
 
   const isManagerOrHead = ['HEAD_ACCOUNTANT', 'FINANCIAL_MANAGER', 'ADMIN', 'Head Accountant', 'Financial Manager'].includes(user?.role || '');
+  const isFinancialManager = (user?.role as string) === 'FINANCIAL_MANAGER' || (user?.role as string) === 'Financial Manager';
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
   const {
     data: fetchedSettlements,
@@ -33,7 +35,6 @@ const Settlements: React.FC = () => {
   const [localSettlements, setLocalSettlements] = useState<Settlement[] | null>(null);
   const settlements = localSettlements ?? fetchedSettlements ?? [];
 
-  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [filterTab, setFilterTab] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,19 +103,26 @@ const Settlements: React.FC = () => {
       }
 
       // Date filtering
-      const submitDate = new Date(s.submittedAt);
-      submitDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      if (dateFrom || dateTo) {
+        const rawDate = s.submittedAt || (s as any).createdAt || (s as any).recordedAt;
+        if (rawDate) {
+          const submitDate = new Date(rawDate);
+          if (!isNaN(submitDate.getTime())) {
+            submitDate.setHours(0, 0, 0, 0); // Normalize to start of day
 
-      if (dateFrom) {
-        const fromD = new Date(dateFrom);
-        fromD.setHours(0, 0, 0, 0);
-        if (submitDate < fromD) return false;
-      }
-      
-      if (dateTo) {
-        const toD = new Date(dateTo);
-        toD.setHours(23, 59, 59, 999);
-        if (submitDate > toD) return false;
+            if (dateFrom) {
+              const fromD = new Date(dateFrom);
+              fromD.setHours(0, 0, 0, 0);
+              if (submitDate < fromD) return false;
+            }
+            
+            if (dateTo) {
+              const toD = new Date(dateTo);
+              toD.setHours(23, 59, 59, 999);
+              if (submitDate > toD) return false;
+            }
+          }
+        }
       }
 
       return true;
@@ -171,7 +179,7 @@ const Settlements: React.FC = () => {
           value={pendingCount} 
           icon="ti-clock-hour-4" 
           variant="warning" 
-          periodText="waiting for validation" 
+          periodText="awaiting review" 
         />
         <KpiCard 
           label="Leftover Cash" 
@@ -247,31 +255,33 @@ const Settlements: React.FC = () => {
               </button>
             </div>
 
-            {/* Record Settlement Button */}
-            <button
-              type="button"
-              onClick={() => setIsRecordModalOpen(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '9px 18px',
-                borderRadius: '8px',
-                border: 'none',
-                background: '#0D9488',
-                color: '#FFFFFF',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-                transition: 'background-color 0.15s ease',
-              }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0F766E'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0D9488'}
-            >
-              <i className="ti ti-plus" style={{ fontSize: '15px' }} />
-              Record Settlement
-            </button>
+            {/* Record Settlement Button - for Accountant / non-FM roles */}
+            {!isFinancialManager && (
+              <button
+                type="button"
+                onClick={() => setIsRecordModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#0D9488',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0F766E'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0D9488'}
+              >
+                <i className="ti ti-plus" style={{ fontSize: '15px' }} />
+                Record Settlement
+              </button>
+            )}
           </div>
         </div>
         
@@ -476,7 +486,9 @@ const Settlements: React.FC = () => {
                         <span style={{ fontWeight: 600, color: '#334155' }}>{row.tripRef}</span>
                         <span>•</span>
                         <span>
-                          {new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          {row.submittedAt && !isNaN(new Date(row.submittedAt).getTime())
+                            ? `${new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Recently'}
                         </span>
                       </div>
                     </div>
@@ -524,7 +536,7 @@ const Settlements: React.FC = () => {
                         }}
                       >
                         <i className={(isManagerOrHead && row.status === 'For validation') ? 'ti ti-file-search' : 'ti ti-eye'} />
-                        {(isManagerOrHead && row.status === 'For validation') ? 'Review Details' : 'View Details'}
+                        {(isManagerOrHead && row.status === 'For validation') ? 'Review Settlement' : 'View Details'}
                       </button>
                     </div>
                   </div>
@@ -575,8 +587,9 @@ const Settlements: React.FC = () => {
                     </td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600, color: '#1E293B', marginBottom: '2px' }}>
-                        {new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        , {new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {row.submittedAt && !isNaN(new Date(row.submittedAt).getTime())
+                          ? `${new Date(row.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(row.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Recently'}
                       </div>
                     </td>
                     <td style={tdStyle}>
@@ -695,7 +708,7 @@ const Settlements: React.FC = () => {
               )}
 
               <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '12px' }}>
-                Recorded by {selectedRecord.recordedBy} • {new Date(selectedRecord.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {new Date(selectedRecord.recordedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                Recorded by {selectedRecord.recordedBy || 'Accountant'} • {selectedRecord.recordedAt && !isNaN(new Date(selectedRecord.recordedAt).getTime()) ? `${new Date(selectedRecord.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(selectedRecord.recordedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : 'Recently'}
               </div>
 
               {selectedRecord.status === 'For validation' ? (
@@ -806,12 +819,14 @@ const Settlements: React.FC = () => {
         document.body
       )}
 
-      {/* Record Settlement Modal */}
-      <RecordSettlementModal 
-        isOpen={isRecordModalOpen}
-        onClose={() => setIsRecordModalOpen(false)}
-        onSuccess={() => refetch()}
-      />
+      {/* Record Settlement Modal for Accountant / non-FM */}
+      {!isFinancialManager && (
+        <RecordSettlementModal 
+          isOpen={isRecordModalOpen}
+          onClose={() => setIsRecordModalOpen(false)}
+          onSuccess={() => refetch()}
+        />
+      )}
 
     </div>
   );

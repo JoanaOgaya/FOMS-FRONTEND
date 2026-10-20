@@ -31,8 +31,10 @@ public class SeededAccountsTests
         try
         {
             var hash = FOMS.Application.Services.AuthService.HashPassword("PASSWORD@123");
+            var connStr = FOMS.Infrastructure.Configuration.DatabaseConfiguration.GetConnectionString(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddEnvironmentVariables().Build());
             var options = new DbContextOptionsBuilder<FOMS.Infrastructure.Persistence.FomsDbContext>()
-                .UseSqlServer(@"Server=localhost\SQLEXPRESS;Database=FOMS_DB;Trusted_Connection=True;TrustServerCertificate=True;")
+                .UseSqlServer(connStr)
                 .Options;
 
             await using var context = new FOMS.Infrastructure.Persistence.FomsDbContext(options);

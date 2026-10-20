@@ -647,16 +647,34 @@ public class SpeedPaySubmissionsController : ControllerBase
 
         var orNumbers = await _context.Payments
             .AsNoTracking()
-            .Where(p => p.OrNumber.StartsWith(yearPrefix))
+            .Where(p => p.OrNumber != null && p.OrNumber.StartsWith(yearPrefix))
             .Select(p => p.OrNumber)
+            .ToListAsync();
+
+        var receiptNumbers = await _context.OfficialReceipts
+            .AsNoTracking()
+            .Where(r => r.ReceiptNumber != null && r.ReceiptNumber.StartsWith(yearPrefix))
+            .Select(r => r.ReceiptNumber)
             .ToListAsync();
 
         int maxSeq = 0;
         foreach (var orNum in orNumbers)
         {
-            if (orNum.Length > yearPrefix.Length)
+            if (!string.IsNullOrEmpty(orNum) && orNum.Length > yearPrefix.Length)
             {
                 var seqPart = orNum.Substring(yearPrefix.Length);
+                if (int.TryParse(seqPart, out var seq))
+                {
+                    if (seq > maxSeq) maxSeq = seq;
+                }
+            }
+        }
+
+        foreach (var rNum in receiptNumbers)
+        {
+            if (!string.IsNullOrEmpty(rNum) && rNum.Length > yearPrefix.Length)
+            {
+                var seqPart = rNum.Substring(yearPrefix.Length);
                 if (int.TryParse(seqPart, out var seq))
                 {
                     if (seq > maxSeq) maxSeq = seq;

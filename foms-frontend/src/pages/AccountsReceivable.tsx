@@ -119,9 +119,31 @@ const CustomSearchFilter = ({ searchQuery, setSearchQuery, priorityFilter, setPr
 // MANAGER VIEW (Logged Decisions / Ready for Manager Approval)
 // ============================================================================
 const ManagerView = ({ token, user, arRecords }: any) => {
-  const { toast } = useToast() as any;
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const mapArToData = (records: any[]) => (Array.isArray(records) ? records : []).map((ar: any) => ({
+    id: ar.id,
+    status: 'VERIFIED',
+    createdBy: 'ACCOUNTANT',
+    timestamp: new Date().toLocaleString(),
+    invoiceNumber: ar.invoiceNumber || 'N/A',
+    clientName: ar.clientName || 'Unknown Account',
+    balanceValue: ar.outstandingBalance || 0,
+    balance: `₱${(ar.outstandingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+    priorityLevel: 'High Priority',
+    dueDate: ar.dueDate || 'N/A',
+    decision: 'Pending Review',
+    loggedBy: 'Finance Manager',
+    loggedByRole: 'Finance Manager',
+    requestType: 'Payment Follow-up',
+    accountantNotes: 'Overdue receivable account',
+    accountantName: 'Accountant',
+    accountantDate: new Date().toLocaleString(),
+    actionTaken: 'No action taken',
+    remarks: 'Pending Manager Review',
+  }));
+
+  const { toast } = useToast();
+  const [data, setData] = useState<any[]>(() => mapArToData(arRecords));
+  const [loading, setLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
 
   const [decision, setDecision] = useState('Accept & Close');
@@ -132,7 +154,6 @@ const ManagerView = ({ token, user, arRecords }: any) => {
   const [priorityFilter, setPriorityFilter] = useState('All');
 
   const fetchData = async () => {
-    setLoading(true);
     try {
       const json: any = await http.get('/ai/collection/recommendations', { status: 'all' });
       const logged = Array.isArray(json) 
@@ -183,18 +204,27 @@ const ManagerView = ({ token, user, arRecords }: any) => {
         };
       });
       
-      setData(mapped);
+      if (mapped.length > 0) {
+        setData(mapped);
+      } else if (Array.isArray(arRecords) && arRecords.length > 0) {
+        setData(mapArToData(arRecords));
+      }
     } catch (e) {
       console.error(e);
-      setData([]);
+      if (Array.isArray(arRecords) && arRecords.length > 0) {
+        setData(mapArToData(arRecords));
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (Array.isArray(arRecords) && arRecords.length > 0) {
+      setData((prev) => (prev.length === 0 ? mapArToData(arRecords) : prev));
+    }
     fetchData();
-  }, []);
+  }, [arRecords]);
 
   const handleOpenModal = (row: any) => {
     setSelectedRecord(row);

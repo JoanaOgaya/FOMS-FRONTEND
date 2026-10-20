@@ -266,7 +266,7 @@ export const HeadAccountantDashboard: React.FC = () => {
           <QuickActions
             title="Jump To"
             actions={[
-              { label: 'Invoice Review', description: 'Approve or return invoices', icon: 'ti-file-check', color: '#0D9488', bg: '#CCFBF1', onClick: () => navigate('/invoice-review') },
+              { label: 'Invoice List', description: 'Review & approve invoices', icon: 'ti-file-invoice', color: '#0D9488', bg: '#CCFBF1', onClick: () => navigate('/invoicing-desk?tab=pending') },
               { label: 'For Review', description: 'Approve or return duplicate decisions', icon: 'ti-clipboard-check', color: '#7C3AED', bg: '#EDE9FE', onClick: () => navigate('/flagged-duplicates') },
               { label: 'Reports', description: 'Financial summaries', icon: 'ti-chart-bar', color: '#2563EB', bg: '#DBEAFE', onClick: () => navigate('/reports') },
             ]}

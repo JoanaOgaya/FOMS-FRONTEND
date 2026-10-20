@@ -13,7 +13,8 @@ export type ModuleKey =
   | 'settlements' | 'recordSettlement' | 'speedpayValidation' | 'adjustments' | 'liquidations'
   | 'cashFlow' | 'duplicateScan' | 'mySubmissions' | 'manualReviewQueue' | 'uniqueDocuments' | 'flaggedDuplicates' | 'reviewHistory'
   | 'forReview' | 'reports' | 'auditLogs' | 'profile' | 'notifications'
-  | 'documentExtraction' | 'aiHistory';
+  | 'documentExtraction' | 'aiHistory'
+  | 'starsCollection' | 'dmsIntake' | 'cashAdvancePortal';
 
 export interface ModuleDef {
   key: ModuleKey;
@@ -46,9 +47,11 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'invoiceCreate', label: 'Create Invoice', group: 'Invoicing', icon: 'ti ti-file-plus', path: '/invoice-create', nav: true, roles: { [ACC]: ['view', 'create'] } },
   { key: 'invoicingDesk', label: 'Invoice List', group: 'Invoicing', icon: 'ti ti-file-invoice', path: '/invoicing-desk', detailPath: '/invoicing-desk/:id', nav: true, roles: { [ACC]: ['view', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'billingValidation', label: 'Billing Validation', group: 'Invoicing', icon: 'ti ti-file-check', path: '/billing-validation', nav: true, roles: { [ACC]: ['view'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
-  { key: 'invoiceReview', label: 'Invoice Review', group: 'Invoicing', icon: 'ti ti-file-search', path: '/invoice-review', detailPath: '/invoice-review/:id', nav: true, roles: { [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
+  { key: 'dmsIntake', label: 'DMS Billing & Holds', group: 'Invoicing', icon: 'ti ti-truck-loading', path: '/dms-billing-intake', nav: true, roles: { [ACC]: ['view', 'create'], [HA]: ['view', 'verify'], [FM]: ['view', 'approve'] } },
+  { key: 'invoiceReview', label: 'Invoice Review', group: 'Invoicing', icon: 'ti ti-file-search', path: '/invoice-review', detailPath: '/invoice-review/:id', nav: false, roles: { [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
 
   { key: 'accountsReceivable', label: 'Accounts Receivable', group: 'Receivables & Payments', icon: 'ti ti-report-money', path: '/accounts-receivable', detailPath: '/accounts-receivable/:id', nav: true, roles: { [ACC]: ['view', 'create'], [HA]: ['view'], [FM]: ['view'] } },
+  { key: 'starsCollection', label: 'STARS Collection', group: 'Receivables & Payments', icon: 'ti ti-chart-dots', path: '/stars-collection', nav: true, roles: everyone(['view', 'edit', 'submit']) },
   { key: 'payments', label: 'Payments', labelByRole: { [HA]: 'Payment Validation' }, group: 'Receivables & Payments', icon: 'ti ti-cash', path: '/payments', detailPath: '/payments/:id', nav: true, roles: { [ACC]: ['view', 'create', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'speedpayValidation', label: 'SpeedPay Validation', group: 'Receivables & Payments', icon: 'ti ti-device-mobile-message', path: '/speedpay-validation', detailPath: '/speedpay-validation/:id', nav: true, roles: { [ACC]: ['view'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'receipts', label: 'Official Receipts', group: 'Receivables & Payments', icon: 'ti ti-receipt', path: '/receipts', detailPath: '/receipts/:id', nav: true, roles: { [ACC]: ['view', 'create'], [FM]: ['view'] } },
@@ -56,23 +59,24 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'recordSettlement', label: 'Record Settlement', group: 'Receivables & Payments', icon: 'ti ti-receipt-2', path: '/record-settlement', nav: false, roles: { [ACC]: ['view', 'create', 'submit'], [HA]: ['view'] } },
   { key: 'adjustments', label: 'Financial Adjustments', labelByRole: { [HA]: 'Adjustment Validation', [FM]: 'Adjustment Approval' }, group: 'Receivables & Payments', icon: 'ti ti-adjustments-alt', path: '/adjustments', nav: true, roles: { [ACC]: ['view', 'create', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
 
+  { key: 'cashAdvancePortal', label: 'Cash Advance Approvals', group: 'Liquidation', icon: 'ti ti-wallet', path: '/cash-advance-portal', nav: true, roles: { [AFM]: ['view', 'verify'], [FM]: ['view', 'approve', 'reject'], [ACC]: ['view'] } },
   { key: 'liquidations', label: 'Liquidation Reports', group: 'Liquidation', icon: 'ti ti-cash-banknote', path: '/liquidations', detailPath: '/liquidations/:id', nav: true, roles: { [AFM]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'cashFlow', label: 'Cash Flow', group: 'Treasury', icon: 'ti ti-chart-arrows', path: '/cash-flow', nav: true, roles: { [FM]: ['view', 'create', 'approve', 'reject'] } },
 
   // ── Duplicate Detection (role table — see DUPLICATE_SECTION below) ──
   //   Accountant: AI Duplicate Scan, My Submissions, Unique Documents, Flagged Duplicates (read-only), Review History (read-only)
-  //   Financial Manager: Manual Review Queue (with pending count badge), Flagged Duplicates, Unique Documents, Review History, Audit Trail
-  { key: 'duplicateScan', label: 'AI Duplicate Scan', group: 'Duplicate Detection', icon: 'ti ti-scan', path: '/duplicate-scan', nav: true, roles: { [ACC]: ['view', 'scan'], [AFM]: ['view', 'scan'] } },
-  { key: 'mySubmissions', label: 'My Submissions', group: 'Duplicate Detection', icon: 'ti ti-file-upload', path: '/my-submissions', nav: true, roles: { [ACC]: ['view'], [AFM]: ['view'] } },
+  //   Financial Manager: Manual Review Queue, Flagged Duplicates, Unique Documents, Review History, Audit Trail
+  { key: 'duplicateScan', label: 'Duplicate Scan', group: 'Duplicate Detection', icon: 'ti ti-scan', path: '/duplicate-scan', nav: true, roles: { [ACC]: ['view', 'scan'], [AFM]: ['view', 'scan'] } },
+  { key: 'mySubmissions', label: 'My Submissions', group: 'Duplicate Detection', icon: 'ti ti-file-upload', path: '/my-submissions', nav: false, roles: { [ACC]: ['view'], [AFM]: ['view'] } },
   { key: 'manualReviewQueue', label: 'Manual Review Queue', group: 'Duplicate Detection', icon: 'ti ti-clock-check', path: '/manual-review-queue', nav: true, roles: { [FM]: ['view', 'approve', 'return'], [HA]: ['view', 'approve', 'return'] } },
   { key: 'uniqueDocuments', label: 'Unique Documents', group: 'Duplicate Detection', icon: 'ti ti-file-check', path: '/unique-documents', nav: true, roles: { [FM]: ['view'], [HA]: ['view'], [ACC]: ['view'], [AFM]: ['view'] } },
-  { key: 'flaggedDuplicates', label: 'Flagged Duplicates', labelByRole: { [HA]: 'For Review', [ACC]: 'Flagged Duplicates' }, group: 'Duplicate Detection', icon: 'ti ti-alert-triangle', path: '/flagged-duplicates', nav: true, roles: { [FM]: ['view', 'approve', 'return'], [HA]: ['view', 'approve', 'return'], [ACC]: ['view'], [AFM]: ['view', 'submit'] } },
+  { key: 'flaggedDuplicates', label: 'Flagged Duplicates', labelByRole: { [HA]: 'For Review', [ACC]: 'Flagged' }, group: 'Duplicate Detection', icon: 'ti ti-alert-triangle', path: '/flagged-duplicates', nav: true, roles: { [FM]: ['view', 'approve', 'return'], [HA]: ['view', 'approve', 'return'], [ACC]: ['view'], [AFM]: ['view', 'submit'] } },
   { key: 'reviewHistory', label: 'Review History', group: 'Duplicate Detection', icon: 'ti ti-history', path: '/review-history', nav: true, roles: { [FM]: ['view', 'export'], [HA]: ['view', 'export'], [ACC]: ['view', 'export'], [AFM]: ['view', 'export'] } },
   { key: 'documentExtraction', label: 'Document Extraction', group: 'Document Intelligence', icon: 'ti ti-file-analytics', path: '/document-extraction', nav: false, roles: { [ACC]: ['view', 'create', 'edit'], [AFM]: ['view', 'create', 'verify'] } },
   { key: 'forReview', label: 'For Review', group: 'Duplicate Detection', icon: 'ti ti-eye-check', path: '/for-review', nav: false, roles: { [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
 
   { key: 'reports', label: 'Reports', group: 'Analytics & Control', icon: 'ti ti-chart-bar', path: '/reports', detailPath: '/reports/:id', nav: true, roles: { [ACC]: ['view', 'export'], [HA]: ['view', 'export'], [FM]: ['view', 'export'], [AFM]: ['view', 'export'] } },
-  { key: 'auditLogs', label: 'Audit Logs', labelByRole: { [FM]: 'Audit Trail' }, group: 'Analytics & Control', icon: 'ti ti-list-details', path: '/audit-logs', nav: true, roles: { [HA]: ['view'], [FM]: ['view', 'export'], [ACC]: ['view'] } },
+  { key: 'auditLogs', label: 'Audit Logs', labelByRole: { [FM]: 'Audit Trail' }, group: 'Analytics & Control', icon: 'ti ti-list-details', path: '/audit-logs', nav: true, roles: { [HA]: ['view'], [FM]: ['view', 'export'] } },
   { key: 'aiHistory', label: 'AI Output History', group: 'Analytics & Control', icon: 'ti ti-cpu', path: '/ai-history', nav: true, roles: { [FM]: ['view', 'export'], [HA]: ['view', 'export'], [ACC]: ['view', 'export'], [AFM]: ['view', 'export'] } },
 
   { key: 'profile', label: 'My Profile', group: 'Account', icon: 'ti ti-user', path: '/profile', nav: false, roles: everyone(['view']) },

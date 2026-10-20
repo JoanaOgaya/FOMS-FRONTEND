@@ -368,7 +368,7 @@ export const Receipts: React.FC = () => {
                             }}
                           >
                             <i className="ti ti-eye" />
-                            View Details
+                            View Official Receipt
                           </button>
                         </div>
                       </div>
