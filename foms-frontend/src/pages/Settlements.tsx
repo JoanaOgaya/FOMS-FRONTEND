@@ -785,9 +785,14 @@ const Settlements: React.FC = () => {
                 )
               ) : (
                 <div style={{ marginBottom: '24px', padding: '16px', background: selectedRecord.status === 'Validated' ? '#ECFDF5' : '#FEF2F2', borderRadius: '8px', border: `1px solid ${selectedRecord.status === 'Validated' ? '#A7F3D0' : '#FECACA'}` }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: selectedRecord.status === 'Validated' ? '#065F46' : '#991B1B' }}>
-                    This settlement was already {selectedRecord.status.toLowerCase()}.
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: selectedRecord.status === 'Validated' ? '#065F46' : '#991B1B', marginBottom: (selectedRecord.rejectionReason || selectedRecord.remarks) ? '6px' : 0 }}>
+                    This settlement was {selectedRecord.status.toLowerCase()}.
                   </div>
+                  {(selectedRecord.rejectionReason || selectedRecord.remarks) && (
+                    <div style={{ fontSize: '12px', color: '#7F1D1D' }}>
+                      <strong>Reason for Revision:</strong> {selectedRecord.rejectionReason || selectedRecord.remarks}
+                    </div>
+                  )}
                 </div>
               )}
 

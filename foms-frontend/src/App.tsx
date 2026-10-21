@@ -48,9 +48,16 @@ import AIOutputHistory from './pages/AIOutputHistory';
 import StarsCollectionWorkflow from './pages/StarsCollectionWorkflow';
 import DmsBillingIntake from './pages/DmsBillingIntake';
 import CashAdvanceLiquidationPortal from './pages/CashAdvanceLiquidationPortal';
+import ApprovalsQueue from './pages/ApprovalsQueue';
+import MyCashAdvances from './pages/MyCashAdvances';
+
+const EscalatedApprovalsPage: React.FC = () => <ApprovalsQueue mode="escalated" />;
 
 const PAGES: Record<ModuleKey, React.ComponentType> = {
   dashboard: Dashboard,
+  approvals: ApprovalsQueue,
+  escalatedApprovals: EscalatedApprovalsPage,
+  myCashAdvances: MyCashAdvances,
   clients: ClientManagement,
   rates: RateConfiguration,
   waybills: Waybills,

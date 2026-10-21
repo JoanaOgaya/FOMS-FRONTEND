@@ -632,18 +632,22 @@ body.modal-open .app-layout {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.45);
   text-transform: uppercase;
-  padding: 16px 12px 6px;
-  margin-top: 8px;
+  padding: 14px 12px 6px;
+  margin-top: 6px;
   border-top: 1px dashed rgba(255, 255, 255, 0.08);
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
+  text-overflow: ellipsis;
   display: block;
-  max-height: 40px;
-  transition: opacity 0.25s, max-height 0.25s, padding 0.25s, margin-top 0.25s;
   flex-shrink: 0;
-  line-height: 1.2;
+  line-height: 1.3;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+  background: var(--sidebar-bg, #0B1437);
+  transition: opacity 0.25s, padding 0.25s, margin-top 0.25s;
 }
 
 .sidebar-nav>.nav-module-label:first-of-type {
@@ -653,11 +657,12 @@ body.modal-open .app-layout {
 }
 
 .collapsed .nav-module-label {
+  display: none !important;
   opacity: 0;
   max-height: 0;
   padding: 0;
-  margin-top: 0;
-  border-top: none;
+  margin: 0;
+  border: none;
 }
 
 .nav-item {

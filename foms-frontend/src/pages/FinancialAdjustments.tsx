@@ -1168,10 +1168,19 @@ export default function FinancialAdjustments() {
                 </div>
               </div>
 
-              {viewRecord.status === 'Pending Approval' && (
+              {(viewRecord.status === 'ReturnedForRevision' || viewRecord.status === 'Returned') && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '12px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#991B1B' }}>
+                  <i className="ti ti-alert-circle" style={{ fontSize: '18px', color: '#DC2626', flexShrink: 0 }} />
+                  <span>
+                    <strong>Returned for Revision:</strong> {(viewRecord as any).rejectionReason || viewRecord.notes || 'Please update and resubmit.'}
+                  </span>
+                </div>
+              )}
+
+              {(viewRecord.status === 'Pending Approval' || viewRecord.status === 'Submitted' || viewRecord.status === 'PendingFinanceManager') && (
                 <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#B45309' }}>
-                  <i className="ti ti-clock-hour-4" style={{ fontSize: '16px' }} />
-                  <span>Awaiting review and approval by Head Accountant / Finance Manager.</span>
+                  <i className="ti ti-clock-hour-4" style={{ fontSize: '16px', flexShrink: 0 }} />
+                  <span>Awaiting review and approval by Assistant FM / Finance Manager. Record is read-only.</span>
                 </div>
               )}
             </div>

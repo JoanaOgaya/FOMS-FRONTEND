@@ -40,6 +40,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ logoUrl = "/logo.png" }) => {
 
   const menuButton: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600, textAlign: 'left' };
 
+  const [pendingCounts, setPendingCounts] = useState<{ approvals?: number; escalatedApprovals?: number }>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    if (user?.role === 'ASSISTANT_FM' || user?.role === 'FINANCIAL_MANAGER') {
+      import('../services/approvalsService').then(({ approvalsService }) => {
+        approvalsService.getCounts()
+          .then((res) => {
+            if (isMounted && res) {
+              setPendingCounts({
+                approvals: res.pendingMyApproval ?? res.pendingCount ?? 0,
+                escalatedApprovals: res.escalatedToFm ?? res.pendingCount ?? 0,
+              });
+            }
+          })
+          .catch(() => {
+            // Silently fallback if endpoint is pending backend implementation
+          });
+      });
+    }
+    return () => { isMounted = false; };
+  }, [user?.role]);
+
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-logo">
@@ -63,18 +86,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ logoUrl = "/logo.png" }) => {
         {navGroups.map((group) => (
           <React.Fragment key={group.label}>
             <span className="nav-module-label">{group.label}</span>
-            {group.items.map((item) => (
-              <div key={item.key} className="nav-item-container">
-                <NavLink to={item.path} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-                  <span className="nav-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                    <i className={item.icon} style={{ fontSize: "18px" }} />
-                  </span>
-                  <span className="nav-label">
-                    {moduleLabel(item, user?.role)}
-                  </span>
-                </NavLink>
-              </div>
-            ))}
+            {group.items.map((item) => {
+              const badgeCount =
+                item.key === 'approvals'
+                  ? pendingCounts.approvals
+                  : item.key === 'escalatedApprovals'
+                  ? pendingCounts.escalatedApprovals
+                  : undefined;
+
+              return (
+                <div key={item.key} className="nav-item-container">
+                  <NavLink to={item.path} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+                    <span className="nav-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                      <i className={item.icon} style={{ fontSize: "18px" }} />
+                    </span>
+                    <span className="nav-label">
+                      {moduleLabel(item, user?.role)}
+                    </span>
+                    {!collapsed && typeof badgeCount === 'number' && badgeCount > 0 && (
+                      <span
+                        className="nav-approval-badge"
+                        style={{
+                          marginLeft: 'auto',
+                          background: '#F59E0B',
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          lineHeight: '1',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        aria-label={`${badgeCount} pending`}
+                      >
+                        {badgeCount}
+                      </span>
+                    )}
+                  </NavLink>
+                </div>
+              );
+            })}
           </React.Fragment>
         ))}
       </nav>

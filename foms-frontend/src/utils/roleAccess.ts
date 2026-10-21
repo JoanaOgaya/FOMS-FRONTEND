@@ -14,7 +14,8 @@ export type ModuleKey =
   | 'cashFlow' | 'duplicateScan' | 'mySubmissions' | 'manualReviewQueue' | 'uniqueDocuments' | 'flaggedDuplicates' | 'reviewHistory'
   | 'forReview' | 'reports' | 'auditLogs' | 'profile' | 'notifications'
   | 'documentExtraction' | 'aiHistory'
-  | 'starsCollection' | 'dmsIntake' | 'cashAdvancePortal';
+  | 'starsCollection' | 'dmsIntake' | 'cashAdvancePortal'
+  | 'approvals' | 'escalatedApprovals' | 'myCashAdvances';
 
 export interface ModuleDef {
   key: ModuleKey;
@@ -40,6 +41,10 @@ const everyone = (actions: readonly Action[]): ModuleDef['roles'] =>
 export const MODULES: readonly ModuleDef[] = [
   { key: 'dashboard', label: 'Dashboard', labelByRole: { [FM]: 'Executive Dashboard' }, group: 'Overview', icon: 'ti ti-layout-dashboard', path: '/dashboard', nav: true, roles: everyone(['view']) },
 
+  // Approvals (Multi-Level Workflow)
+  { key: 'approvals', label: 'Approvals', group: 'Approvals', icon: 'ti ti-clipboard-check', path: '/approvals', nav: true, roles: { [AFM]: ['view', 'approve', 'reject'] } },
+  { key: 'escalatedApprovals', label: 'Escalated Approvals', group: 'Approvals', icon: 'ti ti-urgent', path: '/escalated-approvals', nav: true, roles: { [FM]: ['view', 'approve', 'reject'] } },
+
   { key: 'clients', label: 'Client Accounts', group: 'Client Management', icon: 'ti ti-users', path: '/clients', detailPath: '/clients/:id', nav: true, roles: { [ACC]: ['view', 'create', 'edit'], [FM]: ['view'] } },
   { key: 'rates', label: 'Rate Configuration', group: 'Client Management', icon: 'ti ti-adjustments-dollar', path: '/rate-configuration', detailPath: '/rate-configuration/:id', nav: false, roles: {} },
   { key: 'waybills', label: 'Waybills & POD', group: 'Client Management', icon: 'ti ti-truck-delivery', path: '/waybills', detailPath: '/waybills/:id', nav: false, roles: {} },
@@ -59,7 +64,8 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'recordSettlement', label: 'Record Settlement', group: 'Receivables & Payments', icon: 'ti ti-receipt-2', path: '/record-settlement', nav: false, roles: { [ACC]: ['view', 'create', 'submit'], [HA]: ['view'] } },
   { key: 'adjustments', label: 'Financial Adjustments', labelByRole: { [HA]: 'Adjustment Validation', [FM]: 'Adjustment Approval' }, group: 'Receivables & Payments', icon: 'ti ti-adjustments-alt', path: '/adjustments', nav: true, roles: { [ACC]: ['view', 'create', 'edit', 'submit'], [HA]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
 
-  { key: 'cashAdvancePortal', label: 'Cash Advance Approvals', group: 'Liquidation', icon: 'ti ti-wallet', path: '/cash-advance-portal', nav: true, roles: { [AFM]: ['view', 'verify'], [FM]: ['view', 'approve', 'reject'], [ACC]: ['view'] } },
+  { key: 'myCashAdvances', label: 'My Cash Advances', group: 'Liquidation', icon: 'ti ti-wallet', path: '/my-cash-advances', nav: true, roles: { [ACC]: ['view', 'create'] } },
+  { key: 'cashAdvancePortal', label: 'Cash Advance Approvals', group: 'Liquidation', icon: 'ti ti-wallet', path: '/cash-advance-portal', nav: true, roles: { [AFM]: ['view', 'verify'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'liquidations', label: 'Liquidation Reports', group: 'Liquidation', icon: 'ti ti-cash-banknote', path: '/liquidations', detailPath: '/liquidations/:id', nav: true, roles: { [AFM]: ['view', 'verify', 'return'], [FM]: ['view', 'approve', 'reject'] } },
   { key: 'cashFlow', label: 'Cash Flow', group: 'Treasury', icon: 'ti ti-chart-arrows', path: '/cash-flow', nav: true, roles: { [FM]: ['view', 'create', 'approve', 'reject'] } },
 
