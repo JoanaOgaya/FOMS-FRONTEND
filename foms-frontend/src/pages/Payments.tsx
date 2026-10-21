@@ -23,6 +23,7 @@ import { speedpayService } from '../services/speedpayService';
 import { cashFlowService } from '../services/cashFlowService';
 import { auditLogsService } from '../services/auditLogsService';
 import { duplicatesService } from '../services/duplicates.service';
+import { invalidateForMutation } from '../services/invalidation';
 import type { Payment, AuditLog, Invoice, Client, SpeedPaySubmission, Waybill, CashFlowRecord, Receipt } from '../types/entities';
 
 const getEmployeeName = (id?: string, def?: string) => {
