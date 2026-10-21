@@ -93,8 +93,8 @@ instance.interceptors.response.use(
     const isApiKeyError = errMessage.includes('api key');
     const isIntegrationRoute = url.includes('/api/integration');
 
-    // Only clear user session if it is an actual user auth session failure (not an integration/API key 401)
-    if (status === 401 && !url.includes('/auth/login') && !isApiKeyError && !isIntegrationRoute) {
+    // Only clear user session if it is an actual user auth session failure (not an integration/API key 401 or initial profile check)
+    if (status === 401 && !url.includes('/auth/login') && !url.includes('/auth/me') && !isApiKeyError && !isIntegrationRoute) {
       session.clear();
       unauthorizedListener?.();
     }

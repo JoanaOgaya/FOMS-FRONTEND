@@ -51,7 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
 
     if (reason === 'inactivity' || reason === 'session_expired') {
-      window.location.href = `${getCentralLoginUrl()}?action=logout&reason=${encodeURIComponent(reason)}&system=foms`;
+      if (typeof window !== 'undefined') {
+        window.location.href = `/login?reason=${encodeURIComponent(reason)}`;
+      }
     } else {
       // Voluntary logout returns to the Central Portal Landing Page (/portal)
       const portalUrl = getSystemPortalUrl();
