@@ -22,10 +22,10 @@ export const BillingValidation: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const { data: waybillsData } = useQuery('billing:waybills', () => waybillsService.list({ pageSize: 100 }));
+  const { data: waybillsData, refetch: refetchWaybills } = useQuery('billing:waybills', () => waybillsService.list({ pageSize: 100 }));
   const { data: ratesData } = useQuery('billing:rates', () => ratesService.list({ pageSize: 100 }));
   const { data: clientsData } = useQuery('billing:clients', () => clientsService.list({ pageSize: 100 }));
-  const { data: recordsData } = useQuery('billing:records', () => ratesService.records.list({ pageSize: 100 }));
+  const { data: recordsData, refetch: refetchRecords } = useQuery('billing:records', () => ratesService.records.list({ pageSize: 100 }));
 
   const waybills: Waybill[] = waybillsData?.items || [];
   const billingRates: BillingRate[] = ratesData?.items || [];
@@ -88,6 +88,61 @@ export const BillingValidation: React.FC = () => {
       let breakdown: FreightBreakdown;
       try {
         breakdown = computeFreightCost(wb, clientRates);
+  // 1. Validated Waybills WITHOUT Billing Records (For Accountant to Submit)
+  const availableWaybills = waybills.filter(wb => 
+    !wb.isBilled &&
+    (wb.status === 'Validated' || wb.podStatus === 'Validated' || (wb.deliveryStatus === 'Delivered' && !wb.isBilled)) && 
+    !billingRecords.some(br => String(br.waybillId) === String(wb.id) || String(br.waybillId) === String(wb.waybillNumber))
+  );
+
+  const handleSubmitBilling = async () => {
+    if (selectedIds.length === 0) return;
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const newRecords: BillingRecord[] = [];
+
+    for (const wbId of selectedIds) {
+      const wb = waybills.find(w => String(w.id) === String(wbId));
+      if (!wb) continue;
+      
+      try {
+        const clientRates = billingRates.filter(r => 
+          (r.clientId === wb.clientCode || r.clientId === wb.clientId ||
+           (wb.clientCode === 'CA-001' && r.clientId === 'LZD-001') ||
+           (wb.clientCode === 'CA-002' && r.clientId === 'SHP-001') ||
+           (wb.clientCode === 'CA-003' && r.clientId === 'TKT-001') ||
+           (wb.clientCode === 'LZD-001' && r.clientId === 'CA-001') ||
+           (wb.clientCode === 'SHP-001' && r.clientId === 'CA-002')) && 
+          r.status === 'Active'
+        );
+        const activeRates = clientRates.length > 0 ? clientRates : billingRates.filter(r => r.status === 'Active');
+        const freightData = computeFreightCost(wb, activeRates);
+        const rateUsed = activeRates.find(r => r.region.toUpperCase() === (wb.destinationArea || wb.deliveryArea || 'NCR').toUpperCase()) || activeRates[0];
+        
+        if (rateUsed) {
+          const newRecord: BillingRecord = {
+            id: `BR-${Date.now()}-${wbId}`,
+            waybillId: wb.id,
+            clientId: wb.clientCode || wb.clientId || 'CA-001',
+            rateId: rateUsed.id,
+            volumeWeight: freightData.volumeWeight,
+            actualWeight: freightData.actualWeight,
+            chargeableWeight: freightData.chargeableWeight,
+            freightCost: freightData.freightCost,
+            valuation: freightData.valuation,
+            odaCharge: freightData.odaCharge,
+            subtotal: freightData.subtotal,
+            vat: freightData.vat,
+            fuelSurcharge: freightData.fuelSurcharge,
+            grandTotal: freightData.grandTotal,
+            status: 'Pending Review',
+            computedBy: user?.fullName || 'User',
+            computedAt: new Date().toISOString(),
+          };
+          newRecords.push(newRecord);
+          successCount++;
+        }
       } catch {
         breakdown = {
           area: detectArea(wb),
@@ -237,6 +292,20 @@ export const BillingValidation: React.FC = () => {
 
     setBillingRecords(prev => [...prev, ...newRecords]);
     toast.success(`Successfully endorsed ${newRecords.length} waybill(s) (${formatCurrency(batchTotals.grandTotal)}) to Finance Manager.`, 'Success');
+    }
+
+    if (newRecords.length > 0) {
+      try {
+        for (const nr of newRecords) {
+          await ratesService.records.create(nr);
+        }
+        await invalidateForMutation('submitInvoice');
+        refetchRecords?.();
+        refetchWaybills?.();
+      } catch (err) {
+        console.error('Submit error:', err);
+      }
+    }
 
     setSelectedIds([]);
     setShowBatchModal(false);
@@ -752,6 +821,72 @@ export const BillingValidation: React.FC = () => {
                         </span>
                         <StatusBadge status={row.status} />
                       </div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>
+                        Delivery Date: {formatDate(wb.deliveryDate)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Billing Records Card Grid (Connected to Database) ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+              {isHead ? 'Billing Review & Approval Queue' : 'Billing Records'}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748B' }}>
+              {isHead
+                ? 'Review computed freight records submitted by the Accountant before approving for invoicing.'
+                : 'Track computed freight records stored in the database and their validation review statuses.'}
+            </p>
+          </div>
+        </div>
+          {/* Filter Bar */}
+          <div style={{
+            background: '#fff',
+            borderRadius: 12,
+            border: '1px solid #E2E8F0',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            {/* Search Input */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: 8,
+              padding: '8px 12px',
+              flex: '1 1 240px',
+              minWidth: 200
+            }}>
+              <i className="ti ti-search" style={{ color: '#94A3B8', fontSize: 14 }} />
+              <input
+                type="text"
+                placeholder="Search records..."
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  width: '100%',
+                  fontSize: 13,
+                  color: '#0F172A'
+                }}
+              />
+            </div>
 
                       <div>
                         <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
@@ -1206,6 +1341,71 @@ export const BillingValidation: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                    {isHead ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {row.status !== 'Returned' && (
+                          <button
+                            onClick={() => handleReject(row.id)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #FECACA',
+                              background: '#FEF2F2',
+                              color: '#DC2626',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <i className="ti ti-x" style={{ fontSize: 13 }} />
+                            Reject
+                          </button>
+                        )}
+                        {row.status !== 'Approved' && (
+                          <button
+                            onClick={() => handleApprove(row.id)}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: 8,
+                              border: 'none',
+                              background: '#0D9488',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              boxShadow: '0 2px 4px rgba(13,148,136,0.2)'
+                            }}
+                          >
+                            <i className="ti ti-check" style={{ fontSize: 13 }} />
+                            Approve
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: row.status === 'Approved' ? '#DCFCE7' : row.status === 'Returned' ? '#FEE2E2' : '#FEF3C7',
+                          color: row.status === 'Approved' ? '#166534' : row.status === 'Returned' ? '#991B1B' : '#92400E',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                          <i className={row.status === 'Approved' ? 'ti ti-check' : row.status === 'Returned' ? 'ti ti-rotate' : 'ti ti-clock'} />
+                          {row.status || 'Pending Review'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             ) : (
@@ -1360,7 +1560,6 @@ export const BillingValidation: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
 
       {/* ── FOMS STANDARD MODAL: RATE BREAKDOWN ── */}
       {breakdownRecord && (

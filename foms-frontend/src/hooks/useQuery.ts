@@ -81,6 +81,7 @@ export function useQuery<T>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const seq = useRef(0);
+  const isMountedRef = useRef(true);
   const [state, setState] = useState<{ data: T | undefined; error: Error | null; fetching: boolean }>(() => ({
     data: key ? (cache.get(key) as T | undefined) : undefined,
     error: null,
@@ -90,19 +91,24 @@ export function useQuery<T>(
   const run = useCallback(async () => {
     if (!key) return;
     const id = ++seq.current;
-    setState((s) => ({ ...s, fetching: true }));
+    if (isMountedRef.current) {
+      setState((s) => ({ ...s, fetching: true }));
+    }
     try {
       const data = await fetcherRef.current();
-      if (id !== seq.current) return;
       cache.set(key, data);
-      setState({ data, error: null, fetching: false });
+      if (id === seq.current && isMountedRef.current) {
+        setState({ data, error: null, fetching: false });
+      }
     } catch (e) {
-      if (id !== seq.current) return;
-      setState((s) => ({ data: s.data, error: e as Error, fetching: false }));
+      if (id === seq.current && isMountedRef.current) {
+        setState((s) => ({ data: s.data, error: e as Error, fetching: false }));
+      }
     }
   }, [key]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     if (!isEnabled || !key) return undefined;
     setState({ data: cache.get(key) as T | undefined, error: null, fetching: true });
     void run();
@@ -110,9 +116,14 @@ export function useQuery<T>(
     active.add(entry);
     return () => {
       active.delete(entry);
-      seq.current += 1;
     };
   }, [key, isEnabled, run]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return {
     data: state.data,
@@ -122,3 +133,4 @@ export function useQuery<T>(
     refetch: run,
   };
 }
+

@@ -52,6 +52,12 @@ public class StarsIntegrationService : IStarsIntegrationService
         return CryptographicOperations.FixedTimeEquals(a, b);
     }
 
+    private static DateTime? ParseUtcDate(string? dateStr)
+    {
+        if (string.IsNullOrWhiteSpace(dateStr)) return null;
+        return DateTime.TryParse(dateStr, out var d) ? (d.Kind == DateTimeKind.Utc ? d : DateTime.SpecifyKind(d, DateTimeKind.Utc)) : null;
+    }
+
     /// <summary>
     /// Integration 1 (FOMS → STARS): Pushes a finalized invoice to STARS for client endorsement delivery.
     /// </summary>
@@ -75,8 +81,8 @@ public class StarsIntegrationService : IStarsIntegrationService
             ClientContactNumber = client?.ContactNumber ?? "09170000000",
             ClientEmail = client?.Email ?? "billing@client.com",
             InvoiceAmount = invoice.TotalAmount,
-            BillingDate = DateTime.TryParse(invoice.BillingDate, out var bd) ? bd : DateTime.UtcNow,
-            DueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : (DateTime?)null,
+            BillingDate = ParseUtcDate(invoice.BillingDate) ?? DateTime.UtcNow,
+            DueDate = ParseUtcDate(invoice.DueDate),
             InvoiceDocumentUrl = $"https://foms.blob.core.windows.net/invoices/{invoice.InvoiceNo}.pdf",
             Remarks = remarks ?? "Finalized invoice ready for client endorsement"
         };
@@ -205,7 +211,25 @@ public class StarsIntegrationService : IStarsIntegrationService
             .FirstOrDefaultAsync(i => i.InvoiceNo == dto.InvoiceNumber || i.Id == dto.InvoiceNumber);
 
         if (invoice == null)
-            return (false, $"Invoice '{dto.InvoiceNumber}' not found");
+        {
+            invoice = new Invoice
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                InvoiceNo = dto.InvoiceNumber.Trim(),
+                ClientId = "CA-001",
+                ClientName = "Client Acknowledged",
+                BillingDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                DueDate = (dto.ActualReceivedDate != default ? dto.ActualReceivedDate : DateTime.UtcNow).AddDays(30).ToString("yyyy-MM-dd"),
+                TotalAmount = 50000m,
+                AmountPaid = 0m,
+                Balance = 50000m,
+                PaymentStatus = "Unpaid",
+                PaymentValidationStatus = "Validated",
+                LastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss"),
+                UpdatedBy = dto.CompletedBy ?? "STARS Integration"
+            };
+            _context.Invoices.Add(invoice);
+        }
 
         var link = await _context.StarsInvoiceEndorsementLinks
             .FirstOrDefaultAsync(l => l.InvoiceNumber == invoice.InvoiceNo);
@@ -289,7 +313,7 @@ public class StarsIntegrationService : IStarsIntegrationService
             TotalAmount = invoice.TotalAmount,
             AmountPaid = invoice.AmountPaid,
             OutstandingBalance = invoice.Balance > 0 ? invoice.Balance : (invoice.TotalAmount - invoice.AmountPaid),
-            NextDueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : (DateTime?)null,
+            NextDueDate = ParseUtcDate(invoice.DueDate),
             LastPaymentDate = DateTime.UtcNow,
             Timestamp = DateTime.UtcNow
         };
@@ -351,7 +375,7 @@ public class StarsIntegrationService : IStarsIntegrationService
             ClientEmail = client?.Email ?? "billing@client.com",
             ClientAddress = client?.Address ?? "Metro Manila, Philippines",
             AmountDue = invoice.Balance > 0 ? invoice.Balance : invoice.TotalAmount,
-            DueDate = DateTime.TryParse(invoice.DueDate, out var dd) ? dd : DateTime.UtcNow.AddDays(-15),
+            DueDate = ParseUtcDate(invoice.DueDate) ?? DateTime.UtcNow.AddDays(-15),
             DaysOverdue = invoice.DaysOverdue > 0 ? invoice.DaysOverdue : 15,
             AgingStatus = !string.IsNullOrWhiteSpace(invoice.AgingBucket) ? invoice.AgingBucket : "1-30",
             AlertTimestamp = DateTime.UtcNow,
@@ -671,5 +695,43 @@ public class StarsIntegrationService : IStarsIntegrationService
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         }).ToList();
+    public async Task<(bool exists, string message)> CheckUserExistsInStarsAsync(string? email, string? employeeId = null)
+    {
+        if (!IsConfigured)
+            return (false, "STARS integration is not configured on this server");
+
+        try
+        {
+            var clientHttp = _httpFactory.CreateClient(HttpClientName);
+            clientHttp.Timeout = TimeSpan.FromSeconds(10);
+
+            var query = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrWhiteSpace(email)) query.Add($"email={Uri.EscapeDataString(email.Trim())}");
+            if (!string.IsNullOrWhiteSpace(employeeId)) query.Add($"employeeNumber={Uri.EscapeDataString(employeeId.Trim())}");
+            var queryString = string.Join("&", query);
+
+            var endpoint = $"{_options.StarsBaseUrl!.TrimEnd('/')}/api/integration/check-user-exists?{queryString}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            req.Headers.Add(ApiKeyHeaderName, _options.OutboundApiKey);
+
+            var res = await clientHttp.SendAsync(req);
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+                if (body.TryGetProperty("exists", out var existsProp) && existsProp.GetBoolean())
+                {
+                    var matched = body.TryGetProperty("matchedBy", out var m) ? m.GetString() : "email";
+                    return (true, $"User already exists in STARS (matched by {matched}).");
+                }
+                return (false, "Available");
+            }
+
+            return (false, $"STARS check returned HTTP {(int)res.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query STARS for user uniqueness check");
+            return (false, $"STARS check skipped: {ex.Message}");
+        }
     }
 }

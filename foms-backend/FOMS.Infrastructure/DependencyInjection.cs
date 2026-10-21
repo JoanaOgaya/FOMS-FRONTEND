@@ -47,6 +47,14 @@ public static class DependencyInjection
         });
         services.AddScoped<IStarsIntegrationService, FOMS.Infrastructure.Services.StarsIntegrationService>();
 
+        services.Configure<FOMS.Application.Configuration.DmsIntegrationOptions>(
+            configuration.GetSection(FOMS.Application.Configuration.DmsIntegrationOptions.SectionName));
+        services.AddHttpClient(FOMS.Infrastructure.Services.DmsIntegrationService.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddScoped<IDmsIntegrationService, FOMS.Infrastructure.Services.DmsIntegrationService>();
+
         return services;
     }
 }

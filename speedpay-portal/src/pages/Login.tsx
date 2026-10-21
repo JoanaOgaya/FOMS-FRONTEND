@@ -10,6 +10,14 @@ interface FormErrors {
   password?: string;
 }
 
+interface CreateAccountErrors {
+  clientId?: string;
+  companyName?: string;
+  email?: string;
+  name?: string;
+  contact?: string;
+}
+
 export const Login: React.FC = () => {
   const { login, createAccount, changePassword } = useClientContext();
   const navigate = useNavigate();
@@ -33,11 +41,29 @@ export const Login: React.FC = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newContact, setNewContact] = useState('');
+  const [createErrors, setCreateErrors] = useState<CreateAccountErrors>({});
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Change Password State
   const [changePasswordVal, setChangePasswordVal] = useState('');
   const [showChangePasswordVal, setShowChangePasswordVal] = useState(false);
+
+  // Validation helpers
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isValidPhone = (phone: string) => /^(\+63|0)9\d{9}$/.test(phone.trim().replace(/[\s-]/g, ''));
+  const isValidClientId = (id: string) => /^[a-zA-Z0-9_-]{3,20}$/.test(id.trim());
+
+  // Form validity computations
+  const isLoginFormValid = clientId.trim().length >= 3 && password.length >= 6;
+
+  const isCreateFormValid = 
+    newClientId.trim().length >= 3 &&
+    isValidClientId(newClientId) &&
+    newCompany.trim().length >= 2 &&
+    newCompany.trim().length <= 200 &&
+    isValidEmail(newEmail) &&
+    newName.trim().length >= 2 &&
+    isValidPhone(newContact);
 
   const FEATURE_HIGHLIGHTS = [
     { step: '1', title: 'Secure Payment Gateway', description: 'Experience fast, reliable, and secure transactions powered by PayMongo.' },
@@ -45,21 +71,33 @@ export const Login: React.FC = () => {
     { step: '3', title: 'Seamless Records', description: 'Access a complete history of all your past payments and official receipts.' },
   ];
 
+  const validateLoginFields = (): boolean => {
+    const errors: FormErrors = {};
+    const trimmedId = clientId.trim();
+
+    if (!trimmedId) {
+      errors.clientId = 'Client ID is required.';
+    } else if (trimmedId.length > 50) {
+      errors.clientId = 'Client ID cannot exceed 50 characters.';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required.';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters.';
+    } else if (password.length > 100) {
+      errors.password = 'Password cannot exceed 100 characters.';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setGlobalSuccess(null);
 
-    const errors: FormErrors = {};
-    if (!clientId.trim()) errors.clientId = 'Client ID is required.';
-    if (!password) errors.password = 'Password is required.';
-    
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      if (errors.clientId) toast.error(errors.clientId, 'Login Failed');
-      else if (errors.password) toast.error(errors.password, 'Login Failed');
-      return;
-    }
-    setFieldErrors({});
+    if (!validateLoginFields()) return;
 
     const result = login(clientId.trim(), password);
     if (!result.success && result.error) {
@@ -71,19 +109,63 @@ export const Login: React.FC = () => {
     }
   };
 
+  const validateCreateAccountFields = (): boolean => {
+    const errors: CreateAccountErrors = {};
+    const trimmedId = newClientId.trim();
+    const trimmedCompany = newCompany.trim();
+    const trimmedEmail = newEmail.trim();
+    const trimmedName = newName.trim();
+    const cleanPhone = newContact.trim().replace(/[\s-]/g, '');
+
+    if (!trimmedId) {
+      errors.clientId = 'Client ID is required.';
+    } else if (!isValidClientId(trimmedId)) {
+      errors.clientId = 'Client ID must be 3-20 characters (letters, numbers, hyphens).';
+    }
+
+    if (!trimmedCompany) {
+      errors.companyName = 'Company name is required.';
+    } else if (trimmedCompany.length > 200) {
+      errors.companyName = 'Company name cannot exceed 200 characters.';
+    }
+
+    if (!trimmedEmail) {
+      errors.email = 'Email address is required.';
+    } else if (!isValidEmail(trimmedEmail)) {
+      errors.email = 'Please enter a valid email address.';
+    } else if (trimmedEmail.length > 255) {
+      errors.email = 'Email cannot exceed 255 characters.';
+    }
+
+    if (!trimmedName) {
+      errors.name = 'Contact person name is required.';
+    } else if (trimmedName.length > 200) {
+      errors.name = 'Name cannot exceed 200 characters.';
+    }
+
+    if (!cleanPhone) {
+      errors.contact = 'Contact number is required.';
+    } else if (!isValidPhone(newContact)) {
+      errors.contact = 'Format must be a valid PH mobile number (e.g., 09171234567 or +639171234567).';
+    }
+
+    setCreateErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCreateAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError(null);
 
-    if (!newClientId.trim() || !newCompany.trim() || !newEmail.trim() || !newName.trim() || !newContact.trim()) {
-      setCreateError("Please fill in all fields.");
+    if (!validateCreateAccountFields()) {
+      setCreateError("Please fix the errors indicated below.");
       return;
     }
 
     const result = createAccount({ 
-      id: newClientId.trim(),
+      id: newClientId.trim().toUpperCase(),
       companyName: newCompany.trim(),
-      email: newEmail.trim(),
+      email: newEmail.trim().toLowerCase(),
       name: newName.trim(),
       contactNumber: newContact.trim()
     });
@@ -94,7 +176,7 @@ export const Login: React.FC = () => {
     }
 
     toast.success('Account created successfully! You can now log in.');
-    setClientId(newClientId.trim());
+    setClientId(newClientId.trim().toUpperCase());
     setPassword('');
     setShowCreateAccount(false);
     
@@ -104,6 +186,7 @@ export const Login: React.FC = () => {
     setNewEmail('');
     setNewName('');
     setNewContact('');
+    setCreateErrors({});
   };
 
   const handleChangePasswordSubmit = (e: React.FormEvent) => {
@@ -133,8 +216,13 @@ export const Login: React.FC = () => {
 
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotClientId.trim()) {
+    const trimmed = forgotClientId.trim();
+    if (!trimmed) {
       setForgotError('Please enter your Client ID or Email.');
+      return;
+    }
+    if (trimmed.length > 255) {
+      setForgotError('Input cannot exceed 255 characters.');
       return;
     }
     setForgotError(null);
@@ -284,7 +372,15 @@ export const Login: React.FC = () => {
               </div>
             )}
 
-            <button type="submit" className="login-btn">
+            <button 
+              type="submit" 
+              className="login-btn" 
+              disabled={!isLoginFormValid}
+              style={{
+                opacity: isLoginFormValid ? 1 : 0.5,
+                cursor: isLoginFormValid ? 'pointer' : 'not-allowed'
+              }}
+            >
               Log In
             </button>
             
@@ -333,45 +429,130 @@ export const Login: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleCreateAccountSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleCreateAccountSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} noValidate>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '6px', textTransform: 'uppercase' }}>Client ID</label>
-                  <div className="login-input-wrap" style={{ height: '38px', padding: '0 10px' }}>
-                    <input type="text" className="login-input" required value={newClientId} onChange={e => setNewClientId(e.target.value)} placeholder="e.g. C-1001" style={{ fontSize: '13px' }} />
+                  <div className={`login-input-wrap ${createErrors.clientId ? 'has-error' : ''}`} style={{ height: '38px', padding: '0 10px' }}>
+                    <input 
+                      type="text" 
+                      className="login-input" 
+                      required 
+                      maxLength={20}
+                      value={newClientId} 
+                      onChange={e => {
+                        setNewClientId(e.target.value);
+                        setCreateErrors(prev => ({ ...prev, clientId: undefined }));
+                      }} 
+                      placeholder="e.g. C-1001" 
+                      style={{ fontSize: '13px' }} 
+                    />
                   </div>
+                  {createErrors.clientId && (
+                    <span style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertCircle size={11} /> {createErrors.clientId}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '6px', textTransform: 'uppercase' }}>Company Name</label>
-                  <div className="login-input-wrap" style={{ height: '38px', padding: '0 10px' }}>
-                    <input type="text" className="login-input" required value={newCompany} onChange={e => setNewCompany(e.target.value)} placeholder="Company Inc." style={{ fontSize: '13px' }} />
+                  <div className={`login-input-wrap ${createErrors.companyName ? 'has-error' : ''}`} style={{ height: '38px', padding: '0 10px' }}>
+                    <input 
+                      type="text" 
+                      className="login-input" 
+                      required 
+                      maxLength={200}
+                      value={newCompany} 
+                      onChange={e => {
+                        setNewCompany(e.target.value);
+                        setCreateErrors(prev => ({ ...prev, companyName: undefined }));
+                      }} 
+                      placeholder="Company Inc." 
+                      style={{ fontSize: '13px' }} 
+                    />
                   </div>
+                  {createErrors.companyName && (
+                    <span style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertCircle size={11} /> {createErrors.companyName}
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '6px', textTransform: 'uppercase' }}>Email Address</label>
-                <div className="login-input-wrap" style={{ height: '38px', padding: '0 10px' }}>
+                <div className={`login-input-wrap ${createErrors.email ? 'has-error' : ''}`} style={{ height: '38px', padding: '0 10px' }}>
                   <Mail size={14} className="login-input-icon" />
-                  <input type="email" className="login-input" required value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="name@company.com" style={{ fontSize: '13px' }} />
+                  <input 
+                    type="email" 
+                    className="login-input" 
+                    required 
+                    maxLength={255}
+                    value={newEmail} 
+                    onChange={e => {
+                      setNewEmail(e.target.value);
+                      setCreateErrors(prev => ({ ...prev, email: undefined }));
+                    }} 
+                    placeholder="name@company.com" 
+                    style={{ fontSize: '13px' }} 
+                  />
                 </div>
+                {createErrors.email && (
+                  <span style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={11} /> {createErrors.email}
+                  </span>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '6px', textTransform: 'uppercase' }}>Contact Person</label>
-                  <div className="login-input-wrap" style={{ height: '38px', padding: '0 10px' }}>
+                  <div className={`login-input-wrap ${createErrors.name ? 'has-error' : ''}`} style={{ height: '38px', padding: '0 10px' }}>
                     <User size={14} className="login-input-icon" />
-                    <input type="text" className="login-input" required value={newName} onChange={e => setNewName(e.target.value)} placeholder="Juan Dela Cruz" style={{ fontSize: '13px' }} />
+                    <input 
+                      type="text" 
+                      className="login-input" 
+                      required 
+                      maxLength={200}
+                      value={newName} 
+                      onChange={e => {
+                        setNewName(e.target.value);
+                        setCreateErrors(prev => ({ ...prev, name: undefined }));
+                      }} 
+                      placeholder="Juan Dela Cruz" 
+                      style={{ fontSize: '13px' }} 
+                    />
                   </div>
+                  {createErrors.name && (
+                    <span style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertCircle size={11} /> {createErrors.name}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '6px', textTransform: 'uppercase' }}>Contact Number</label>
-                  <div className="login-input-wrap" style={{ height: '38px', padding: '0 10px' }}>
+                  <div className={`login-input-wrap ${createErrors.contact ? 'has-error' : ''}`} style={{ height: '38px', padding: '0 10px' }}>
                     <Phone size={14} className="login-input-icon" />
-                    <input type="text" className="login-input" required value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="09XX-XXX-XXXX" style={{ fontSize: '13px' }} />
+                    <input 
+                      type="text" 
+                      className="login-input" 
+                      required 
+                      maxLength={20}
+                      value={newContact} 
+                      onChange={e => {
+                        setNewContact(e.target.value);
+                        setCreateErrors(prev => ({ ...prev, contact: undefined }));
+                      }} 
+                      placeholder="09171234567" 
+                      style={{ fontSize: '13px' }} 
+                    />
                   </div>
+                  {createErrors.contact && (
+                    <span style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertCircle size={11} /> {createErrors.contact}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -383,7 +564,23 @@ export const Login: React.FC = () => {
               
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                 <button type="button" onClick={() => setShowCreateAccount(false)} style={{ flex: 1, padding: '12px', background: '#F1F5F9', border: 'none', borderRadius: '8px', fontWeight: 600, color: '#475569', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
-                <button type="submit" style={{ flex: 1, padding: '12px', background: '#00A99D', border: 'none', borderRadius: '8px', fontWeight: 600, color: '#FFF', cursor: 'pointer', fontSize: '13px' }}>Sign Up</button>
+                <button 
+                  type="submit" 
+                  disabled={!isCreateFormValid}
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: isCreateFormValid ? '#00A99D' : '#94A3B8', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    fontWeight: 600, 
+                    color: '#FFF', 
+                    cursor: isCreateFormValid ? 'pointer' : 'not-allowed', 
+                    fontSize: '13px' 
+                  }}
+                >
+                  Sign Up
+                </button>
               </div>
             </form>
           </div>
@@ -462,8 +659,12 @@ export const Login: React.FC = () => {
                       type="text"
                       className="login-input"
                       required
+                      maxLength={255}
                       value={forgotClientId}
-                      onChange={e => setForgotClientId(e.target.value)}
+                      onChange={e => {
+                        setForgotClientId(e.target.value);
+                        setForgotError(null);
+                      }}
                       placeholder="e.g. JD-001 or client@company.com"
                     />
                   </div>
@@ -483,7 +684,18 @@ export const Login: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    style={{ flex: 1, padding: '12px', background: '#00A99D', border: 'none', borderRadius: '8px', fontWeight: 600, color: '#FFF', cursor: 'pointer', fontSize: '13px' }}
+                    disabled={!forgotClientId.trim()}
+                    style={{ 
+                      flex: 1, 
+                      padding: '12px', 
+                      background: forgotClientId.trim() ? '#00A99D' : '#94A3B8', 
+                      border: 'none', 
+                      borderRadius: '8px', 
+                      fontWeight: 600, 
+                      color: '#FFF', 
+                      cursor: forgotClientId.trim() ? 'pointer' : 'not-allowed', 
+                      fontSize: '13px' 
+                    }}
                   >
                     Send Reset Link
                   </button>

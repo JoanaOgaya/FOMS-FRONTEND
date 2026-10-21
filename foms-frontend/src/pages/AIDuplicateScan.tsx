@@ -263,6 +263,9 @@ const ImageZoomModal: React.FC<{
           <img
             src={imageUrl}
             alt={title}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/mock-receipt.png';
+            }}
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: 'center center',
@@ -295,6 +298,11 @@ export const AIDuplicateScan: React.FC = () => {
     user?.role === ROLES.ACCOUNTANT ||
     user?.role === ROLES.ASSISTANT_FM;
 
+  const isAFM = user?.role === ROLES.ASSISTANT_FM || user?.employeeId === 'EMP-004';
+  const effectiveRole = user?.role || (isAFM ? 'Assistant of Financial Manager' : 'Accountant');
+  const effectiveName = user?.fullName || (isAFM ? 'Joana Marie Ogaya' : 'Maria Mariel Jane Anonuevo');
+  const effectiveId = user?.employeeId || (isAFM ? 'EMP-004' : 'EMP-003');
+
   // Screen state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -307,6 +315,7 @@ export const AIDuplicateScan: React.FC = () => {
   const [isConfirmingUnique, setIsConfirmingUnique] = useState(false);
   const [showConfirmUniqueModal, setShowConfirmUniqueModal] = useState(false);
   const [uniqueModalNote, setUniqueModalNote] = useState('');
+  const [existingImgError, setExistingImgError] = useState(false);
 
   // Modals
   const [showCamera, setShowCamera] = useState(false);
@@ -382,11 +391,12 @@ export const AIDuplicateScan: React.FC = () => {
     scanTimerRef.current = [t1, t2, t3];
 
     try {
+      setExistingImgError(false);
       const result = await duplicateScanService.scanDocument(
         selectedFile,
-        user?.role || 'Accountant',
-        user?.fullName || 'Maria Mariel Jane Anonuevo',
-        user?.employeeId || 'EMP-004'
+        effectiveRole,
+        effectiveName,
+        effectiveId
       );
 
       setTimeout(() => {
@@ -418,6 +428,7 @@ export const AIDuplicateScan: React.FC = () => {
     setScanResult(null);
     setInlineError(null);
     setSubmissionNote('');
+    setExistingImgError(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -429,8 +440,8 @@ export const AIDuplicateScan: React.FC = () => {
       const res = await duplicateScanService.submitForManualReview(
         scanResult,
         submissionNote,
-        user?.fullName || 'Maria Mariel Jane Anonuevo',
-        user?.employeeId || 'EMP-004'
+        effectiveName,
+        effectiveId
       );
       toast.success(res.message, 'Submitted for Review');
       navigate('/my-submissions');
@@ -449,8 +460,8 @@ export const AIDuplicateScan: React.FC = () => {
       const noteToSave = customNote !== undefined ? customNote : (uniqueModalNote || submissionNote);
       const res = await duplicateScanService.confirmAsUniqueDocument(
         scanResult,
-        user?.fullName || 'Maria Mariel Jane Anonuevo',
-        user?.employeeId || 'EMP-004',
+        effectiveName,
+        effectiveId,
         noteToSave
       );
       toast.success(res.message, 'Saved to Unique Documents');
@@ -1166,11 +1177,20 @@ export const AIDuplicateScan: React.FC = () => {
                   >
                     {scanResult.existingRecord ? (
                       <>
-                        <img
-                          src={scanResult.existingRecord.previewUrl || '/mock-receipt.png'}
-                          alt="Existing Record"
-                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                        />
+                        {existingImgError ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', gap: '8px', padding: '20px', textAlign: 'center' }}>
+                            <i className="ti ti-file-invoice" style={{ fontSize: '44px', color: '#64748B' }} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#CBD5E1' }}>Existing Record: {scanResult.existingRecord.recordId}</span>
+                            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{scanResult.existingRecord.documentType} • ₱{scanResult.existingRecord.amount?.toLocaleString()}</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={scanResult.existingRecord.previewUrl || '/mock-receipt.png'}
+                            alt="Existing Record"
+                            onError={() => setExistingImgError(true)}
+                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                          />
+                        )}
                         <div
                           style={{
                             position: 'absolute',

@@ -101,7 +101,6 @@ public class ShipmentRecordsController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> GetShipments([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
-        await EnsureSeededAsync();
         var waybills = await _fomsDb.Waybills.AsNoTracking().ToListAsync();
         var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
 

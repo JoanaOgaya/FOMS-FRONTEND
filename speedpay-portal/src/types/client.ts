@@ -9,8 +9,6 @@ export interface ClientUser {
   isFirstLogin?: boolean;
 }
 
-export const VALID_CLIENT_IDS: string[] = [];
-
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -32,4 +30,3 @@ export interface PaymentRecord {
   officialReceipt?: string;
   rejectionReason?: string;
 }
-

@@ -47,5 +47,20 @@ public class Employee
     /// </summary>
     public DateTime? LockedAt { get; set; }
 
+    /// <summary>
+    /// Contact telephone / mobile number.
+    /// </summary>
+    public string? Phone { get; set; }
+
+    /// <summary>
+    /// Base monthly salary or compensation rate.
+    /// </summary>
+    public decimal? SalaryRate { get; set; }
+
+    /// <summary>
+    /// Official hire or appointment date.
+    /// </summary>
+    public DateTime? DateHired { get; set; }
+
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

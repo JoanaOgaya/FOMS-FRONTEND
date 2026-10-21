@@ -118,7 +118,6 @@ public class BillingRatesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        await EnsureSeededAsync();
         var rates = await _fomsDb.ClientRates.AsNoTracking().ToListAsync();
         var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
 
@@ -374,34 +373,9 @@ public class BillingRecordsController : ControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _fomsDb.BillingDocuments.AnyAsync())
-            {
-                var waybills = await _fomsDb.Waybills.Take(3).ToListAsync();
-                int wb1 = waybills.Count > 0 ? waybills[0].WaybillId : 1;
-                int wb2 = waybills.Count > 1 ? waybills[1].WaybillId : wb1;
-                int wb3 = waybills.Count > 2 ? waybills[2].WaybillId : wb1;
-
-                var samples = new List<BillingDocument>
-                {
-                    new() { WaybillId = wb1, ClientId = 1, ComputedAmount = 1850m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                    new() { WaybillId = wb2, ClientId = 1, ComputedAmount = 2400m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                    new() { WaybillId = wb3, ClientId = 2, ComputedAmount = 1450m, ValidationStatus = "Pending Review", CtcStatus = "Verified", CreatedAt = DateTime.UtcNow.AddHours(-12) }
-                };
-                _fomsDb.BillingDocuments.AddRange(samples);
-                await _fomsDb.SaveChangesAsync();
-            }
-        }
-        catch { }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        await EnsureSeededAsync();
         var records = await _fomsDb.BillingDocuments.AsNoTracking().ToListAsync();
         var waybills = await _fomsDb.Waybills.AsNoTracking().ToListAsync();
         var clients = await _fomsDb.Clients.AsNoTracking().ToListAsync();
@@ -473,10 +447,37 @@ public class BillingRecordsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] BillingRecordInputDto dto)
     {
+        int resolvedWbId = 1;
+        if (int.TryParse(dto.WaybillId, out var parsedWbId))
+        {
+            resolvedWbId = parsedWbId;
+        }
+        else if (!string.IsNullOrEmpty(dto.WaybillId))
+        {
+            var matchedWb = await _fomsDb.Waybills.FirstOrDefaultAsync(w => w.WaybillNumber == dto.WaybillId);
+            if (matchedWb != null) resolvedWbId = matchedWb.WaybillId;
+        }
+
+        int resolvedClientId = 1;
+        if (int.TryParse(dto.ClientId, out var parsedCId))
+        {
+            resolvedClientId = parsedCId;
+        }
+        else if (!string.IsNullOrEmpty(dto.ClientId))
+        {
+            var matchedClient = await _fomsDb.Clients.FirstOrDefaultAsync(c => c.ClientCode == dto.ClientId || (dto.ClientId == "CA-001" && c.ClientId == 1) || (dto.ClientId == "CA-002" && c.ClientId == 2) || (dto.ClientId == "CA-003" && c.ClientId == 3));
+            if (matchedClient != null) resolvedClientId = matchedClient.ClientId;
+            else if (resolvedWbId > 0)
+            {
+                var wb = await _fomsDb.Waybills.FindAsync(resolvedWbId);
+                if (wb != null) resolvedClientId = wb.ClientId;
+            }
+        }
+
         var entity = new BillingDocument
         {
-            WaybillId = int.TryParse(dto.WaybillId, out var wbId) ? wbId : 1,
-            ClientId = int.TryParse(dto.ClientId, out var cId) ? cId : 1,
+            WaybillId = resolvedWbId,
+            ClientId = resolvedClientId,
             ComputedAmount = dto.GrandTotal ?? dto.FreightCost ?? 100m,
             ValidationStatus = dto.Status ?? "Pending Review",
             CreatedAt = DateTime.UtcNow

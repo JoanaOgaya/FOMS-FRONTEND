@@ -36,7 +36,7 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-function mockAuth(role: (typeof ROLES)[keyof typeof ROLES], id = 'EMP-004', name = 'Maria Mariel Jane Anonuevo') {
+function mockAuth(role: (typeof ROLES)[keyof typeof ROLES], id = 'EMP-003', name = 'Maria Mariel Jane Anonuevo') {
   vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
     user: {
       employeeId: id,
@@ -224,8 +224,8 @@ describe('AI Duplicate Scan: Screens A to G Test Suite', () => {
     });
 
     it('blocks decision submission when Financial Manager submitted the document themselves (Separation of Duties)', async () => {
-      // Mock FM user who also submitted ALT-2026-081 (EMP-004)
-      mockAuth(ROLES.FINANCIAL_MANAGER, 'EMP-004', 'Maria Mariel Jane Anonuevo');
+      // Mock FM user who also submitted ALT-2026-081 (EMP-003)
+      mockAuth(ROLES.FINANCIAL_MANAGER, 'EMP-003', 'Maria Mariel Jane Anonuevo');
       render(
         <MemoryRouter>
           <ManualReviewQueue />

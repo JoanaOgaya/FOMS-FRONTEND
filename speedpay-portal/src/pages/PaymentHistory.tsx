@@ -2,7 +2,7 @@ import React from 'react';
 import { useClientContext } from '../context/ClientContext';
 import { motion } from 'framer-motion';
 import { FileText, X, Download, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import type { PaymentRecord } from '../data/mockData';
+import type { PaymentRecord } from '../types/client';
 
 export const PaymentHistory: React.FC = () => {
   const { payments, user } = useClientContext();

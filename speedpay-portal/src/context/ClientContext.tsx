@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Invoice, PaymentRecord, ClientUser } from '../data/mockData';
+import type { Invoice, PaymentRecord, ClientUser } from '../types/client';
 
 export interface ClientNotification {
   id: string;
@@ -244,6 +244,7 @@ export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setInvoices(mapped);
         } else {
           setInvoices(getFallbackInvoices(user.id));
+          setInvoices([]);
         }
       })
       .catch(() => {
@@ -282,6 +283,7 @@ export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               status: 'Validated',
             },
           ]);
+          setPayments([]);
         }
       })
       .catch(() => {

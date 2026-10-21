@@ -603,5 +603,45 @@ BEGIN
 END
 GO
 
+-- 27. Reports table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Reports')
+BEGIN
+    CREATE TABLE Reports (
+        report_id INT IDENTITY(1,1) PRIMARY KEY,
+        report_code NVARCHAR(50) NOT NULL UNIQUE,
+        report_name NVARCHAR(200) NOT NULL,
+        report_type NVARCHAR(100) NOT NULL,
+        category NVARCHAR(100) NULL DEFAULT 'Financial',
+        date_from DATETIME2 NULL,
+        date_to DATETIME2 NULL,
+        generated_by NVARCHAR(100) NOT NULL,
+        generated_by_role NVARCHAR(100) NULL,
+        record_count INT NOT NULL DEFAULT 0,
+        total_amount DECIMAL(18,2) NULL DEFAULT 0.00,
+        file_format NVARCHAR(20) NULL DEFAULT 'PDF',
+        download_url NVARCHAR(500) NULL,
+        summary_notes NVARCHAR(MAX) NULL,
+        status NVARCHAR(50) NOT NULL DEFAULT 'Generated',
+        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        is_deleted BIT NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IX_Reports_Type ON Reports(report_type);
+    CREATE INDEX IX_Reports_CreatedAt ON Reports(created_at);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Reports WHERE report_code = 'REP-2026-0001')
+BEGIN
+    INSERT INTO Reports (report_code, report_name, report_type, category, date_from, date_to, generated_by, generated_by_role, record_count, total_amount, file_format, summary_notes, status, created_at)
+    VALUES 
+    ('REP-2026-0001', 'Accounts Receivable Aging Report', 'aging', 'Financial', '2026-01-01', '2026-10-16', 'Crystalyn Joyce C. Fajardo', 'Financial Manager', 6, 82957.20, 'PDF', 'Comprehensive aged receivables report covering 1-30, 31-60, 61-90, and 90+ day overdue buckets.', 'Generated', DATEADD(HOUR, -2, SYSUTCDATETIME())),
+    ('REP-2026-0002', 'Daily Collection Summary Report', 'collections', 'Financial', '2026-10-01', '2026-10-16', 'Crystalyn Joyce C. Fajardo', 'Financial Manager', 12, 145800.00, 'PDF', 'Consolidated collection summary from SpeedPay and direct bank settlements.', 'Generated', DATEADD(HOUR, -8, SYSUTCDATETIME())),
+    ('REP-2026-0003', 'Official Invoices & Billing Summary', 'invoices', 'Financial', '2026-09-01', '2026-10-16', 'Head Accountant', 'Head Accountant', 7, 237957.20, 'Excel', 'Verified client billing statement across Shopee, Lazada, and corporate clients.', 'Generated', DATEADD(DAY, -1, SYSUTCDATETIME())),
+    ('REP-2026-0004', 'AI Duplicate Alert & OCR Audit Summary', 'duplicate', 'Duplicate Detection', '2026-10-01', '2026-10-16', 'Assistant Financial Manager', 'Assistant FM', 16, 0.00, 'PDF', 'AI-assisted OCR duplicate detection and perceptual hash comparison audit.', 'Generated', DATEADD(DAY, -2, SYSUTCDATETIME())),
+    ('REP-2026-0005', 'Courier Liquidation Validation Report', 'liquidations', 'Liquidation', '2026-10-01', '2026-10-16', 'Assistant Financial Manager', 'Assistant FM', 4, 18450.00, 'PDF', 'Disbursement liquidation validation covering fuel, toll, and operational advances.', 'Generated', DATEADD(DAY, -3, SYSUTCDATETIME())),
+    ('REP-2026-0006', 'Executive Cash Flow & Treasury Ledger', 'cash-flow', 'Financial', '2026-01-01', '2026-10-16', 'Crystalyn Joyce C. Fajardo', 'Financial Manager', 28, 520000.00, 'PDF', 'Net operational cash inflow vs outflow reconciliation for Q3-Q4 2026.', 'Generated', DATEADD(DAY, -5, SYSUTCDATETIME()));
+END
+GO
+
 PRINT 'All FOMS_DB tables and columns checked/created successfully.';
 GO

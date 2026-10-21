@@ -23,68 +23,6 @@ public class AiOutputsController : ApiControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        if (!await _fomsDb.AIOutputHistories.AnyAsync())
-        {
-            var samples = new List<AIOutputHistory>
-            {
-                new()
-                {
-                    OutputType = "Duplicate Detection",
-                    SourceReference = "INV-2026-0042",
-                    ProcessingStatus = "VERIFIED_UNIQUE",
-                    ModelName = "Gemini 1.5 Flash",
-                    Version = "2.1",
-                    Message = "Document analyzed against 1,240 existing invoices. 0% similarity detected.",
-                    CreatedAt = DateTime.UtcNow.AddHours(-2)
-                },
-                new()
-                {
-                    OutputType = "Receivable Risk Score",
-                    SourceReference = "CLI-001 (Lazada Philippines)",
-                    ProcessingStatus = "LOW_RISK",
-                    ModelName = "Financial Risk Scorer",
-                    Version = "1.4",
-                    Message = "Calculated risk score: 18/100 (LOW). Client maintains a 96% on-time settlement history.",
-                    CreatedAt = DateTime.UtcNow.AddHours(-6)
-                },
-                new()
-                {
-                    OutputType = "Collection Priority",
-                    SourceReference = "INV-2026-0038",
-                    ProcessingStatus = "FLAGGED_HIGH",
-                    ModelName = "Collection Prioritizer",
-                    Version = "1.0",
-                    Message = "Payment overdue by 24 days. Priority rank #1. Auto follow-up email suggested.",
-                    CreatedAt = DateTime.UtcNow.AddHours(-18)
-                },
-                new()
-                {
-                    OutputType = "Document Extraction",
-                    SourceReference = "WB-NCR-88491",
-                    ProcessingStatus = "EXTRACTED_HIGH_CONFIDENCE",
-                    ModelName = "OCR Vision Engine",
-                    Version = "3.0",
-                    Message = "Extracted 12 waybill fields with 99.4% confidence. Proof of delivery signature verified.",
-                    CreatedAt = DateTime.UtcNow.AddDays(-1)
-                },
-                new()
-                {
-                    OutputType = "Duplicate Detection",
-                    SourceReference = "SPEEDPAY-TX-9901",
-                    ProcessingStatus = "DUPLICATE_FLAGGED",
-                    ModelName = "Gemini 1.5 Pro",
-                    Version = "2.0",
-                    Message = "Potential duplicate receipt hash matching previously validated transaction TX-9844.",
-                    CreatedAt = DateTime.UtcNow.AddDays(-2)
-                }
-            };
-            _fomsDb.AIOutputHistories.AddRange(samples);
-            await _fomsDb.SaveChangesAsync();
-        }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetOutputs(
         [FromQuery] int page = 1,
@@ -148,9 +86,26 @@ public class AiOutputsController : ApiControllerBase
                 .Take(pageSize)
                 .ToListAsync();
 
-            var clients = await _fomsDb.Clients.AsNoTracking().ToDictionaryAsync(c => c.ClientId, c => c.CompanyName ?? $"Client {c.ClientId}");
-            var invoices = await _fomsDb.Invoices.AsNoTracking().ToListAsync();
-            var liquidations = await _fomsDb.Liquidations.AsNoTracking().Where(l => l.IsDeleted != true).ToListAsync();
+            Dictionary<int, string> clients = new();
+            try
+            {
+                clients = await _fomsDb.Clients.AsNoTracking().ToDictionaryAsync(c => c.ClientId, c => c.CompanyName ?? $"Client {c.ClientId}");
+            }
+            catch { }
+
+            List<Invoice> invoices = new();
+            try
+            {
+                invoices = await _fomsDb.Invoices.AsNoTracking().ToListAsync();
+            }
+            catch { }
+
+            List<Liquidation> liquidations = new();
+            try
+            {
+                liquidations = await _fomsDb.Liquidations.AsNoTracking().Where(l => l.IsDeleted != true).ToListAsync();
+            }
+            catch { }
 
             var items = history.Select(h =>
             {

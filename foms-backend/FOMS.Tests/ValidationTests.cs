@@ -345,4 +345,79 @@ public class ValidationTests
         Assert.False(invalidRes.IsValid);
         Assert.Contains(invalidRes.Errors, e => e.PropertyName == "Status");
     }
+
+    [Fact]
+    public async Task UserCreateDtoValidator_ShouldEnforceAllRulesCorrectly()
+    {
+        using var context = await GetDbContextAsync();
+        var validator = new UserCreateDtoValidator(context);
+
+        // 1. Valid user creation (e.g. EMP-005)
+        FOMS.Application.DTOs.UserCreateDto CreateValidDto() => new()
+        {
+            EmployeeId = "EMP-005",
+            Username = "EMP-005",
+            FullName = "Hannah Marie Estrera",
+            Email = "hannah.estrera@foms.local",
+            Role = "Assistant Financial Manager",
+            Phone = "09171234567",
+            SalaryRate = 45000m,
+            Password = "Password@123",
+            DateHired = DateTime.UtcNow
+        };
+
+        // 1. Valid user creation (e.g. EMP-005)
+        var validDto = CreateValidDto();
+        var validResult = await validator.ValidateAsync(validDto);
+        Assert.True(validResult.IsValid, string.Join(", ", validResult.Errors.Select(e => e.ErrorMessage)));
+
+        // 2. Invalid Employee ID pattern
+        var badPatternDto = CreateValidDto();
+        badPatternDto.EmployeeId = "INVALID-ID";
+        var badPatternResult = await validator.ValidateAsync(badPatternDto);
+        Assert.False(badPatternResult.IsValid);
+        Assert.Contains(badPatternResult.Errors, e => e.PropertyName == "EmployeeId" && e.ErrorMessage.Contains("EMP-###"));
+
+        // 3. Duplicate Employee ID (EMP-001 already seeded)
+        var dupEmpIdDto = CreateValidDto();
+        dupEmpIdDto.EmployeeId = "EMP-001";
+        var dupEmpIdResult = await validator.ValidateAsync(dupEmpIdDto);
+        Assert.False(dupEmpIdResult.IsValid);
+        Assert.Contains(dupEmpIdResult.Errors, e => e.PropertyName == "EmployeeId" && e.ErrorMessage.Contains("already registered"));
+
+        // 4. Duplicate Email (crystalyn@foms.local already seeded)
+        var dupEmailDto = CreateValidDto();
+        dupEmailDto.Email = "crystalyn@foms.local";
+        var dupEmailResult = await validator.ValidateAsync(dupEmailDto);
+        Assert.False(dupEmailResult.IsValid);
+        Assert.Contains(dupEmailResult.Errors, e => e.PropertyName == "Email" && e.ErrorMessage.Contains("already in use"));
+
+        // 5. Invalid Email format
+        var badEmailDto = CreateValidDto();
+        badEmailDto.Email = "not-an-email";
+        var badEmailResult = await validator.ValidateAsync(badEmailDto);
+        Assert.False(badEmailResult.IsValid);
+        Assert.Contains(badEmailResult.Errors, e => e.PropertyName == "Email" && e.ErrorMessage.Contains("invalid"));
+
+        // 6. Invalid Phone format
+        var badPhoneDto = CreateValidDto();
+        badPhoneDto.Phone = "123";
+        var badPhoneResult = await validator.ValidateAsync(badPhoneDto);
+        Assert.False(badPhoneResult.IsValid);
+        Assert.Contains(badPhoneResult.Errors, e => e.PropertyName == "Phone");
+
+        // 7. Negative Salary rate
+        var negativeSalaryDto = CreateValidDto();
+        negativeSalaryDto.SalaryRate = -500m;
+        var negSalaryResult = await validator.ValidateAsync(negativeSalaryDto);
+        Assert.False(negSalaryResult.IsValid);
+        Assert.Contains(negSalaryResult.Errors, e => e.PropertyName == "SalaryRate" && e.ErrorMessage.Contains("negative"));
+
+        // 8. Short Password
+        var shortPassDto = CreateValidDto();
+        shortPassDto.Password = "123";
+        var shortPassResult = await validator.ValidateAsync(shortPassDto);
+        Assert.False(shortPassResult.IsValid);
+        Assert.Contains(shortPassResult.Errors, e => e.PropertyName == "Password" && e.ErrorMessage.Contains("at least 8"));
+    }
 }

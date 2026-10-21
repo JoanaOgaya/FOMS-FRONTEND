@@ -85,11 +85,35 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Employee>()
-            .HasOne(e => e.RoleNavigation)
-            .WithMany(r => r.Employees)
-            .HasForeignKey(e => e.RoleId)
-            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Employee>(entity =>
+        {
+            entity.Property(e => e.Id).HasMaxLength(450).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Role).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Username).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.SystemAccess).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.PasswordHash).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Phone).HasMaxLength(20);
+            entity.Property(e => e.SalaryRate).HasColumnType("decimal(18,2)");
+
+            entity.HasIndex(e => e.Email).IsUnique();
+            entity.HasIndex(e => e.Username).IsUnique();
+
+            entity.HasOne(e => e.RoleNavigation)
+                .WithMany(r => r.Employees)
+                .HasForeignKey(e => e.RoleId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.ToTable(tb =>
+            {
+                tb.HasCheckConstraint("CK_Employees_Id_Pattern", "[Id] LIKE 'EMP-[0-9][0-9][0-9]'");
+                tb.HasCheckConstraint("CK_Employees_Email_Format", "[Email] LIKE '%_@__%.__%'");
+                tb.HasCheckConstraint("CK_Employees_Status", "[Status] IN ('Active', 'Pending', 'Locked', 'Inactive')");
+                tb.HasCheckConstraint("CK_Employees_SalaryRate", "[SalaryRate] IS NULL OR [SalaryRate] >= 0");
+            });
+        });
 
         modelBuilder.Entity<RefreshToken>()
             .HasOne<Employee>()

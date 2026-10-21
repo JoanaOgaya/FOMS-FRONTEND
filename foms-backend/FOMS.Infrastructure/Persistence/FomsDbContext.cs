@@ -41,6 +41,7 @@ public class FomsDbContext : DbContext
     public DbSet<AIOutputHistory> AIOutputHistories { get; set; } = null!;
     public DbSet<AIScanLog> AIScanLogs { get; set; } = null!;
     public DbSet<StarsCollectionTask> StarsCollectionTasks { get; set; } = null!;
+    public DbSet<Report> Reports { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -77,5 +78,6 @@ public class FomsDbContext : DbContext
         modelBuilder.Entity<AIOutputHistory>().ToTable("AIOutputHistory", "dbo");
         modelBuilder.Entity<AIScanLog>().ToTable("ai_scan_logs", "dbo");
         modelBuilder.Entity<StarsCollectionTask>().ToTable("StarsCollectionTasks", "dbo");
+        modelBuilder.Entity<Report>().ToTable("Reports", "dbo");
     }
 }

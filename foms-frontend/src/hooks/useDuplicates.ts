@@ -38,7 +38,7 @@ function useDuplicateList<T>(
 ) {
   const { user } = useAuth();
   const scope = getDuplicateScope(user?.role);
-  const lockedFilter = options.lockedFilter ?? options.initialStatus;
+  const lockedFilter = options.lockedFilter;
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(options.pageSize ?? 10);

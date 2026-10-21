@@ -287,8 +287,11 @@ public class AccountsReceivable
 public class Payment
 {
     [Key]
+    [Column("Id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
     [Column("payment_id")]
-    public int PaymentId { get; set; }
+    public int? PaymentId { get; set; }
 
     [Column("invoice_id")]
     public int? InvoiceId { get; set; }
@@ -1129,5 +1132,61 @@ public class AIScanLog
 
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
+}
+
+[Table("Reports")]
+public class Report
+{
+    [Key]
+    [Column("report_id")]
+    public int ReportId { get; set; }
+
+    [Column("report_code")]
+    public string ReportCode { get; set; } = string.Empty;
+
+    [Column("report_name")]
+    public string ReportName { get; set; } = string.Empty;
+
+    [Column("report_type")]
+    public string ReportType { get; set; } = string.Empty;
+
+    [Column("category")]
+    public string? Category { get; set; } = "Financial";
+
+    [Column("date_from")]
+    public DateTime? DateFrom { get; set; }
+
+    [Column("date_to")]
+    public DateTime? DateTo { get; set; }
+
+    [Column("generated_by")]
+    public string GeneratedBy { get; set; } = string.Empty;
+
+    [Column("generated_by_role")]
+    public string? GeneratedByRole { get; set; }
+
+    [Column("record_count")]
+    public int RecordCount { get; set; }
+
+    [Column("total_amount")]
+    public decimal? TotalAmount { get; set; }
+
+    [Column("file_format")]
+    public string? FileFormat { get; set; } = "PDF";
+
+    [Column("download_url")]
+    public string? DownloadUrl { get; set; }
+
+    [Column("summary_notes")]
+    public string? SummaryNotes { get; set; }
+
+    [Column("status")]
+    public string Status { get; set; } = "Generated";
+
+    [Column("created_at")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; } = false;
 }
 

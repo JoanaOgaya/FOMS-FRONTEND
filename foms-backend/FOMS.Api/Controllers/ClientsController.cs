@@ -178,38 +178,9 @@ public class ClientsController : ApiControllerBase
         });
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _context.Clients.AnyAsync(c => c.Status == "Inactive"))
-            {
-                var inactiveClient = new FOMS.Domain.Entities.Client
-                {
-                    Id = "ZAL-001",
-                    ClientCode = "ZAL-001",
-                    Name = "Zalora Philippines",
-                    BusinessName = "Zalora PH",
-                    ContactPerson = "Robert Tan",
-                    ContactNumber = "09185551234",
-                    Email = "finance@zalora.com.ph",
-                    Address = "Muntinlupa City, Metro Manila",
-                    Tin = "321-654-987",
-                    CreditLimit = 250000m,
-                    CurrentBalance = 0m,
-                    Status = "Inactive"
-                };
-                _context.Clients.Add(inactiveClient);
-                await _context.SaveChangesAsync(default);
-            }
-        }
-        catch { }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetClients()
     {
-        await EnsureSeededAsync();
         var clients = await Mediator.Send(new ClientFeatures.GetClientsQuery());
         var result = clients.Select(c =>
         {
@@ -286,18 +257,109 @@ public class ClientsController : ApiControllerBase
         });
     }
 
-    [HttpPost]
-    public async Task<IActionResult> CreateClient([FromBody] ClientFeatures.CreateClientCommand command)
+    public class ClientInputDto
     {
-        var client = await Mediator.Send(command);
-        return Ok(client);
+        public string? Id { get; set; }
+        public string? ClientCode { get; set; }
+        public string? Name { get; set; }
+        public string? BusinessName { get; set; }
+        public string? ContactPerson { get; set; }
+        public string? ContactNumber { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Address { get; set; }
+        public string? Tin { get; set; }
+        public decimal? CreditLimit { get; set; }
+        public string? Status { get; set; }
+        public string? BillingSchedule { get; set; }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateClient([FromBody] ClientInputDto dto)
+    {
+        var name = !string.IsNullOrWhiteSpace(dto.Name) ? dto.Name : "New Client";
+        var code = dto.ClientCode;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            var lower = name.ToLowerInvariant();
+            string prefix = "CLI";
+            if (lower.Contains("lazada")) prefix = "LZD";
+            else if (lower.Contains("shopee")) prefix = "SHP";
+            else if (lower.Contains("tiktok")) prefix = "TKT";
+            else if (lower.Contains("zalora")) prefix = "ZAL";
+            else if (lower.Contains("test")) prefix = "TST";
+            else
+            {
+                var cleanLetters = new string(name.Where(char.IsLetter).ToArray());
+                prefix = cleanLetters.Length >= 3 ? cleanLetters[..3].ToUpperInvariant() : "CLI";
+            }
+            var count = await _context.Clients.CountAsync(c => c.ClientCode.StartsWith(prefix));
+            code = $"{prefix}-{(count + 1):D3}";
+        }
+
+        var contactPhone = !string.IsNullOrWhiteSpace(dto.ContactNumber) ? dto.ContactNumber : (!string.IsNullOrWhiteSpace(dto.Phone) ? dto.Phone : "09000000000");
+        var busName = !string.IsNullOrWhiteSpace(dto.BusinessName) ? dto.BusinessName : name;
+        var email = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : $"{name.ToLower().Replace(" ", "")}@client.com";
+
+        var client = new FOMS.Domain.Entities.Client
+        {
+            Id = code,
+            ClientCode = code,
+            Name = name,
+            BusinessName = busName,
+            ContactPerson = !string.IsNullOrWhiteSpace(dto.ContactPerson) ? dto.ContactPerson : "Operations Manager",
+            ContactNumber = contactPhone,
+            Email = email,
+            Address = dto.Address ?? "Metro Manila, Philippines",
+            Tin = dto.Tin,
+            CreditLimit = dto.CreditLimit ?? 100000m,
+            CurrentBalance = 0,
+            TotalBilled = 0,
+            TotalPaid = 0,
+            Status = dto.Status ?? "Active",
+            DateRegistered = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            LastTransaction = "—",
+            Archived = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.Clients.Add(client);
+        await _context.SaveChangesAsync(default);
+
+        return Ok(new
+        {
+            id = client.Id,
+            clientCode = client.ClientCode,
+            name = client.Name,
+            businessName = client.BusinessName,
+            contactPerson = client.ContactPerson,
+            contactNumber = client.ContactNumber,
+            phone = client.ContactNumber,
+            email = client.Email,
+            address = client.Address,
+            tin = client.Tin,
+            region = "Metro Manila",
+            serviceArea = "NCR",
+            creditLimit = client.CreditLimit,
+            currentBalance = client.CurrentBalance,
+            totalBilled = client.TotalBilled,
+            totalPaid = client.TotalPaid,
+            status = client.Status,
+            vatStatus = "VATable",
+            vatRate = 0.12m,
+            billingSchedule = dto.BillingSchedule ?? "Monthly",
+            createdAt = client.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
+        });
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteClient(string id)
     {
-        var result = await Mediator.Send(new ClientFeatures.DeleteClientCommand(id));
-        if (!result) return NotFound();
+        var client = await _context.Clients.FirstOrDefaultAsync(c => c.Id == id || c.ClientCode == id);
+        if (client == null) return NotFound();
+        _context.Clients.Remove(client);
+        await _context.SaveChangesAsync(default);
         return Ok(new { success = true });
     }
 
@@ -306,16 +368,57 @@ public class ClientsController : ApiControllerBase
     [HttpPut("{id}/archive")]
     public async Task<IActionResult> ArchiveClient(string id, [FromBody] ClientArchiveRequest request)
     {
-        var result = await Mediator.Send(new ClientFeatures.ArchiveClientCommand(id, request.Archived));
-        if (!result) return NotFound();
+        var client = await _context.Clients.FirstOrDefaultAsync(c => c.Id == id || c.ClientCode == id);
+        if (client == null) return NotFound();
+        client.Archived = request.Archived;
+        await _context.SaveChangesAsync(default);
         return Ok(new { success = true });
     }
+
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateClient(string id, [FromBody] ClientFeatures.UpdateClientCommand command)
+    public async Task<IActionResult> UpdateClient(string id, [FromBody] ClientInputDto dto)
     {
-        if (id != command.Id) return BadRequest(new { message = "ID mismatch" });
-        var client = await Mediator.Send(command);
-        if (client == null) return NotFound();
-        return Ok(client);
+        var client = await _context.Clients.FirstOrDefaultAsync(c => c.Id == id || c.ClientCode == id);
+        if (client == null) return NotFound(new { message = $"Client {id} not found" });
+
+        if (!string.IsNullOrWhiteSpace(dto.Name)) client.Name = dto.Name;
+        if (!string.IsNullOrWhiteSpace(dto.BusinessName)) client.BusinessName = dto.BusinessName;
+        else if (!string.IsNullOrWhiteSpace(dto.Name)) client.BusinessName = dto.Name;
+        if (!string.IsNullOrWhiteSpace(dto.ContactPerson)) client.ContactPerson = dto.ContactPerson;
+        var phone = !string.IsNullOrWhiteSpace(dto.ContactNumber) ? dto.ContactNumber : dto.Phone;
+        if (!string.IsNullOrWhiteSpace(phone)) client.ContactNumber = phone;
+        if (!string.IsNullOrWhiteSpace(dto.Email)) client.Email = dto.Email;
+        if (!string.IsNullOrWhiteSpace(dto.Address)) client.Address = dto.Address;
+        if (dto.Tin != null) client.Tin = dto.Tin;
+        if (dto.CreditLimit.HasValue) client.CreditLimit = dto.CreditLimit.Value;
+        if (!string.IsNullOrWhiteSpace(dto.Status)) client.Status = dto.Status;
+        client.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(default);
+
+        return Ok(new
+        {
+            id = client.Id,
+            clientCode = client.ClientCode,
+            name = client.Name,
+            businessName = client.BusinessName,
+            contactPerson = client.ContactPerson,
+            contactNumber = client.ContactNumber,
+            phone = client.ContactNumber,
+            email = client.Email,
+            address = client.Address,
+            tin = client.Tin,
+            region = "Metro Manila",
+            serviceArea = "NCR",
+            creditLimit = client.CreditLimit,
+            currentBalance = client.CurrentBalance,
+            totalBilled = client.TotalBilled,
+            totalPaid = client.TotalPaid,
+            status = client.Status,
+            vatStatus = "VATable",
+            vatRate = 0.12m,
+            billingSchedule = dto.BillingSchedule ?? "Monthly",
+            createdAt = client.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
+        });
     }
 }

@@ -41,43 +41,9 @@ public class SettlementsController : ControllerBase
         _fomsDb = fomsDb;
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            if (!await _fomsDb.Settlements.AnyAsync())
-            {
-                var samples = new List<Settlement>
-                {
-                    new() { RecordType = "Leftover return", CourierTrip = "Juan Dela Cruz - TRIP-NCR-001", Amount = 5000m, Status = "For validation", SubmittedAt = DateTime.UtcNow.AddDays(-1), CreatedAt = DateTime.UtcNow.AddDays(-1) },
-                    new() { RecordType = "Expense liquidation", CourierTrip = "Pedro Santos - TRIP-LUZ-002", Amount = 3200m, Status = "For validation", SubmittedAt = DateTime.UtcNow.AddDays(-2), CreatedAt = DateTime.UtcNow.AddDays(-2) },
-                    new() { RecordType = "Leftover return", CourierTrip = "Carlos Reyes - TRIP-VIS-003", Amount = 4150m, Status = "Validated", SubmittedAt = DateTime.UtcNow.AddDays(-3), CreatedAt = DateTime.UtcNow.AddDays(-3) },
-                    new() { RecordType = "Expense liquidation", CourierTrip = "Mark Bautista - TRIP-MIN-004", Amount = 1450m, Status = "Rejected", SubmittedAt = DateTime.UtcNow.AddDays(-4), CreatedAt = DateTime.UtcNow.AddDays(-4) }
-                };
-                _fomsDb.Settlements.AddRange(samples);
-                await _fomsDb.SaveChangesAsync();
-            }
-            else if (!await _fomsDb.Settlements.AnyAsync(s => s.Status == "Rejected"))
-            {
-                _fomsDb.Settlements.Add(new Settlement
-                {
-                    RecordType = "Expense liquidation",
-                    CourierTrip = "Mark Bautista - TRIP-MIN-004",
-                    Amount = 1450m,
-                    Status = "Rejected",
-                    SubmittedAt = DateTime.UtcNow.AddDays(-4),
-                    CreatedAt = DateTime.UtcNow.AddDays(-4)
-                });
-                await _fomsDb.SaveChangesAsync();
-            }
-        }
-        catch { }
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetSettlements([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
-        await EnsureSeededAsync();
         var query = _fomsDb.Settlements.AsNoTracking();
         var total = await query.CountAsync();
         var items = await query

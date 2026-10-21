@@ -6,47 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, X, Camera, CheckCircle2 } from 'lucide-react';
 import { QrPhPaymentView } from '../components/QrPhPaymentView';
 
-const MOCK_WAYBILLS = [
-  {
-    waybillNo: 'WB-2026-0001',
-    status: 'Validated',
-    sender: 'Lazada Philippines',
-    receiver: 'Juan Dela Cruz',
-    address: '123 Sampaguita St., Quezon City',
-    service: 'Delivery',
-    courier: 'Rider John Doe',
-    date: '9/29/2026',
-    items: '2 box',
-    declaredValue: 0,
-    remarks: 'Fragile, please handle with care.',
-    weight: 1.5,
-    volumeWeight: 0,
-    freight: 100,
-    valuation: 0,
-    oda: 0,
-    vat: 12
-  },
-  {
-    waybillNo: 'WB-2026-0002',
-    status: 'Validated',
-    sender: 'Shopee Philippines',
-    receiver: 'Maria Clara',
-    address: '456 Rizal Ave., Manila',
-    service: 'Delivery',
-    courier: 'Rider Jane Doe',
-    date: '9/28/2026',
-    items: '1 pouch',
-    declaredValue: 500,
-    remarks: 'Deliver during office hours.',
-    weight: 0.5,
-    volumeWeight: 0,
-    freight: 80,
-    valuation: 5,
-    oda: 0,
-    vat: 12
-  }
-];
-
 export const PayInvoice: React.FC = () => {
   const { invoices, submitPayment, user } = useClientContext();
   const { toast } = useToast();
@@ -70,9 +29,52 @@ export const PayInvoice: React.FC = () => {
   
   const [showWaybillsModal, setShowWaybillsModal] = useState(false);
   const [selectedWaybill, setSelectedWaybill] = useState<any>(null);
+  const [realWaybills, setRealWaybills] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/waybills')
+      .then(res => res.json())
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((wb: any) => ({
+            waybillNo: wb.waybillNumber || wb.trackingNumber || `WB-${wb.id}`,
+            status: wb.status || wb.podStatus || 'Validated',
+            sender: wb.clientName || user?.companyName || 'Lazada Philippines',
+            receiver: wb.destination || 'Delivery Consignee',
+            address: `${wb.destination || 'Metro Manila'}, Philippines`,
+            service: 'Standard Delivery',
+            courier: 'Operations Rider',
+            date: wb.date || 'Today',
+            items: `${wb.actualWeight || 1} kg package`,
+            declaredValue: 500,
+            remarks: 'Standard parcel shipment.',
+            weight: Number(wb.actualWeight) || 1.5,
+            volumeWeight: 0,
+            freight: Math.round((Number(wb.actualWeight) || 1) * 80),
+            valuation: 5,
+            oda: 0,
+            vat: 12,
+            clientId: wb.clientId,
+            invoiceNo: wb.invoiceNo
+          }));
+          setRealWaybills(mapped);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   const unpaidInvoices = invoices.filter(i => i.status === 'Unpaid' || i.status === 'Due Soon' || i.status === 'Overdue');
   const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId);
+
+  const displayedWaybills = realWaybills.filter(wb => {
+    if (!selectedInvoice) return true;
+    if (wb.invoiceNo && (wb.invoiceNo === selectedInvoice.invoiceNumber || wb.invoiceNo === selectedInvoice.id)) return true;
+    if (wb.clientId && user?.id && wb.clientId.toLowerCase() === user.id.toLowerCase()) return true;
+    if (wb.sender && user?.companyName && wb.sender.toLowerCase().includes(user.companyName.toLowerCase())) return true;
+    return false;
+  });
+
+  const activeWaybills = displayedWaybills.length > 0 ? displayedWaybills : realWaybills.slice(0, 2);
 
   // Pre-select if navigated from "Pay now" or auto-select first unpaid invoice
   useEffect(() => {
@@ -197,7 +199,7 @@ export const PayInvoice: React.FC = () => {
                 </div>
 
                 {/* Per-waybill breakdown */}
-                {MOCK_WAYBILLS.map((wb) => {
+                {activeWaybills.map((wb) => {
                   const subtotal = wb.freight + wb.valuation + wb.oda;
                   const vatAmt = subtotal * (wb.vat / 100);
                   const total = subtotal + vatAmt;
@@ -253,12 +255,12 @@ export const PayInvoice: React.FC = () => {
                 {/* Summary below all waybills */}
                 <div style={{ padding: '12px 0 4px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {(() => {
-                    const grossSubtotal = MOCK_WAYBILLS.reduce((s, wb) => s + wb.freight + wb.valuation + wb.oda, 0);
-                    const totalVat = MOCK_WAYBILLS.reduce((s, wb) => s + (wb.freight + wb.valuation + wb.oda) * (wb.vat / 100), 0);
+                    const grossSubtotal = activeWaybills.reduce((s, wb) => s + (wb.freight || 0) + (wb.valuation || 0) + (wb.oda || 0), 0);
+                    const totalVat = activeWaybills.reduce((s, wb) => s + ((wb.freight || 0) + (wb.valuation || 0) + (wb.oda || 0)) * ((wb.vat || 12) / 100), 0);
                     return (
                       <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: '#64748B' }}>Gross Subtotal ({MOCK_WAYBILLS.length} waybills)</span>
+                          <span style={{ color: '#64748B' }}>Gross Subtotal ({activeWaybills.length} waybills)</span>
                           <span style={{ color: '#0F172A', fontWeight: 600 }}>₱{grossSubtotal.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
@@ -353,7 +355,7 @@ export const PayInvoice: React.FC = () => {
                     
                     <input 
                       type="file" 
-                      accept="image/*" 
+                      accept="image/*,application/pdf" 
                       ref={fileInputRef} 
                       style={{ display: 'none' }} 
                       onChange={(e) => {
@@ -365,22 +367,49 @@ export const PayInvoice: React.FC = () => {
                           setFileAttached(false);
                           
                           const reader = new FileReader();
-                          reader.onload = (event) => {
+                          reader.onload = async (event) => {
                             if (event.target?.result) {
-                              setProofFileUrl(event.target.result as string);
+                              const dataUrl = event.target.result as string;
+                              setProofFileUrl(dataUrl);
                               
-                              // Simulate AI Scan
-                              setTimeout(() => {
+                              try {
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                formData.append('invoiceId', selectedInvoice?.id || selectedInvoiceId);
+                                formData.append('referenceNumber', referenceNo);
+                                formData.append('amountPaid', String(selectedInvoice?.amount || 0));
+                                formData.append('paymentMethod', paymentMethod);
+                                formData.append('proofFileUrl', dataUrl);
+                                formData.append('proofFileName', file.name);
+
+                                const res = await fetch('/api/speedpay/validate-proof', {
+                                  method: 'POST',
+                                  body: formData
+                                });
+
+                                const data = await res.json();
                                 setIsScanningAI(false);
-                                if (file.name.toLowerCase().includes('fail') || file.name.toLowerCase().includes('blur')) {
-                                  setAiScanResult('failed');
-                                  setAiScanMessage('Image is blurry or amount does not match invoice. Please upload a clearer image.');
-                                } else {
+
+                                if (res.ok && data.isValid) {
                                   setAiScanResult('success');
-                                  setAiScanMessage(`AI Verified: Payment amount ₱${selectedInvoice?.amount.toLocaleString('en-US', {minimumFractionDigits:2})} matches.`);
+                                  setAiScanMessage(data.message || `AI Verified: Payment amount ₱${selectedInvoice?.amount.toLocaleString('en-US', {minimumFractionDigits:2})} matches.`);
+                                  if (data.extractedReferenceNumber && !referenceNo) {
+                                    setReferenceNo(data.extractedReferenceNumber);
+                                  }
                                   setFileAttached(true);
+                                  toast.success(data.message || 'Payment receipt verified by AI.', 'Validation Success');
+                                } else {
+                                  setAiScanResult('failed');
+                                  setAiScanMessage(data.message || 'Image is blurry or not a recognized payment receipt. Please upload a clear image.');
+                                  setFileAttached(false);
+                                  toast.error(data.message || 'Receipt verification failed.', 'Validation Failed');
                                 }
-                              }, 2500);
+                              } catch {
+                                setIsScanningAI(false);
+                                setAiScanResult('failed');
+                                setAiScanMessage('Receipt validation service temporarily unavailable.');
+                                setFileAttached(false);
+                              }
                             }
                           };
                           reader.readAsDataURL(file);
@@ -478,7 +507,7 @@ export const PayInvoice: React.FC = () => {
                   <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>Waybills for {selectedInvoice?.invoiceNumber}</h3>
                 </div>
                 <div style={{ overflowY: 'auto', flex: 1, padding: '16px' }}>
-                  {MOCK_WAYBILLS.map((wb, i) => (
+                  {activeWaybills.map((wb, i) => (
                     <div 
                       key={i}
                       onClick={() => setSelectedWaybill(wb)}

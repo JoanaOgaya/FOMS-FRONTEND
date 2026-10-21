@@ -169,94 +169,10 @@ public class InvoicesController : ApiControllerBase
         return Ok(MapToFrontend(invoice));
     }
 
-    private async Task EnsureSeededAsync()
-    {
-        try
-        {
-            bool modified = false;
-            if (!await _context.Invoices.AnyAsync(i => i.PaymentStatus == "Draft" || i.PaymentValidationStatus == "Draft"))
-            {
-                _context.Invoices.Add(new FOMS.Domain.Entities.Invoice
-                {
-                    Id = "INV-001",
-                    InvoiceNo = "LZD-2026-0001",
-                    ClientId = "CA-001",
-                    ClientName = "Lazada Philippines",
-                    BillingDate = DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd"),
-                    DueDate = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd"),
-                    FreightCharges = 44642.86m,
-                    Subtotal = 44642.86m,
-                    VatAmount = 5357.14m,
-                    TotalAmount = 50000m,
-                    AmountPaid = 0m,
-                    Balance = 50000m,
-                    PaymentStatus = "Draft",
-                    PaymentValidationStatus = "Draft",
-                    DateEncoded = DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd")
-                });
-                modified = true;
-            }
-
-            if (!await _context.Invoices.AnyAsync(i => i.PaymentStatus == "Pending Approval" || i.PaymentValidationStatus == "Pending Approval"))
-            {
-                _context.Invoices.Add(new FOMS.Domain.Entities.Invoice
-                {
-                    Id = "INV-002",
-                    InvoiceNo = "BI-2026-0001",
-                    ClientId = "CA-001",
-                    ClientName = "Lazada Philippines",
-                    BillingDate = DateTime.UtcNow.AddDays(-5).ToString("yyyy-MM-dd"),
-                    DueDate = DateTime.UtcNow.AddDays(25).ToString("yyyy-MM-dd"),
-                    FreightCharges = 26785.71m,
-                    Subtotal = 26785.71m,
-                    VatAmount = 3214.29m,
-                    TotalAmount = 30000m,
-                    AmountPaid = 0m,
-                    Balance = 30000m,
-                    PaymentStatus = "Pending Approval",
-                    PaymentValidationStatus = "Pending Approval",
-                    DateEncoded = DateTime.UtcNow.AddDays(-5).ToString("yyyy-MM-dd")
-                });
-                modified = true;
-            }
-
-            if (!await _context.Invoices.AnyAsync(i => i.PaymentStatus == "Needs Revision" || i.PaymentValidationStatus == "Needs Revision"))
-            {
-                _context.Invoices.Add(new FOMS.Domain.Entities.Invoice
-                {
-                    Id = "INV-003",
-                    InvoiceNo = "SHP-2026-0001",
-                    ClientId = "CA-002",
-                    ClientName = "Shopee Philippines",
-                    BillingDate = DateTime.UtcNow.AddDays(-3).ToString("yyyy-MM-dd"),
-                    DueDate = DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd"),
-                    FreightCharges = 37946.43m,
-                    Subtotal = 37946.43m,
-                    VatAmount = 4553.57m,
-                    TotalAmount = 42500m,
-                    AmountPaid = 0m,
-                    Balance = 42500m,
-                    PaymentStatus = "Needs Revision",
-                    PaymentValidationStatus = "Needs Revision",
-                    Description = "Returned for tax computation revision",
-                    DateEncoded = DateTime.UtcNow.AddDays(-3).ToString("yyyy-MM-dd")
-                });
-                modified = true;
-            }
-
-            if (modified)
-            {
-                await _context.SaveChangesAsync(default);
-            }
-        }
-        catch { }
-    }
-
     [Authorize]
     [HttpGet]
     public async Task<IActionResult> GetInvoices()
     {
-        await EnsureSeededAsync();
         var invoices = await _context.Invoices.ToListAsync();
 
         foreach (var invoice in invoices)

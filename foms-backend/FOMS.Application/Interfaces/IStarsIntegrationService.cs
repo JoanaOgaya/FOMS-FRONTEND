@@ -53,4 +53,7 @@ public interface IStarsIntegrationService
     /// Evaluates workload and availability graph routing metrics across all available coordinators.
     /// </summary>
     Task<System.Collections.Generic.List<StarsCoordinatorRoutingMetricDto>> EvaluateCoordinatorGraphRoutingAsync();
+    /// Integration Check: queries STARS to check if an email or employee number already exists in STARS.
+    /// </summary>
+    Task<(bool exists, string message)> CheckUserExistsInStarsAsync(string? email, string? employeeId = null);
 }
