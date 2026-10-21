@@ -8,6 +8,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContext';
+import { getCentralLoginUrl, getCentralForgotPasswordUrl } from '../services/centralAuth';
+import { LANDING_PATH } from '../utils/roleAccess';
 import './LoginPage.css';
 
 interface FormErrors {
@@ -44,17 +46,17 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotEmpId, setForgotEmpId] = useState('');
-  const [forgotError, setForgotError] = useState<string | null>(null);
-
   if (user) {
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const isLogoutAction = params.get('action') === 'logout';
     const wasLoggedOut = typeof window !== 'undefined' && sessionStorage.getItem('loggedOut') === 'true';
-    const state = location.state as { from?: string } | null;
-    const requestedFrom = !wasLoggedOut && state?.from && state.from !== '/login' && state.from !== '/'
-      ? state.from
-      : '/dashboard';
-    return <Navigate to={requestedFrom} replace />;
+    if (!isLogoutAction && !wasLoggedOut) {
+      const state = location.state as { from?: string } | null;
+      const requestedFrom = state?.from && state.from !== '/login' && state.from !== '/'
+        ? state.from
+        : (LANDING_PATH[user.role] ?? '/dashboard');
+      return <Navigate to={requestedFrom} replace />;
+    }
   }
 
   const EMP_ID_REGEX = /^EMP-\d{3}$/i;
@@ -100,29 +102,6 @@ export function LoginPage() {
     } else if (result.success) {
       triggerToast('success', 'Authentication Successful', 'Welcome back!', undefined, undefined, 4);
     }
-  };
-
-  const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  const isForgotValid = EMP_ID_REGEX.test(forgotEmpId.trim()) || EMAIL_REGEX.test(forgotEmpId.trim());
-
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = forgotEmpId.trim();
-    if (!trimmed) {
-      setForgotError('Please enter your Employee ID or Email.');
-      return;
-    }
-    if (!EMP_ID_REGEX.test(trimmed) && !EMAIL_REGEX.test(trimmed)) {
-      setForgotError('Please enter a valid Employee ID (EMP-###) or registered company email.');
-      return;
-    }
-    setForgotError(null);
-    setShowForgotModal(false);
-    triggerToast(
-      'info',
-      'Reset Request Dispatched',
-      `Password reset instructions have been dispatched for ${trimmed.toUpperCase()}.`
-    );
   };
 
   return (
@@ -268,14 +247,13 @@ export function LoginPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-              <button
-                type="button"
+              <a
+                href={getCentralForgotPasswordUrl()}
                 className="login-forgot-link"
-                onClick={() => setShowForgotModal(true)}
-                style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#0D9488', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
               >
                 Forgot Password?
-              </button>
+              </a>
             </div>
 
             <button
@@ -297,76 +275,26 @@ export function LoginPage() {
                 'Sign In to FOMS'
               )}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <a
+                href={getCentralLoginUrl()}
+                style={{
+                  fontSize: '13px',
+                  color: '#0D9488',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                Sign in via Speedex One-Login Portal →
+              </a>
+            </div>
           </form>
         </div>
       </main>
-
-      {/* Forgot Password Modal */}
-      {showForgotModal && (
-        <div className="foms-modal-overlay" onClick={() => setShowForgotModal(false)}>
-          <div className="foms-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
-            <div className="foms-modal-header">
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Reset Password</h3>
-              <button className="foms-modal-close" onClick={() => setShowForgotModal(false)}>×</button>
-            </div>
-            <div className="foms-modal-body" style={{ padding: '20px' }}>
-              <form onSubmit={handleForgotSubmit}>
-                <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                  Enter your registered Employee ID or company email. Recovery instructions will be sent to your administrator.
-                </p>
-
-                {forgotError && (
-                  <div className="login-global-error" style={{ marginBottom: '16px' }}>
-                    <AlertCircle size={15} /> {forgotError}
-                  </div>
-                )}
-
-                <div className="login-field" style={{ marginBottom: '16px' }}>
-                  <label className="login-label">Employee ID or Email</label>
-                  <div className="login-input-wrap">
-                    <span className="login-input-icon"><User size={16} /></span>
-                    <input
-                      type="text"
-                      className="login-input"
-                      placeholder="Enter Employee ID (e.g. EMP-001) or Email"
-                      maxLength={255}
-                      required
-                      value={forgotEmpId}
-                      onChange={(e) => {
-                        setForgotEmpId(e.target.value);
-                        setForgotError(null);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button
-                    type="button"
-                    className="login-btn"
-                    style={{ background: '#F3F4F6', color: '#374151', flex: 1 }}
-                    onClick={() => setShowForgotModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="login-btn" 
-                    style={{ 
-                      flex: 1,
-                      opacity: !isForgotValid ? 0.6 : 1,
-                      cursor: !isForgotValid ? 'not-allowed' : 'pointer'
-                    }}
-                    disabled={!isForgotValid}
-                  >
-                    Send Request
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
