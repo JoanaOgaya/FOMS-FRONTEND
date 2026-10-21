@@ -385,7 +385,7 @@ export const RecordCashOutflowModal: React.FC<RecordCashOutflowModalProps> = ({
           >
             <i className="ti ti-info-circle" style={{ fontSize: 16 }} />
             <span>
-              Initial Status: <strong>Pending Assistant Review</strong>. Amounts over ₱10,000 will be flagged for Financial Manager Level 2 approval.
+              Initial Status: <strong>Pending Assistant Review</strong>. Items flagged by policy will be endorsed for secondary review.
             </span>
           </div>
 

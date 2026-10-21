@@ -94,7 +94,11 @@ export const approvalsService = {
    * Fetch escalated approvals directly (Financial Manager endpoint)
    */
   async getEscalatedApprovals(params?: PendingApprovalsParams): Promise<PendingApprovalsResponse> {
-    const res = await http.get<any>('/financial-manager/escalated-approvals', params);
+    const queryParams: Record<string, any> = { ...params };
+    if (params?.entityType && !queryParams.type) {
+      queryParams.type = params.entityType;
+    }
+    const res = await http.get<any>('/financial-manager/escalated-approvals', queryParams);
     if (res && res.items) return { items: res.items, total: res.total ?? res.items.length };
     if (Array.isArray(res)) return { items: res, total: res.length };
     return { items: [], total: 0 };

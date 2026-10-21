@@ -10,11 +10,17 @@ export type ApprovalStatus =
   | 'Submitted'
   | 'PendingFinanceManager'
   | 'Approved'
-  | 'ReturnedForRevision';
+  | 'ReturnedForRevision'
+  | 'Returned'
+  | 'Rejected';
 
 export interface ApprovalStep {
   level: string | number;
   approverName: string;
+  actorName?: string;
+  actorRole?: string;
+  actorUserId?: string;
+  role?: string;
   action: 'Submitted' | 'Approved' | 'ReturnedForRevision' | 'Rejected' | 'Escalated' | string;
   remarks?: string;
   actedAt: string;

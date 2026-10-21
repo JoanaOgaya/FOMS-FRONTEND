@@ -256,7 +256,7 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
 
   // ── 3. Self-Approval Guard ────────────────────────────────────────────────
   describe('3. Self-Approval Guard in Detail Drawer', () => {
-    it('disables Approve and Reject buttons when logged-in user is the requester with explanatory tooltip', async () => {
+    it('shows only Close button and read-only explanation when logged-in user is the requester', async () => {
       // User is Aaron AsstFM who requested REQ-SELF-001
       mockAuth(testAsstFmUser);
 
@@ -278,20 +278,16 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
 
       // Self-approval warning banner is rendered
       expect(
-        screen.getByText(/You cannot approve or reject this request because you submitted it/)
+        screen.getByText(/You are the requester. You cannot approve or reject this request/i)
       ).toBeDefined();
 
-      // Buttons are rendered but disabled with explanatory title/tooltip
-      const actionBtn = screen.getByRole('button', { name: /(Approve|Escalate)/i });
-      const rejectBtn = screen.getByRole('button', { name: /Reject/i });
-      expect(actionBtn.hasAttribute('disabled')).toBe(true);
-      expect(rejectBtn.hasAttribute('disabled')).toBe(true);
-      expect(actionBtn.getAttribute('title')).toContain('You cannot act on your own request');
-      expect(rejectBtn.getAttribute('title')).toContain('You cannot act on your own request');
+      // Approve and Reject buttons are NOT shown for requester; only Close is shown
+      expect(screen.queryByRole('button', { name: /^Approve$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Reject$/i })).toBeNull();
+      expect(screen.getByRole('button', { name: /^Close$/i })).toBeDefined();
 
       // Escalation notice is also displayed because isEscalated === true
       expect(screen.getByText('High-Value Escalation Notice')).toBeDefined();
-      expect(screen.getByText(/exceeds threshold of/)).toBeDefined();
     });
 
     it('enforces escalation for Assistant FM on high-value transactions and enables actions for Financial Manager', async () => {
@@ -324,6 +320,15 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
       unmount();
 
       // Now Financial Manager views the transaction - final Approve must be available
+      server.use(
+        http.get(/.*\/approvals\/REQ-001$/, () =>
+          HttpResponse.json({
+            ...testApprovalRequest,
+            status: 'PendingFinanceManager',
+            currentLevel: 'FinanceManager',
+          })
+        )
+      );
       mockAuth(testFmUser);
       render(
         <MemoryRouter>

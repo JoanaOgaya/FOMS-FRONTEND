@@ -75,10 +75,67 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
         (user.employeeId && user.employeeId === request.requestedBy))
   );
 
-  const canTakeAction =
+  const isFinanceManager = user?.role === 'FINANCIAL_MANAGER';
+  const isAssistant = user?.role === 'ASSISTANT_FM';
+
+  // Detail Drawer Actions:
+  // Show "Approve" and "Reject" ONLY when status is PendingFinanceManager,
+  // role is Finance Manager, and logged-in user is not the requester.
+  const canFmAct = Boolean(
     request &&
-    (request.status === 'Submitted' || request.status === 'PendingFinanceManager') &&
-    (user?.role === 'ASSISTANT_FM' || user?.role === 'FINANCIAL_MANAGER');
+      request.status === 'PendingFinanceManager' &&
+      isFinanceManager &&
+      !isSelfRequest
+  );
+
+  // Asst. Finance Manager actions on Level 1 Submitted requests
+  const canAfmAct = Boolean(
+    request &&
+      request.status === 'Submitted' &&
+      isAssistant &&
+      !isSelfRequest
+  );
+
+  const canTakeAction = canFmAct || canAfmAct;
+
+  const getStateExplanation = (): string | null => {
+    if (!request) return null;
+    if (isSelfRequest) {
+      return 'You are the requester. Self-approval is not permitted.';
+    }
+    if (request.status === 'ReturnedForRevision' || request.status === 'Returned') {
+      return 'Returned to requester. Waiting for resubmission.';
+    }
+    if (request.status === 'Approved') {
+      return 'Approved and posted to cash flow.';
+    }
+    if (request.status === 'Rejected') {
+      return 'Rejected. Transaction closed.';
+    }
+    if (request.status === 'PendingFinanceManager' && !isFinanceManager) {
+      return 'Escalated to Finance Manager for final approval.';
+    }
+    if (request.status === 'Submitted' && isFinanceManager) {
+      return 'Awaiting initial review by Assistant Finance Manager.';
+    }
+    return null;
+  };
+
+  const stateExplanation = getStateExplanation();
+
+  const handleActionError = async (err: unknown, defaultMessage: string) => {
+    const errorObj = err as any;
+    const status = errorObj?.status || errorObj?.response?.status;
+    if (status === 409) {
+      toast.warning('This record was already acted on by someone else.', 'Status Changed');
+    } else if (status === 403) {
+      toast.error('You do not have permission to perform this action.', 'Action Restricted');
+    } else {
+      toast.error(formatApprovalErrorMessage(err) || defaultMessage, 'Action Failed');
+    }
+    await loadDetails();
+    onActionSuccess?.();
+  };
 
   const handleApprove = async () => {
     if (!request) return;
@@ -93,7 +150,7 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
       onActionSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(formatApprovalErrorMessage(err), 'Approval Failed');
+      await handleActionError(err, 'Approval Failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -112,7 +169,7 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
       onActionSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(formatApprovalErrorMessage(err), 'Rejection Failed');
+      await handleActionError(err, 'Rejection Failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +181,7 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
     try {
       await approvalsService.escalate(
         request.id,
-        `Amount ${formatCurrency(request.amount)} exceeds Assistant limit. Endorsed to Financial Manager.`
+        'Flagged for secondary review by policy. Endorsed to Financial Manager.'
       );
       toast.warning(
         `Escalated ${request.entityType} ${request.referenceNo} to Financial Manager`,
@@ -133,19 +190,11 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
       onActionSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(formatApprovalErrorMessage(err), 'Escalation Failed');
+      await handleActionError(err, 'Escalation Failed');
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const isAssistant = user?.role === 'ASSISTANT_FM';
-  const exceedsThreshold = Boolean(
-    request &&
-      (request.isEscalated ||
-        (typeof request.escalationThreshold === 'number' && request.amount > request.escalationThreshold))
-  );
-  const assistantMustEscalate = isAssistant && exceedsThreshold;
 
   return (
     <>
@@ -302,7 +351,7 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
                 )}
 
                 {/* Self Approval Warning Banner */}
-                {isSelfRequest && canTakeAction && (
+                {isSelfRequest && (
                   <div
                     style={{
                       padding: '12px 16px',
@@ -318,7 +367,7 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
                   >
                     <i className="ti ti-shield-lock" style={{ fontSize: '18px', color: '#0EA5E9' }} />
                     <span>
-                      <strong>Self-Approval Guard:</strong> You cannot approve or reject this request because you submitted it.
+                      <strong>Self-Approval Guard:</strong> You are the requester. You cannot approve or reject this request.
                     </span>
                   </div>
                 )}
@@ -431,22 +480,26 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
                       </div>
                     )}
 
-                    {request.rejectionReason && (
+                    {(request.status === 'ReturnedForRevision' || request.status === 'Returned' || Boolean(request.rejectionReason)) && (
                       <div
                         style={{
                           gridColumn: 'span 2',
-                          padding: '10px 14px',
+                          padding: '14px 16px',
                           background: '#FEF2F2',
-                          borderRadius: '8px',
+                          borderRadius: '10px',
                           border: '1px solid #FECACA',
+                          boxShadow: '0 1px 3px rgba(239, 68, 68, 0.1)',
                         }}
                       >
-                        <span style={{ display: 'block', fontSize: '11px', color: '#991B1B', fontWeight: 700 }}>
-                          REJECTION REASON
-                        </span>
-                        <span style={{ fontSize: '13px', color: '#B91C1C' }}>
-                          {request.rejectionReason}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <i className="ti ti-alert-triangle" style={{ fontSize: '18px', color: '#DC2626' }} />
+                          <span style={{ fontSize: '12px', color: '#991B1B', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Reason for Return / Revision Required
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#B91C1C', lineHeight: '1.5', whiteSpace: 'pre-wrap', fontWeight: 500 }}>
+                          {request.rejectionReason || request.remarks || 'Returned to requester for corrections. Waiting for resubmission.'}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -464,7 +517,12 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
                   <h4 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
                     Approval History & Audit Trail
                   </h4>
-                  <ApprovalHistoryTimeline history={history} isLoading={false} />
+                  <ApprovalHistoryTimeline
+                    history={history}
+                    isLoading={false}
+                    requestedBy={request.requestedBy}
+                    requestedById={request.requestedById}
+                  />
                 </div>
               </div>
             ) : null}
@@ -482,104 +540,141 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
               gap: '12px',
             }}
           >
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                background: '#FFFFFF',
-                color: '#475569',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Close
-            </button>
-
-            {canTakeAction && (
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                {/* Reject Button */}
+            {canTakeAction ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => setIsRejectModalOpen(true)}
-                  disabled={isSubmitting || isSelfRequest}
-                  title={isSelfRequest ? 'You cannot act on your own request' : 'Reject and return for revision'}
+                  onClick={onClose}
+                  disabled={isSubmitting}
                   style={{
-                    padding: '10px 18px',
+                    padding: '10px 20px',
                     borderRadius: '8px',
-                    border: '1px solid #EF4444',
-                    background: isSelfRequest ? '#F8FAFC' : '#FFFFFF',
-                    color: isSelfRequest ? '#94A3B8' : '#EF4444',
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
                     fontSize: '13px',
                     fontWeight: 600,
-                    cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    opacity: isSelfRequest ? 0.6 : 1,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  <i className="ti ti-x" />
-                  Reject
+                  Close
                 </button>
 
-                {/* Escalate or Approve Button based on threshold & role */}
-                {assistantMustEscalate ? (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {/* Reject Button */}
                   <button
                     type="button"
-                    onClick={handleEscalate}
-                    disabled={isSubmitting || isSelfRequest}
-                    title={isSelfRequest ? 'You cannot act on your own request' : 'Escalate high-value transaction to Financial Manager'}
+                    onClick={() => setIsRejectModalOpen(true)}
+                    disabled={isSubmitting}
                     style={{
-                      padding: '10px 20px',
+                      padding: '10px 18px',
                       borderRadius: '8px',
-                      border: 'none',
-                      background: isSelfRequest ? '#CBD5E1' : '#D97706',
-                      color: '#FFFFFF',
+                      border: '1px solid #EF4444',
+                      background: '#FFFFFF',
+                      color: '#EF4444',
                       fontSize: '13px',
                       fontWeight: 600,
-                      cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
+                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      opacity: isSelfRequest ? 0.6 : 1,
-                      boxShadow: isSelfRequest ? 'none' : '0 2px 6px rgba(217, 119, 6, 0.3)',
                     }}
                   >
-                    <i className="ti ti-urgent" />
-                    Escalate to Financial Manager
+                    {isSubmitting ? (
+                      <i className="ti ti-loader animate-spin" />
+                    ) : (
+                      <i className="ti ti-x" />
+                    )}
+                    Reject
                   </button>
+
+                  {/* Escalate (AFM on flagged items) or Approve */}
+                  {canAfmAct && request?.isEscalated === true ? (
+                    <button
+                      type="button"
+                      onClick={handleEscalate}
+                      disabled={isSubmitting}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#D97706',
+                        color: '#FFFFFF',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <i className="ti ti-loader animate-spin" />
+                      ) : (
+                        <i className="ti ti-urgent" />
+                      )}
+                      Escalate to Financial Manager
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsApproveModalOpen(true)}
+                      disabled={isSubmitting}
+                      style={{
+                        padding: '10px 22px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#10B981',
+                        color: '#FFFFFF',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <i className="ti ti-loader animate-spin" />
+                      ) : (
+                        <i className="ti ti-check" />
+                      )}
+                      Approve
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {stateExplanation ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748B', fontSize: '13px', fontWeight: 500 }}>
+                    <i className="ti ti-info-circle" style={{ fontSize: '16px', color: '#94A3B8' }} />
+                    <span>{stateExplanation}</span>
+                  </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsApproveModalOpen(true)}
-                    disabled={isSubmitting || isSelfRequest}
-                    title={isSelfRequest ? 'You cannot act on your own request' : 'Approve this transaction'}
-                    style={{
-                      padding: '10px 22px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      background: isSelfRequest ? '#CBD5E1' : '#10B981',
-                      color: '#FFFFFF',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      opacity: isSelfRequest ? 0.6 : 1,
-                      boxShadow: isSelfRequest ? 'none' : '0 2px 6px rgba(16, 185, 129, 0.3)',
-                    }}
-                  >
-                    <i className="ti ti-check" />
-                    Approve
-                  </button>
+                  <div />
                 )}
-              </div>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </>
             )}
           </div>
         </div>
