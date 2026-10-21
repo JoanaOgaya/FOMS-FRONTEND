@@ -59,6 +59,7 @@ export const ApprovalsQueue: React.FC<ApprovalsQueueProps> = ({ mode = 'all' }) 
 
   const TYPE_OPTIONS = [
     { label: 'All Types', value: 'ALL' },
+    { label: 'Cash Outflows', value: 'CashOutflow' },
     { label: 'Payments', value: 'Payment' },
     { label: 'Settlements', value: 'Settlement' },
     { label: 'Financial Adjustments', value: 'FinancialAdjustment' },

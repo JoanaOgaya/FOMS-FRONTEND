@@ -372,35 +372,70 @@ public class PaymentHistory
 public class Notification
 {
     [Key]
-    [Column("notification_id")]
-    public int NotificationId { get; set; }
+    [Column("Id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    [Column("recipient_user_id")]
-    public int? RecipientUserId { get; set; }
+    [Column("Type")]
+    public string? Type { get; set; } = "info";
 
-    [Column("recipient_role")]
-    public string? RecipientRole { get; set; }
-
-    [Column("type")]
-    public string? Type { get; set; }
-
-    [Column("title")]
+    [Column("Title")]
     public string? Title { get; set; }
 
-    [Column("message")]
-    public string? Message { get; set; }
+    [Column("InvoiceNo")]
+    public string? InvoiceNo { get; set; }
 
-    [Column("related_record_type")]
+    [Column("Description")]
+    public string? Description { get; set; }
+
+    [NotMapped]
+    public string? Message
+    {
+        get => Description;
+        set => Description = value;
+    }
+
+    [Column("Timestamp")]
+    public string? Timestamp { get; set; } = DateTime.UtcNow.ToString("hh:mm tt");
+
+    [Column("Date")]
+    public string? Date { get; set; } = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+    [Column("Source")]
+    public string? Source { get; set; } = "FOMS System";
+
+    [Column("Read")]
+    public bool Read { get; set; } = false;
+
+    [NotMapped]
+    public bool? IsRead
+    {
+        get => Read;
+        set => Read = value ?? false;
+    }
+
+    [Column("StatusBadge")]
+    public string? StatusBadge { get; set; }
+
+    [Column("RecipientUserId")]
+    public string? RecipientUserId { get; set; }
+
+    [Column("RecipientRole")]
+    public string? RecipientRole { get; set; }
+
+    [Column("RelatedPaymentId")]
+    public string? RelatedPaymentId { get; set; }
+
+    [Column("RelatedInvoiceId")]
+    public string? RelatedInvoiceId { get; set; }
+
+    [NotMapped]
     public string? RelatedRecordType { get; set; }
 
-    [Column("related_record_id")]
+    [NotMapped]
     public int? RelatedRecordId { get; set; }
 
-    [Column("is_read")]
-    public bool? IsRead { get; set; }
-
-    [Column("created_at")]
-    public DateTime? CreatedAt { get; set; }
+    [Column("CreatedAt")]
+    public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 [Table("AuditLogs")]
@@ -668,6 +703,10 @@ public class CashInflow
 public class CashOutflow
 {
     [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("outflow_id")]
+    public int OutflowId { get; set; }
+
     [Column("CashOutflowId")]
     public string CashOutflowId { get; set; } = $"CO-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
 
@@ -677,13 +716,13 @@ public class CashOutflow
     [Column("LiquidationId")]
     public string? LiquidationId { get; set; }
 
-    [Column("Category")]
+    [Column("category")]
     public string? Category { get; set; }
 
-    [Column("Description")]
+    [Column("description")]
     public string? Description { get; set; }
 
-    [Column("Amount")]
+    [Column("amount")]
     public decimal Amount { get; set; }
 
     [Column("RecordedBy")]
@@ -701,11 +740,29 @@ public class CashOutflow
     [Column("transaction_date")]
     public DateTime? TransactionDate { get; set; }
 
-    [Column("outflow_id")]
-    public int? OutflowId { get; set; }
-
-    [Column("CreatedAt")]
+    [Column("created_at")]
     public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("payee")]
+    public string? Payee { get; set; }
+
+    [Column("currency")]
+    public string? Currency { get; set; } = "PHP";
+
+    [Column("supporting_documents")]
+    public string? SupportingDocuments { get; set; }
+
+    [Column("submitted_by")]
+    public string? SubmittedBy { get; set; }
+
+    [Column("approval_level")]
+    public string? ApprovalLevel { get; set; }
+
+    [Column("assigned_approver")]
+    public string? AssignedApprover { get; set; }
+
+    [Column("updated_at")]
+    public DateTime? UpdatedAt { get; set; }
 }
 
 [Table("CashAdvances")]
@@ -1188,5 +1245,173 @@ public class Report
 
     [Column("is_deleted")]
     public bool? IsDeleted { get; set; } = false;
+}
+
+[Table("ApprovalThresholdSettings")]
+public class ApprovalThresholdSetting
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("threshold_id")]
+    public int ThresholdId { get; set; }
+
+    [Column("transaction_type")]
+    public string TransactionType { get; set; } = "CashOutflow";
+
+    [Column("role_name")]
+    public string RoleName { get; set; } = "Assistant Financial Manager";
+
+    [Column("maximum_amount")]
+    public decimal MaximumAmount { get; set; }
+
+    [Column("currency")]
+    public string Currency { get; set; } = "PHP";
+
+    [Column("effective_from")]
+    public DateTime EffectiveFrom { get; set; } = DateTime.UtcNow;
+
+    [Column("effective_to")]
+    public DateTime? EffectiveTo { get; set; }
+
+    [Column("is_active")]
+    public bool IsActive { get; set; } = true;
+
+    [Column("updated_by")]
+    public string UpdatedBy { get; set; } = "System";
+
+    [Column("updated_at")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("CashOutflowApprovalRequests")]
+public class CashOutflowApprovalRequest
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("approval_request_id")]
+    public int ApprovalRequestId { get; set; }
+
+    [Column("request_guid")]
+    public string RequestGuid { get; set; } = $"APP-CO-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+
+    [Column("cash_outflow_id")]
+    public string CashOutflowId { get; set; } = string.Empty;
+
+    [Column("transaction_reference")]
+    public string TransactionReference { get; set; } = string.Empty;
+
+    [Column("payee")]
+    public string? Payee { get; set; }
+
+    [Column("category")]
+    public string? Category { get; set; }
+
+    [Column("purpose")]
+    public string? Purpose { get; set; }
+
+    [Column("amount")]
+    public decimal Amount { get; set; }
+
+    [Column("currency")]
+    public string Currency { get; set; } = "PHP";
+
+    [Column("approval_level")]
+    public string ApprovalLevel { get; set; } = "Level 1";
+
+    [Column("assigned_role")]
+    public string AssignedRole { get; set; } = "Assistant Financial Manager";
+
+    [Column("assigned_user_id")]
+    public int? AssignedUserId { get; set; }
+
+    [Column("status")]
+    public string Status { get; set; } = "Pending Assistant Review";
+
+    [Column("is_escalated")]
+    public bool IsEscalated { get; set; } = false;
+
+    [Column("escalation_threshold")]
+    public decimal? EscalationThreshold { get; set; }
+
+    [Column("submitted_by")]
+    public string SubmittedBy { get; set; } = string.Empty;
+
+    [Column("submitted_by_id")]
+    public string? SubmittedById { get; set; }
+
+    [Column("submitted_at")]
+    public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("escalated_by")]
+    public string? EscalatedBy { get; set; }
+
+    [Column("escalated_at")]
+    public DateTime? EscalatedAt { get; set; }
+
+    [Column("escalation_reason")]
+    public string? EscalationReason { get; set; }
+
+    [Column("reviewed_by")]
+    public string? ReviewedBy { get; set; }
+
+    [Column("reviewed_at")]
+    public DateTime? ReviewedAt { get; set; }
+
+    [Column("rejection_reason")]
+    public string? RejectionReason { get; set; }
+
+    [Column("remarks")]
+    public string? Remarks { get; set; }
+
+    [Column("supporting_documents")]
+    public string? SupportingDocuments { get; set; }
+
+    [Column("is_posted")]
+    public bool IsPosted { get; set; } = false;
+
+    [Column("posted_at")]
+    public DateTime? PostedAt { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("updated_at")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+[Table("CashOutflowApprovalHistory")]
+public class CashOutflowApprovalHistory
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("history_id")]
+    public int HistoryId { get; set; }
+
+    [Column("approval_request_id")]
+    public int ApprovalRequestId { get; set; }
+
+    [Column("actor_user_id")]
+    public string ActorUserId { get; set; } = string.Empty;
+
+    [Column("actor_name")]
+    public string? ActorName { get; set; }
+
+    [Column("actor_role")]
+    public string ActorRole { get; set; } = string.Empty;
+
+    [Column("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [Column("previous_status")]
+    public string PreviousStatus { get; set; } = string.Empty;
+
+    [Column("new_status")]
+    public string NewStatus { get; set; } = string.Empty;
+
+    [Column("remarks")]
+    public string? Remarks { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

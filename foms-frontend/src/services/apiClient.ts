@@ -8,7 +8,7 @@ const SESSION_KEY = 'foms_session';
 
 const baseURL: string =
   import.meta.env.VITE_API_URL ??
-  'https://fomsintegration-amfve2fdccbdgbgy.eastasia-01.azurewebsites.net';
+  'http://localhost:5007';
 
 export class ApiError extends Error {
   status: number;

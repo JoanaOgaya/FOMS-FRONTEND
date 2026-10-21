@@ -48,7 +48,7 @@ public class CashFlowController : ApiControllerBase
                 amount = inf.Amount,
                 sourceReference = inf.ReferenceNumber ?? inf.Source ?? $"Inflow {inf.InflowId}",
                 date = (inf.TransactionDate ?? inf.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
-                recordedBy = "Crystalyn Joyce C. Fajardo",
+                recordedBy = "Finance Team",
                 category = inf.Source ?? "Collection",
                 status = inf.Status ?? "Validated"
             });
@@ -60,18 +60,12 @@ public class CashFlowController : ApiControllerBase
                 id = !string.IsNullOrEmpty(outf.CashOutflowId) ? outf.CashOutflowId : $"OUT-{outf.OutflowId}",
                 type = "Outflow",
                 amount = outf.Amount,
-                sourceReference = outf.Description ?? outf.Category ?? outf.CashOutflowId ?? $"Outflow {outf.OutflowId}",
+                sourceReference = outf.SourceReference ?? outf.Description ?? outf.Category ?? outf.CashOutflowId ?? $"Outflow {outf.OutflowId}",
                 date = (outf.TransactionDate ?? outf.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
-                recordedBy = "Crystalyn Joyce C. Fajardo",
+                recordedBy = outf.RecordedBy ?? outf.SubmittedBy ?? "Finance Team",
                 category = outf.Category ?? "Disbursement",
                 status = outf.Status ?? "Approved"
             });
-        }
-
-        if (!records.Any())
-        {
-            var fallback = await _repository.GetAllAsync();
-            return Ok(fallback);
         }
 
         return Ok(records);
@@ -81,13 +75,9 @@ public class CashFlowController : ApiControllerBase
     public async Task<IActionResult> GetSummary()
     {
         var inflow = await _fomsDb.CashInflows.SumAsync(t => (decimal?)t.Amount) ?? 0m;
-        var outflow = await _fomsDb.CashOutflows.SumAsync(t => (decimal?)t.Amount) ?? 0m;
-
-        if (inflow == 0 && outflow == 0)
-        {
-            inflow = await _context.CashFlowTransactions.Where(t => t.Type == "Inflow").SumAsync(t => (decimal?)t.Amount) ?? 0m;
-            outflow = await _context.CashFlowTransactions.Where(t => t.Type == "Outflow").SumAsync(t => (decimal?)t.Amount) ?? 0m;
-        }
+        var outflow = await _fomsDb.CashOutflows
+            .Where(o => o.Status == "Approved" || o.Status == "Approved by Assistant" || o.Status == "Approved by Financial Manager" || o.Status == "Completed")
+            .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
         return Ok(new { Inflow = inflow, Outflow = outflow });
     }

@@ -664,7 +664,7 @@ public class FinancialManagerController : ControllerBase
 
         var validatedPayments = payments.Where(p => p.PaymentStatus == "Validated" || p.PaymentStatus == "Paid").ToList();
         var totalCashInflow = inflows.Any() ? inflows.Sum(i => i.Amount) : validatedPayments.Sum(p => p.Amount);
-        var totalCashOutflow = outflows.Sum(o => o.Amount);
+        var totalCashOutflow = outflows.Where(o => o.Status == "Approved" || o.Status == "Approved by Assistant" || o.Status == "Approved by Financial Manager" || o.Status == "Completed").Sum(o => o.Amount);
         var netCashFlow = totalCashInflow - totalCashOutflow;
         var pendingValidation = payments.Count(p => p.PaymentStatus == "Pending Finance Validation" || p.PaymentStatus == "Pending" || p.PaymentStatus == "Pending Validation");
 
@@ -1168,6 +1168,168 @@ public class FinancialManagerController : ControllerBase
         {
             // Audit log write failure must not abort operation
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Escalated Approvals (Section 7)
+    // GET /api/financial-manager/escalated-approvals
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("escalated-approvals")]
+    public async Task<IActionResult> GetEscalatedApprovals(
+        [FromQuery] string? status,
+        [FromQuery] string? type,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100)
+    {
+        if (!IsAuthorizedFinancialManager())
+            return StatusCode(403, new { success = false, message = "Access denied. Financial Manager role required." });
+
+        var query = _fomsDb.CashOutflowApprovalRequests
+            .AsNoTracking()
+            .Where(r => r.ApprovalLevel == "Level 2" || r.IsEscalated || r.Status == "Pending Financial Manager Approval");
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(status, "PendingFinanceManager", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == "Pending Financial Manager Approval" || (r.IsEscalated && r.Status != "Approved by Financial Manager" && r.Status != "Rejected by Financial Manager"));
+            }
+            else if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == "Approved by Financial Manager" || r.Status == "Approved");
+            }
+            else if (string.Equals(status, "ReturnedForRevision", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(status, "Returned", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == "Returned for Correction" || r.Status == "Rejected by Financial Manager");
+            }
+            else
+            {
+                query = query.Where(r => r.Status == status);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(type) && !string.Equals(type, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(r => r.Category == type || r.Category!.Contains(type));
+        }
+
+        var total = await query.CountAsync();
+        var records = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((Math.Max(1, page) - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = records.Select(r => new
+        {
+            id = r.RequestGuid,
+            entityType = r.Category ?? "CashOutflow",
+            entityId = r.CashOutflowId,
+            referenceNo = r.TransactionReference,
+            amount = r.Amount,
+            requestedBy = r.SubmittedBy,
+            requestedById = r.SubmittedById ?? "EMP-004",
+            currentLevel = "FinanceManager",
+            status = r.Status == "Pending Financial Manager Approval" ? "PendingFinanceManager" : (r.Status.StartsWith("Approved") ? "Approved" : "ReturnedForRevision"),
+            createdAt = r.CreatedAt.ToString("o"),
+            updatedAt = r.UpdatedAt.ToString("o"),
+            purpose = r.Purpose,
+            description = r.Purpose ?? r.Category,
+            isEscalated = true,
+            escalationThreshold = r.EscalationThreshold,
+            rejectionReason = r.RejectionReason,
+            remarks = r.Remarks
+        }).ToList();
+
+        return Ok(new
+        {
+            success = true,
+            count = total,
+            total,
+            items,
+            data = items
+        });
+    }
+
+    [HttpGet("escalated-approvals/{id}")]
+    public async Task<IActionResult> GetEscalatedApprovalById(string id)
+    {
+        if (!IsAuthorizedFinancialManager())
+            return StatusCode(403, new { success = false, message = "Access denied. Financial Manager role required." });
+
+        var r = await _fomsDb.CashOutflowApprovalRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.RequestGuid == id || x.CashOutflowId == id || x.TransactionReference == id);
+
+        if (r == null && int.TryParse(id, out var intId))
+        {
+            r = await _fomsDb.CashOutflowApprovalRequests.AsNoTracking().FirstOrDefaultAsync(x => x.ApprovalRequestId == intId);
+        }
+
+        if (r == null)
+            return NotFound(new { success = false, message = $"Escalated approval request '{id}' not found." });
+
+        return Ok(new
+        {
+            id = r.RequestGuid,
+            entityType = r.Category ?? "CashOutflow",
+            entityId = r.CashOutflowId,
+            referenceNo = r.TransactionReference,
+            amount = r.Amount,
+            requestedBy = r.SubmittedBy,
+            requestedById = r.SubmittedById ?? "EMP-004",
+            currentLevel = "FinanceManager",
+            status = r.Status == "Pending Financial Manager Approval" ? "PendingFinanceManager" : (r.Status.StartsWith("Approved") ? "Approved" : "ReturnedForRevision"),
+            createdAt = r.CreatedAt.ToString("o"),
+            updatedAt = r.UpdatedAt.ToString("o"),
+            purpose = r.Purpose,
+            description = r.Purpose ?? r.Category,
+            isEscalated = true,
+            escalationThreshold = r.EscalationThreshold,
+            rejectionReason = r.RejectionReason,
+            remarks = r.Remarks
+        });
+    }
+
+    [HttpPost("escalated-approvals/{id}/approve")]
+    public async Task<IActionResult> ApproveEscalated(string id)
+    {
+        if (!IsAuthorizedFinancialManager())
+            return StatusCode(403, new { success = false, message = "Access denied. Financial Manager role required." });
+
+        var approvalsCtrl = new ApprovalsController(_fomsDb, HttpContext.RequestServices.GetRequiredService<ILogger<ApprovalsController>>())
+        {
+            ControllerContext = ControllerContext
+        };
+        return await approvalsCtrl.Approve(id);
+    }
+
+    [HttpPost("escalated-approvals/{id}/reject")]
+    public async Task<IActionResult> RejectEscalated(string id, [FromBody] System.Text.Json.JsonElement body)
+    {
+        if (!IsAuthorizedFinancialManager())
+            return StatusCode(403, new { success = false, message = "Access denied. Financial Manager role required." });
+
+        var approvalsCtrl = new ApprovalsController(_fomsDb, HttpContext.RequestServices.GetRequiredService<ILogger<ApprovalsController>>())
+        {
+            ControllerContext = ControllerContext
+        };
+        return await approvalsCtrl.Reject(id, body);
+    }
+
+    [HttpPost("escalated-approvals/{id}/return")]
+    public async Task<IActionResult> ReturnEscalated(string id, [FromBody] System.Text.Json.JsonElement body)
+    {
+        if (!IsAuthorizedFinancialManager())
+            return StatusCode(403, new { success = false, message = "Access denied. Financial Manager role required." });
+
+        var approvalsCtrl = new ApprovalsController(_fomsDb, HttpContext.RequestServices.GetRequiredService<ILogger<ApprovalsController>>())
+        {
+            ControllerContext = ControllerContext
+        };
+        return await approvalsCtrl.ReturnForCorrection(id, body);
     }
 }
 

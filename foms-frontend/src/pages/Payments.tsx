@@ -287,22 +287,37 @@ const PaymentsContent: React.FC = () => {
     setCheckingStep(0);
   };
 
-  const handleSubmitExpense = (e: React.FormEvent) => {
+  const handleSubmitExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expenseForm.description || !expenseForm.amount || !expenseForm.date) return;
+    const amountVal = parseFloat(expenseForm.amount);
+    const refNo = expenseForm.referenceNo?.trim() || `EXP-${Date.now()}`;
+    try {
+      await cashFlowService.recordOutflow({
+        referenceNumber: refNo,
+        category: expenseForm.category,
+        payee: 'Disbursement Payee',
+        description: expenseForm.description,
+        amount: amountVal,
+        transactionDate: expenseForm.date,
+      });
+      await invalidateForMutation('recordCashFlow');
+      toast.success(`Expense "${expenseForm.description}" recorded — ₱${amountVal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Expense Recorded');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save expense to database.', 'Expense Warning');
+    }
     const newExpense = {
-      id: `EXP-${Date.now()}`,
+      id: refNo,
       description: expenseForm.description,
-      amount: parseFloat(expenseForm.amount),
+      amount: amountVal,
       category: expenseForm.category,
       date: expenseForm.date,
-      referenceNo: expenseForm.referenceNo,
+      referenceNo: refNo,
       recordedBy: user?.fullName || 'Finance Team',
     };
     setExpenses(prev => [newExpense, ...prev]);
     setExpenseForm({ description: '', amount: '', category: 'Office Supplies', date: '', referenceNo: '' });
     setShowExpenseForm(false);
-    toast.success(`Expense "${newExpense.description}" recorded — ₱${newExpense.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Expense Recorded');
   };
 
   const { data: paymentsData, refetch: refreshPayments } = useQuery('payments', () => paymentsService.list({ pageSize: 100 }));

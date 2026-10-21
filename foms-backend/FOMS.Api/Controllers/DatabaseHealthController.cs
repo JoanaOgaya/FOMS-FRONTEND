@@ -208,6 +208,71 @@ public class DatabaseHealthController : ControllerBase
         });
     }
 
+    [HttpGet("cash-outflow")]
+    public async Task<IActionResult> CheckCashOutflowHealth()
+    {
+        try
+        {
+            var canConnect = await _legacyDbContext.Database.CanConnectAsync();
+            var totalCount = await _legacyDbContext.CashOutflows.CountAsync();
+            var activeThreshold = await _legacyDbContext.ApprovalThresholdSettings
+                .AsNoTracking()
+                .Where(t => t.IsActive && (t.TransactionType == "CashOutflow" || t.TransactionType == "All"))
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                success = canConnect,
+                database = GetDatabaseName(_legacyDbContext),
+                status = "Connected",
+                totalCashOutflows = totalCount,
+                thresholdConfigured = activeThreshold != null,
+                activeThreshold = activeThreshold != null ? new
+                {
+                    limit = activeThreshold.MaximumAmount,
+                    currency = activeThreshold.Currency,
+                    role = activeThreshold.RoleName
+                } : null,
+                mockDataEnabled = false
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet("approval-workflow")]
+    public async Task<IActionResult> CheckApprovalWorkflowHealth()
+    {
+        try
+        {
+            var canConnect = await _legacyDbContext.Database.CanConnectAsync();
+            var totalRequests = await _legacyDbContext.CashOutflowApprovalRequests.CountAsync();
+            var pendingAssistant = await _legacyDbContext.CashOutflowApprovalRequests.CountAsync(r => r.Status == "Pending Assistant Review" || r.Status == "Submitted");
+            var pendingFm = await _legacyDbContext.CashOutflowApprovalRequests.CountAsync(r => r.Status == "Pending Financial Manager Approval" || (r.IsEscalated && !r.Status.StartsWith("Approved")));
+            var approvedCount = await _legacyDbContext.CashOutflowApprovalRequests.CountAsync(r => r.Status.StartsWith("Approved"));
+            var historyCount = await _legacyDbContext.CashOutflowApprovalHistories.CountAsync();
+
+            return Ok(new
+            {
+                success = canConnect,
+                database = GetDatabaseName(_legacyDbContext),
+                status = "Operational",
+                totalApprovalRequests = totalRequests,
+                pendingAssistantReview = pendingAssistant,
+                pendingFinancialManagerApproval = pendingFm,
+                approvedTransactions = approvedCount,
+                totalAuditHistoryRecords = historyCount,
+                mockDataEnabled = false
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
     private static string GetDatabaseName(DbContext dbContext)
     {
         return dbContext.Database.IsRelational()

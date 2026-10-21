@@ -11,6 +11,7 @@ import { Button } from '../components/Buttons';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContext';
 import RecordSettlementModal from '../components/RecordSettlementModal';
+import { RecordCashOutflowModal } from '../components/RecordCashOutflowModal';
 import { CalendarPicker } from '../components/FormModals';
 import { formatCurrency, formatDateTime } from '../utils/format';
 import { invalidateForMutation } from '../services/invalidation';
@@ -42,6 +43,7 @@ export default function CashFlowManagement() {
   const pageSize = 9;
 
   const [isRecordSettlementModalOpen, setIsRecordSettlementModalOpen] = useState(false);
+  const [isRecordOutflowModalOpen, setIsRecordOutflowModalOpen] = useState(false);
   const [selectedViewRecord, setSelectedViewRecord] = useState<any>(null);
 
   // Compute Unrecorded Transactions (For Accountant)
@@ -178,7 +180,13 @@ export default function CashFlowManagement() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Header Actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
+        <Button
+          title="Record Cash Outflow"
+          variant="danger"
+          icon="ti-arrow-up-right"
+          onClick={() => setIsRecordOutflowModalOpen(true)}
+        />
         {isAccountant && (
           <Button
             title="Record Settlement"
@@ -558,6 +566,13 @@ export default function CashFlowManagement() {
           </div>
         </div>
       )}
+
+      {/* Record Cash Outflow Modal */}
+      <RecordCashOutflowModal
+        isOpen={isRecordOutflowModalOpen}
+        onClose={() => setIsRecordOutflowModalOpen(false)}
+        onSuccess={() => refetchCash()}
+      />
     </div>
   );
 }

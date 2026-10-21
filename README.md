@@ -350,4 +350,86 @@ curl http://localhost:5007/api/health/no-mock-data
   2. Confirm `.env.example` contains only placeholders.
   3. Confirm no raw credentials exist in `appsettings.json`.
   4. Push code safely to GitHub remote branches.
->>>>>>> feat/ui-improvements-and-bug-fixes-financial-manager
+
+---
+
+## 14. Cash Outflow Approval & Escalation Workflow
+
+### 14.1 Objective & Architecture
+The Cash Outflow Approval & Escalation Workflow enforces a strict dual-level approval hierarchy backed by Microsoft SQL Server (`FOMS_DB`):
+```text
+Record Cash Outflow 
+  → Assistant Financial Manager Review (Level 1)
+  → Threshold Check:
+      - Amount <= Assistant Limit (₱10,000.00):
+          Assistant Approves → Status: Approved by Assistant → Cash Outflow Posted (is_posted = 1)
+      - Amount > Assistant Limit (₱10,000.00):
+          Assistant Approval BLOCKED (HTTP 403 server-side)
+          Assistant Escalates → Level 2 (Pending Financial Manager Approval)
+          Financial Manager Reviews → Approves / Rejects / Returns
+  → Cash Flow Ledger Synchronized → 100% Exact Frontend Display
+```
+
+### 14.2 Database Tables
+- `dbo.ApprovalThresholdSettings`: Configurable threshold limits for roles and transaction types.
+- `dbo.CashOutflowApprovalRequests`: Multi-level approval requests tracking amounts, levels, assigned approvers, and escalation status.
+- `dbo.CashOutflowApprovalHistory`: Audit timeline logging all actions (Submitted, Approved, Escalated, Rejected, Returned) with timestamps and actor details.
+- `dbo.CashOutflows`: Transactional cash outflow ledger updated atomically upon authorized final approval.
+- `dbo.AuditLogs`: System-wide audit log trail for governance and compliance.
+
+### 14.3 API Endpoints
+| HTTP Method | Route | Description | Authorization |
+|---|---|---|---|
+| `POST` | `/api/cash-outflows` | Submit new cash outflow request | Authenticated Users |
+| `GET` | `/api/cash-outflows` | Retrieve cash outflow records | Authenticated Users |
+| `GET` | `/api/approvals/pending` | Filtered pending approvals queue | Assistant FM / FM |
+| `GET` | `/api/approvals/{id}` | Retrieve single approval request detail | Authenticated Users |
+| `POST` | `/api/approvals/{id}/approve` | Assistant approves request (≤ threshold only) | Assistant FM |
+| `POST` | `/api/approvals/{id}/escalate` | Endorse & escalate high-value request to Level 2 | Assistant FM |
+| `GET` | `/api/financial-manager/escalated-approvals` | Level 2 escalated approvals queue | Financial Manager (EMP-001) |
+| `POST` | `/api/financial-manager/escalated-approvals/{id}/approve` | Financial Manager approves Level 2 outflow | Financial Manager (EMP-001) |
+| `POST` | `/api/financial-manager/escalated-approvals/{id}/reject` | Financial Manager rejects outflow (requires reason) | Financial Manager (EMP-001) |
+| `POST` | `/api/financial-manager/escalated-approvals/{id}/return` | Financial Manager returns request for correction | Financial Manager (EMP-001) |
+| `GET` | `/api/health/cash-outflow` | Outflows and threshold health check | Authenticated Users |
+| `GET` | `/api/health/approval-workflow` | Queue counts and audit history health check | Authenticated Users |
+
+### 14.4 Threshold Configuration
+Threshold settings are stored in `dbo.ApprovalThresholdSettings`. To view or adjust the limit:
+```sql
+USE FOMS_DB;
+GO
+
+-- View current threshold settings
+SELECT * FROM dbo.ApprovalThresholdSettings WHERE transaction_type = 'CashOutflow' AND is_active = 1;
+
+-- Update Assistant approval threshold to ₱20,000.00
+UPDATE dbo.ApprovalThresholdSettings
+SET maximum_amount = 20000.00, updated_at = SYSUTCDATETIME(), updated_by = 'Finance Admin'
+WHERE transaction_type = 'CashOutflow' AND role_name = 'Assistant Financial Manager';
+```
+
+### 14.5 Database-to-Frontend Consistency Verification
+Run the automated end-to-end workflow verification script:
+```powershell
+powershell -File "scratch/test_workflow.ps1"
+```
+Or execute SQL verification directly:
+```sql
+USE FOMS_DB;
+GO
+
+-- 1. Compare approval requests and posting status
+SELECT transaction_reference, amount, status, approval_level, is_posted
+FROM dbo.CashOutflowApprovalRequests
+ORDER BY created_at DESC;
+
+-- 2. Verify posted outflows
+SELECT CashOutflowId, SourceReference, payee, amount, status
+FROM dbo.CashOutflows
+ORDER BY created_at DESC;
+
+-- 3. Verify cash outflow sum matches frontend summary
+SELECT SUM(amount) AS TotalOutflow
+FROM dbo.CashOutflows
+WHERE status IN ('Approved', 'Approved by Assistant', 'Approved by Financial Manager', 'Completed');
+```

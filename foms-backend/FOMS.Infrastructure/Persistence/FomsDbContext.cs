@@ -42,6 +42,9 @@ public class FomsDbContext : DbContext
     public DbSet<AIScanLog> AIScanLogs { get; set; } = null!;
     public DbSet<StarsCollectionTask> StarsCollectionTasks { get; set; } = null!;
     public DbSet<Report> Reports { get; set; } = null!;
+    public DbSet<ApprovalThresholdSetting> ApprovalThresholdSettings { get; set; } = null!;
+    public DbSet<CashOutflowApprovalRequest> CashOutflowApprovalRequests { get; set; } = null!;
+    public DbSet<CashOutflowApprovalHistory> CashOutflowApprovalHistories { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,5 +82,8 @@ public class FomsDbContext : DbContext
         modelBuilder.Entity<AIScanLog>().ToTable("ai_scan_logs", "dbo");
         modelBuilder.Entity<StarsCollectionTask>().ToTable("StarsCollectionTasks", "dbo");
         modelBuilder.Entity<Report>().ToTable("Reports", "dbo");
+        modelBuilder.Entity<ApprovalThresholdSetting>().ToTable("ApprovalThresholdSettings", "dbo");
+        modelBuilder.Entity<CashOutflowApprovalRequest>().ToTable("CashOutflowApprovalRequests", "dbo");
+        modelBuilder.Entity<CashOutflowApprovalHistory>().ToTable("CashOutflowApprovalHistory", "dbo");
     }
 }

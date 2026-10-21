@@ -118,6 +118,35 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
     }
   };
 
+  const handleEscalate = async () => {
+    if (!request) return;
+    setIsSubmitting(true);
+    try {
+      await approvalsService.escalate(
+        request.id,
+        `Amount ${formatCurrency(request.amount)} exceeds Assistant limit. Endorsed to Financial Manager.`
+      );
+      toast.warning(
+        `Escalated ${request.entityType} ${request.referenceNo} to Financial Manager`,
+        'Transaction Escalated'
+      );
+      onActionSuccess?.();
+      onClose();
+    } catch (err) {
+      toast.error(formatApprovalErrorMessage(err), 'Escalation Failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isAssistant = user?.role === 'ASSISTANT_FM';
+  const exceedsThreshold = Boolean(
+    request &&
+      (request.isEscalated ||
+        (typeof request.escalationThreshold === 'number' && request.amount > request.escalationThreshold))
+  );
+  const assistantMustEscalate = isAssistant && exceedsThreshold;
+
   return (
     <>
       <div
@@ -498,31 +527,58 @@ export const ApprovalDetailDrawer: React.FC<ApprovalDetailDrawerProps> = ({
                   Reject
                 </button>
 
-                {/* Approve Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsApproveModalOpen(true)}
-                  disabled={isSubmitting || isSelfRequest}
-                  title={isSelfRequest ? 'You cannot act on your own request' : 'Approve this transaction'}
-                  style={{
-                    padding: '10px 22px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: isSelfRequest ? '#CBD5E1' : '#10B981',
-                    color: '#FFFFFF',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    opacity: isSelfRequest ? 0.6 : 1,
-                    boxShadow: isSelfRequest ? 'none' : '0 2px 6px rgba(16, 185, 129, 0.3)',
-                  }}
-                >
-                  <i className="ti ti-check" />
-                  Approve
-                </button>
+                {/* Escalate or Approve Button based on threshold & role */}
+                {assistantMustEscalate ? (
+                  <button
+                    type="button"
+                    onClick={handleEscalate}
+                    disabled={isSubmitting || isSelfRequest}
+                    title={isSelfRequest ? 'You cannot act on your own request' : 'Escalate high-value transaction to Financial Manager'}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: isSelfRequest ? '#CBD5E1' : '#D97706',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      opacity: isSelfRequest ? 0.6 : 1,
+                      boxShadow: isSelfRequest ? 'none' : '0 2px 6px rgba(217, 119, 6, 0.3)',
+                    }}
+                  >
+                    <i className="ti ti-urgent" />
+                    Escalate to Financial Manager
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsApproveModalOpen(true)}
+                    disabled={isSubmitting || isSelfRequest}
+                    title={isSelfRequest ? 'You cannot act on your own request' : 'Approve this transaction'}
+                    style={{
+                      padding: '10px 22px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: isSelfRequest ? '#CBD5E1' : '#10B981',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: isSelfRequest || isSubmitting ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      opacity: isSelfRequest ? 0.6 : 1,
+                      boxShadow: isSelfRequest ? 'none' : '0 2px 6px rgba(16, 185, 129, 0.3)',
+                    }}
+                  >
+                    <i className="ti ti-check" />
+                    Approve
+                  </button>
+                )}
               </div>
             )}
           </div>

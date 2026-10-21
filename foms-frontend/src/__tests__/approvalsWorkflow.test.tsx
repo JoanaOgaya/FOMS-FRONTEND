@@ -282,11 +282,11 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
       ).toBeDefined();
 
       // Buttons are rendered but disabled with explanatory title/tooltip
-      const approveBtn = screen.getByRole('button', { name: /Approve/i });
+      const actionBtn = screen.getByRole('button', { name: /(Approve|Escalate)/i });
       const rejectBtn = screen.getByRole('button', { name: /Reject/i });
-      expect(approveBtn.hasAttribute('disabled')).toBe(true);
+      expect(actionBtn.hasAttribute('disabled')).toBe(true);
       expect(rejectBtn.hasAttribute('disabled')).toBe(true);
-      expect(approveBtn.getAttribute('title')).toContain('You cannot act on your own request');
+      expect(actionBtn.getAttribute('title')).toContain('You cannot act on your own request');
       expect(rejectBtn.getAttribute('title')).toContain('You cannot act on your own request');
 
       // Escalation notice is also displayed because isEscalated === true
@@ -294,10 +294,37 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
       expect(screen.getByText(/exceeds threshold of/)).toBeDefined();
     });
 
-    it('enables Approve and Reject buttons when logged-in user is a different approver', async () => {
-      // User is Aaron AsstFM (not the requester Alice)
+    it('enforces escalation for Assistant FM on high-value transactions and enables actions for Financial Manager', async () => {
+      // User is Aaron AsstFM (not the requester Alice, but high-value transaction exceeds threshold)
       mockAuth(testAsstFmUser);
 
+      const { unmount } = render(
+        <MemoryRouter>
+          <ToastProvider>
+            <ApprovalDetailDrawer
+              isOpen={true}
+              requestId="REQ-001"
+              onClose={vi.fn()}
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByText('PAY-2026-001').length).toBeGreaterThan(0);
+      });
+
+      // Assistant FM must see Escalate button, not final Approve button
+      const escalateBtn = screen.getByRole('button', { name: /Escalate to Financial Manager/i });
+      const rejectBtn = screen.getByRole('button', { name: /Reject/i });
+      expect(escalateBtn).toBeDefined();
+      expect(rejectBtn).toBeDefined();
+      expect(screen.queryByRole('button', { name: /^Approve$/i })).toBeNull();
+
+      unmount();
+
+      // Now Financial Manager views the transaction - final Approve must be available
+      mockAuth(testFmUser);
       render(
         <MemoryRouter>
           <ToastProvider>
@@ -314,13 +341,9 @@ describe('Multi-Level Approvals Workflow — Component & Role Tests', () => {
         expect(screen.getAllByText('PAY-2026-001').length).toBeGreaterThan(0);
       });
 
-      const approveBtn = screen.getByRole('button', { name: /Approve/i });
-      const rejectBtn = screen.getByRole('button', { name: /Reject/i });
-
-      expect(approveBtn).toBeDefined();
-      expect(rejectBtn).toBeDefined();
-      expect(approveBtn.hasAttribute('disabled')).toBe(false);
-      expect(rejectBtn.hasAttribute('disabled')).toBe(false);
+      const fmApproveBtn = screen.getByRole('button', { name: /^Approve$/i });
+      expect(fmApproveBtn).toBeDefined();
+      expect(fmApproveBtn.hasAttribute('disabled')).toBe(false);
     });
   });
 

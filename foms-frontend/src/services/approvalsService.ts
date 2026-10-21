@@ -77,6 +77,30 @@ export const approvalsService = {
   },
 
   /**
+   * Return an approval request for revision with correction remarks
+   */
+  async return(id: string, remarks: string): Promise<{ success: boolean; message?: string }> {
+    return http.post<{ success: boolean; message?: string }>(`/approvals/${id}/return`, { remarks });
+  },
+
+  /**
+   * Escalate an approval request to Financial Manager
+   */
+  async escalate(id: string, reason?: string): Promise<{ success: boolean; message?: string }> {
+    return http.post<{ success: boolean; message?: string }>(`/approvals/${id}/escalate`, { reason });
+  },
+
+  /**
+   * Fetch escalated approvals directly (Financial Manager endpoint)
+   */
+  async getEscalatedApprovals(params?: PendingApprovalsParams): Promise<PendingApprovalsResponse> {
+    const res = await http.get<any>('/financial-manager/escalated-approvals', params);
+    if (res && res.items) return { items: res.items, total: res.total ?? res.items.length };
+    if (Array.isArray(res)) return { items: res, total: res.length };
+    return { items: [], total: 0 };
+  },
+
+  /**
    * Submit an entity into the approval workflow
    */
   async submit(entityType: string, entityId: string): Promise<{ success: boolean; message?: string }> {
