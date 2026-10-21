@@ -6,9 +6,16 @@ import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 
 const SESSION_KEY = 'foms_session';
 
-const baseURL: string =
-  import.meta.env.VITE_API_URL ??
-  'http://localhost:5007';
+const isProduction = import.meta.env.PROD;
+const envUrl = typeof import.meta.env.VITE_API_URL === 'string' ? import.meta.env.VITE_API_URL.trim() : '';
+
+const defaultBaseUrl = isProduction
+  ? 'https://fomsintegration-amfve2fdccbdgbgy.eastasia-01.azurewebsites.net'
+  : 'http://localhost:5007';
+
+const activeUrl = envUrl && !envUrl.includes('foms-backend.onrender.com') ? envUrl : defaultBaseUrl;
+
+const baseURL: string = activeUrl.replace(/\/+$/, '');
 
 export class ApiError extends Error {
   status: number;
