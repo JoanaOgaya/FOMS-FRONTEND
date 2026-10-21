@@ -57,10 +57,10 @@ public class CashFlowController : ApiControllerBase
         {
             records.Add(new
             {
-                id = $"OUT-{outf.OutflowId}",
+                id = !string.IsNullOrEmpty(outf.CashOutflowId) ? outf.CashOutflowId : $"OUT-{outf.OutflowId}",
                 type = "Outflow",
                 amount = outf.Amount,
-                sourceReference = outf.Description ?? outf.Category ?? $"Outflow {outf.OutflowId}",
+                sourceReference = outf.Description ?? outf.Category ?? outf.CashOutflowId ?? $"Outflow {outf.OutflowId}",
                 date = (outf.TransactionDate ?? outf.CreatedAt ?? DateTime.UtcNow).ToString("yyyy-MM-dd"),
                 recordedBy = "Crystalyn Joyce C. Fajardo",
                 category = outf.Category ?? "Disbursement",

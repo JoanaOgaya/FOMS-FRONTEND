@@ -43,9 +43,21 @@ export type MutationType =
   | 'createUser'
   | 'updateUser'
   | 'deleteUser'
-  | 'exportReport';
+  | 'exportReport'
+  | 'executeStarsTask'
+  | 'receiveDmsDelivery'
+  | 'liftBillingHold'
+  | 'placeBillingHold'
+  | 'approveCashAdvance'
+  | 'disburseCashAdvance';
 
 export const MUTATION_INVALIDATION_MAP: Record<MutationType, readonly string[]> = {
+  executeStarsTask: ['stars:tasks', 'stars:routing', 'ar', 'dashboard', 'notifications', 'auditLogs'],
+  receiveDmsDelivery: ['waybills', 'billing:waybills', 'invoices', 'ar', 'dashboard', 'reports'],
+  liftBillingHold: ['waybills', 'billing:waybills', 'invoices', 'dashboard', 'auditLogs'],
+  placeBillingHold: ['waybills', 'billing:waybills', 'dashboard', 'auditLogs'],
+  approveCashAdvance: ['cashAdvances', 'cashflow', 'liquidations', 'dashboard', 'notifications', 'auditLogs'],
+  disburseCashAdvance: ['cashAdvances', 'cashflow', 'liquidations', 'dashboard', 'notifications', 'auditLogs'],
   approveInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],
   rejectInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],
   submitInvoice: ['invoices', 'ar', 'dashboard', 'reports', 'notifications', 'auditLogs', 'navBadges', 'billing:waybills', 'billing:records', 'review:invoices'],

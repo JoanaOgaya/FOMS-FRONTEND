@@ -130,10 +130,10 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       expect(clientGroup).toBeDefined();
       expect(clientGroup!.items.map((i) => i.label)).toEqual(['Client Accounts']);
 
-      // Verifies all other 19 Accountant modules remain accessible
+      // Verifies all other Accountant modules remain accessible
       expect(allLabels).toContain('Dashboard');
       expect(allLabels).toContain('Client Accounts');
-      expect(allLabels).not.toContain('Create Invoice');
+      expect(allLabels).toContain('Create Invoice');
       expect(allLabels).toContain('Invoice List');
       expect(allLabels).toContain('Billing Validation');
       expect(allLabels).toContain('Accounts Receivable');
@@ -151,8 +151,8 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
       expect(allLabels).toContain('Reports');
       expect(allLabels).toContain('AI Output History');
 
-      // Total nav items for Accountant is 16 (after removing Document Extraction and consolidating Record Settlement)
-      expect(allLabels).toHaveLength(16);
+      // Total nav items for Accountant is 17 (including Create Invoice)
+      expect(allLabels).toHaveLength(17);
 
       // Render actual Sidebar component
       render(
@@ -163,7 +163,7 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
 
       expect(screen.queryByText('Rate Configuration')).toBeNull();
       expect(screen.queryByText('Waybills & POD')).toBeNull();
-      expect(screen.queryByText('Create Invoice')).toBeNull();
+      expect(screen.getByText('Create Invoice')).toBeDefined();
       expect(screen.getByText('Client Accounts')).toBeDefined();
     });
 
@@ -370,7 +370,7 @@ describe('Job B & Job A: Sidebar and Dashboard Verification Suite', () => {
   // ──────────────────────────────────────────────────────────────────────────
   describe('Sidebar Badge Removal: All 4 Roles render 0 badges and all menu items intact', () => {
     const rolesToTest = [
-      { role: ROLES.ACCOUNTANT, name: 'Accountant', expectedItemCount: 16 },
+      { role: ROLES.ACCOUNTANT, name: 'Accountant', expectedItemCount: 17 },
       { role: ROLES.HEAD_ACCOUNTANT, name: 'Head Accountant', expectedItemCount: 15 },
       { role: ROLES.ASSISTANT_FM, name: 'Assistant FM', expectedItemCount: 8 },
       { role: ROLES.FINANCIAL_MANAGER, name: 'Financial Manager', expectedItemCount: 19 },

@@ -423,6 +423,8 @@ const server = setupServer(
   http.get(/.*\/ar\/records/, () => HttpResponse.json({ items: mockArRecords, total: mockArRecords.length })),
   http.get('*/ar/aging', () => HttpResponse.json([{ label: '0-30 days', value: 150000 }])),
   http.get(/.*\/ar\/aging/, () => HttpResponse.json([{ label: '0-30 days', value: 150000 }])),
+  http.get(/.*\/ai\/collection\/recommendations/, () => HttpResponse.json([])),
+  http.post(/.*\/ai\/collection\/recommendations/, () => HttpResponse.json({ success: true })),
 
   // Payments & Receipts
   http.get(/.*\/payments\/receipts/, () => HttpResponse.json({ items: mockReceipts, total: mockReceipts.length })),
@@ -538,7 +540,6 @@ describe('STAFF-001 (Financial Manager) — Complete Page-by-Page Workflow & Ver
         'Client Accounts',
         'Invoice List',
         'Billing Validation',
-        'Invoice Review',
         'Accounts Receivable',
         'Payments',
         'SpeedPay Validation',
@@ -547,6 +548,7 @@ describe('STAFF-001 (Financial Manager) — Complete Page-by-Page Workflow & Ver
         'Financial Adjustments', // Adjustment Approval
         'Liquidation Reports',
         'Cash Flow',
+        'Manual Review Queue',
         'Unique Documents',
         'Flagged Duplicates',
         'Review History',

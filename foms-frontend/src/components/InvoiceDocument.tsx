@@ -21,8 +21,8 @@ interface WaybillLineItem {
   vatAmount: number;
   fuelSurcharge: number;
   lineTotal: number;
-  vatRate: number;
-  surchargeRate: number;
+  vatRate?: number;
+  surchargeRate?: number;
 }
 
 export const InvoiceDocument: React.FC<{ invoice: Invoice; compact?: boolean }> = ({ invoice, compact = false }) => {
@@ -193,9 +193,9 @@ export const InvoiceDocument: React.FC<{ invoice: Invoice; compact?: boolean }> 
   const totalMismatch = hasCompleteLineItems && Math.abs(calculatedTotal - invoice.totalAmount) > 1.0;
 
   const vatRateDisplay = client?.vatRate
-    ?? (lineItems.length ? lineItems.reduce((sum, item) => sum + item.vatRate, 0) / lineItems.length : 0.12);
+    ?? (lineItems.length ? lineItems.reduce((sum, item) => sum + (item.vatRate ?? 0.12), 0) / lineItems.length : 0.12);
   const surchargeRateDisplay = lineItems.length
-    ? lineItems.reduce((sum, item) => sum + item.surchargeRate, 0) / lineItems.length
+    ? lineItems.reduce((sum, item) => sum + (item.surchargeRate ?? 0), 0) / lineItems.length
     : 0;
 
   // ── Zero/negative detection ──────────────────────────────────────
@@ -234,7 +234,7 @@ export const InvoiceDocument: React.FC<{ invoice: Invoice; compact?: boolean }> 
   }
 
   const fmt = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-  const pct = (r: number) => `${(r * 100).toFixed(0)}%`;
+  const pct = (r?: number) => `${(((r ?? 0)) * 100).toFixed(0)}%`;
 
   return (
     <div className="invoice-document" style={{

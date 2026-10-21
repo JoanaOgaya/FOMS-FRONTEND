@@ -31,6 +31,7 @@ const ReviewHistory: React.FC = () => {
   } = useReviewHistory();
 
   const [selectedRecord, setSelectedRecord] = useState<ReviewHistoryItem | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const handleExport = () => {
     if (!canExport || items.length === 0) return;
@@ -79,8 +80,49 @@ const ReviewHistory: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Top Header Row with Export */}
+      {/* Top Header Row with View Switcher & Export */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+        <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #CBD5E1', overflow: 'hidden', background: '#F8FAFC' }}>
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            style={{
+              padding: '8px 14px',
+              border: 'none',
+              background: viewMode === 'cards' ? '#0D9488' : 'transparent',
+              color: viewMode === 'cards' ? '#FFFFFF' : '#64748B',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <i className="ti ti-layout-grid" /> Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            style={{
+              padding: '8px 14px',
+              border: 'none',
+              background: viewMode === 'table' ? '#0D9488' : 'transparent',
+              color: viewMode === 'table' ? '#FFFFFF' : '#64748B',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <i className="ti ti-table" /> Table
+          </button>
+        </div>
+
         {canExport && (
           <Button
             title={`Export ${scope === 'all' ? 'All' : scope === 'liquidation' ? 'Liquidation' : 'My Scope'} CSV`}
@@ -279,7 +321,7 @@ const ReviewHistory: React.FC = () => {
       )}
 
       {/* Cards Grid */}
-      {!isLoading && !error && displayedItems.length > 0 && (
+      {!isLoading && !error && displayedItems.length > 0 && viewMode === 'cards' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
           {paginatedItems.map((row) => {
             return (
@@ -373,6 +415,73 @@ const ReviewHistory: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Table View */}
+      {!isLoading && !error && displayedItems.length > 0 && viewMode === 'table' && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>History ID</th>
+                  <th style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>Document No.</th>
+                  <th style={{ padding: '14px 18px' }}>Client</th>
+                  <th style={{ padding: '14px 18px' }}>Reviewer</th>
+                  <th style={{ padding: '14px 18px' }}>Role</th>
+                  <th style={{ padding: '14px 18px' }}>Decision</th>
+                  <th style={{ padding: '14px 18px' }}>Remarks</th>
+                  <th style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>Reviewed Date</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedItems.map((row) => (
+                  <tr
+                    key={row.id}
+                    style={{ borderBottom: '1px solid #F1F5F9', background: '#FFFFFF', transition: 'background 0.15s ease' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#FFFFFF')}
+                  >
+                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                      #{row.historyId}
+                    </td>
+                    <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                      {row.documentNumber || '—'}
+                    </td>
+                    <td style={{ padding: '14px 18px', color: '#334155' }}>
+                      {row.clientName || 'General Account'}
+                    </td>
+                    <td style={{ padding: '14px 18px', fontWeight: 600, color: '#0F172A' }}>
+                      {row.reviewer}
+                    </td>
+                    <td style={{ padding: '14px 18px', color: '#64748B' }}>
+                      {row.reviewerRole}
+                    </td>
+                    <td style={{ padding: '14px 18px' }}>
+                      <StatusBadge status={row.finalDecision} />
+                    </td>
+                    <td style={{ padding: '14px 18px', color: '#475569', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {row.decisionReason ? row.decisionReason.replace(/â,±/g, '₱') : '—'}
+                    </td>
+                    <td style={{ padding: '14px 18px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {row.reviewedDate}
+                    </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Button
+                        title="Inspect"
+                        variant="secondary"
+                        size="sm"
+                        icon="ti-eye"
+                        onClick={() => setSelectedRecord(row)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

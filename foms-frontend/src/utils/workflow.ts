@@ -22,6 +22,9 @@ export type WorkflowStatus =
   | 'VERIFIED'
   | 'VALIDATED'
   | 'RETURNED'
+  | 'RETURNED_FOR_REVISION'
+  | 'PENDING_FINANCE_MANAGER'
+  | 'PENDING_FM'
   | 'APPROVED'
   | 'REJECTED'
   | DuplicateStatus;
@@ -35,6 +38,9 @@ export const STATUS_LABEL: Record<WorkflowStatus, string> = {
   VALIDATED: 'Validated',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
+  PENDING_FINANCE_MANAGER: 'Pending FM',
+  PENDING_FM: 'Pending FM',
+  RETURNED_FOR_REVISION: 'Returned',
   ...DUPLICATE_STATUS_LABELS,
   RETURNED: 'Returned',
 };
@@ -46,8 +52,11 @@ export const STATUS_TONE: Record<WorkflowStatus, Tone> = {
   VALIDATED: 'primary',
   APPROVED: 'success',
   REJECTED: 'danger',
+  PENDING_FINANCE_MANAGER: 'warning',
+  PENDING_FM: 'warning',
+  RETURNED_FOR_REVISION: 'danger',
   ...DUPLICATE_STATUS_TONES,
-  RETURNED: 'warning',
+  RETURNED: 'danger',
 };
 
 /** status -> role -> actions allowed on a record in that status. */
@@ -74,7 +83,13 @@ const KNOWN = new Set<string>([...Object.keys(STATUS_LABEL), ...DUPLICATE_STATUS
 
 /** Accepts API status text in any casing/spelling and returns canonical status (unknown values pass through). */
 export function normalizeStatus(raw: string | null | undefined): WorkflowStatus {
-  const s = String(raw ?? '').trim().toUpperCase().replace(/\s+/g, '_');
+  const s = String(raw ?? '')
+    .trim()
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .toUpperCase()
+    .replace(/[-\s]+/g, '_');
+  if (s === 'PENDING_FINANCE_MANAGER' || s === 'PENDINGFINANCEMANAGER') return 'PENDING_FINANCE_MANAGER';
+  if (s === 'RETURNED_FOR_REVISION' || s === 'RETURNEDFORREVISION') return 'RETURNED_FOR_REVISION';
   return (s || 'DRAFT') as WorkflowStatus;
 }
 

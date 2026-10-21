@@ -138,3 +138,82 @@ public class FomsOverdueAlertDto
 
     public string? Remarks { get; set; }
 }
+
+/// <summary>
+/// Payload to create or intercept a STARS Collection Follow-up task.
+/// </summary>
+public class StarsCollectionTaskRequestDto
+{
+    [Required]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    public string? ClientName { get; set; }
+
+    public decimal? AmountDue { get; set; }
+
+    public int? DaysOverdue { get; set; }
+
+    public string? PreferredCoordinatorId { get; set; }
+
+    public string? Remarks { get; set; }
+}
+
+/// <summary>
+/// Representation of a STARS Collection Follow-up task with assigned coordinator and routing metrics.
+/// </summary>
+public class StarsCollectionTaskDto
+{
+    public int TaskId { get; set; }
+    public string TaskNumber { get; set; } = string.Empty;
+    public string TaskType { get; set; } = "Collection Follow-up";
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public string ClientName { get; set; } = string.Empty;
+    public decimal AmountDue { get; set; }
+    public int DaysOverdue { get; set; }
+    public string? AssignedCoordinatorId { get; set; }
+    public string AssignedCoordinatorName { get; set; } = string.Empty;
+    public decimal RoutingScore { get; set; }
+    public string? RoutingReason { get; set; }
+    public string Status { get; set; } = "Assigned";
+    public string? ActionTaken { get; set; }
+    public string? Outcome { get; set; }
+    public DateTime? PromisedPaymentDate { get; set; }
+    public string? ExecutionNotes { get; set; }
+    public DateTime? ExecutedAt { get; set; }
+    public string? ExecutedBy { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// Payload when a Coordinator executes a collection follow-up inside STARS.
+/// </summary>
+public class StarsCollectionExecutionDto
+{
+    [Required]
+    public string ActionTaken { get; set; } = string.Empty;
+
+    [Required]
+    public string Outcome { get; set; } = "Promised to Pay";
+
+    public DateTime? PromisedPaymentDate { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? ExecutedBy { get; set; }
+}
+
+/// <summary>
+/// Metric evaluated by the STARS Graph Routing Engine.
+/// </summary>
+public class StarsCoordinatorRoutingMetricDto
+{
+    public string CoordinatorId { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public int ActiveTasksCount { get; set; }
+    public int OverdueTasksCount { get; set; }
+    public int CompletedTasksCount { get; set; }
+    public decimal WorkloadScore { get; set; }
+    public decimal AvailabilityPercentage { get; set; }
+    public bool IsOptimalCandidate { get; set; }
+}

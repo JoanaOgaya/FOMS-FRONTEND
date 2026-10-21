@@ -350,3 +350,4 @@ curl http://localhost:5007/api/health/no-mock-data
   2. Confirm `.env.example` contains only placeholders.
   3. Confirm no raw credentials exist in `appsettings.json`.
   4. Push code safely to GitHub remote branches.
+>>>>>>> feat/ui-improvements-and-bug-fixes-financial-manager

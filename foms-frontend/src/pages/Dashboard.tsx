@@ -19,6 +19,7 @@ import { paymentsService } from '../services/paymentsService';
 import { cashFlowService } from '../services/cashFlowService';
 import { liquidationsService } from '../services/liquidationsService';
 import { auditLogsService } from '../services/auditLogsService';
+import { approvalsService } from '../services/approvalsService';
 import { assistantFinanceService } from '../services/assistantFinanceService';
 import { formatCurrency, formatDate } from '../utils/format';
 import type { ARRecord, Payment, CashFlowRecord, Liquidation, AuditLog, FinanceManagerDashboardSummary } from '../types/entities';
@@ -33,6 +34,7 @@ const AsstFinanceDashboard: React.FC = () => {
   const { data: auditData } = useQuery('asst:audit', () => auditLogsService.list({ pageSize: 20 }));
   const { data: liqData } = useQuery('asst:liq', () => liquidationsService.list({ pageSize: 100 }));
   const { data: cashData } = useQuery('asst:cash', () => cashFlowService.list({ pageSize: 100 }));
+  const { data: approvalCounts } = useQuery('asst:approvals:counts', () => approvalsService.getCounts().catch(() => ({ pendingCount: 0, pendingMyApproval: 0, approvedToday: 0, escalatedToFm: 0 })));
 
   const arRecords: ARRecord[] = arData?.items || [];
   const payments: Payment[] = paymentsData?.items || [];
@@ -122,11 +124,40 @@ const AsstFinanceDashboard: React.FC = () => {
         cta={{ label: 'Liquidation Reports', icon: 'ti-cash', onClick: () => navigate('/liquidations') }}
         secondaryCta={{ label: 'SpeedPay Validation', onClick: () => navigate('/speedpay-validation') }}
       />
+      {/* Multi-Level Workflow Approvals for Assistant FM */}
       <div className="kpi-grid">
-        <KpiCard label="Total Cash Inflows" value={formatCurrency(totalCashInflow)} icon="ti-arrow-down-right" variant="success" periodText="Overall Inflows" />
-        <KpiCard label="Total Cash Outflows" value={formatCurrency(totalCashOutflow)} icon="ti-arrow-up-right" variant="danger" periodText="Overall Outflows" />
-        <KpiCard label="Net Cash Balance" value={formatCurrency(totalNetCash)} icon="ti-wallet" variant={totalNetCash >= 0 ? "new" : "danger"} periodText="Current Balance" />
-        <KpiCard label="Pending Liquidations" value={pendingLiquidationCount} icon="ti-file-search" variant="warning" periodText="Awaiting Review/Approval" />
+        <KpiCard
+          label="Pending My Approval"
+          value={approvalCounts?.pendingMyApproval ?? approvalCounts?.pendingCount ?? 0}
+          icon="ti-clipboard-check"
+          variant="warning"
+          periodText="Submitted transactions"
+          onClick={() => navigate('/approvals?status=Submitted')}
+        />
+        <KpiCard
+          label="Approved Today"
+          value={approvalCounts?.approvedToday ?? 0}
+          icon="ti-circle-check"
+          variant="success"
+          periodText="Approved today"
+          onClick={() => navigate('/approvals?status=Approved')}
+        />
+        <KpiCard
+          label="Escalated to FM"
+          value={approvalCounts?.escalatedToFm ?? 0}
+          icon="ti-urgent"
+          variant="info"
+          periodText="Sent for 2nd level approval"
+          onClick={() => navigate('/approvals?status=PendingFinanceManager')}
+        />
+        <KpiCard
+          label="Pending Liquidations"
+          value={pendingLiquidationCount}
+          icon="ti-file-search"
+          variant="new"
+          periodText="Awaiting Review/Approval"
+          onClick={() => navigate('/liquidations')}
+        />
       </div>
       
       <div style={{ background: '#FFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '0' }}>
@@ -239,6 +270,10 @@ const FinanceManagerDashboard: React.FC = () => {
     }),
     { enabled: !!authUser },
   );
+  const { data: fmApprovalCounts } = useQuery(
+    'fm:approvals:counts',
+    () => approvalsService.getCounts().catch(() => ({ pendingCount: 0, escalatedToFm: 0, approvedThisMonth: 0 }))
+  );
   const summary = dashboardQuery.data;
   const bannerName = (authUser?.fullName || 'Manager').split(' ')[0];
 
@@ -292,6 +327,25 @@ const FinanceManagerDashboard: React.FC = () => {
         icon="ti-building-bank"
       />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Approvals Workflow Escalated Cards for FM */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <KpiCard
+            label="Pending My Approval (escalated)"
+            value={fmApprovalCounts?.escalatedToFm ?? fmApprovalCounts?.pendingCount ?? 0}
+            icon="ti-urgent"
+            variant="warning"
+            periodText="High-value items awaiting 2nd level decision"
+            onClick={() => navigate('/escalated-approvals?status=PendingFinanceManager')}
+          />
+          <KpiCard
+            label="Approved This Month"
+            value={fmApprovalCounts?.approvedThisMonth ?? 0}
+            icon="ti-circle-check"
+            variant="success"
+            periodText="Finalized approvals this month"
+            onClick={() => navigate('/escalated-approvals?status=Approved')}
+          />
+        </div>
         <div className="kpi-grid">
           <KpiCard label="Total Invoices Billed" value={summary.totalInvoicesBilled} icon="ti-file-invoice" variant="new" hideTrend />
           <KpiCard label="Total AR Outstanding" value={formatCurrency(summary.totalArOutstanding)} icon="ti-report-money" variant="warning" hideTrend />

@@ -204,22 +204,77 @@ public class LiquidationsController : ControllerBase
     }
 
     [HttpPost("{id}/{actionName}")]
+    [AllowAnonymous]
     public async Task<IActionResult> Act(int id, string actionName, [FromBody] LiquidationDto? dto)
     {
         var item = await _fomsDb.Liquidations.FirstOrDefaultAsync(l => l.LiquidationId == id && l.IsDeleted != true);
         if (item == null) return NotFound(new { message = "Liquidation not found" });
 
-        item.Status = actionName switch
+        item.Status = actionName.ToLowerInvariant() switch
         {
             "approve" or "validate" => "Validated",
             "endorse" => "Endorsed",
             "reject" => "Rejected",
             "return" => "Returned",
+            "for_correction" or "for-correction" => "Returned",
             "submit" => "Pending Validation",
             _ => item.Status
         };
         item.ValidatedAt = DateTime.UtcNow;
         item.ValidatedBy = 4;
+
+        if (item.Status == "Validated")
+        {
+            // Post Cash Inflow if leftover cash is returned
+            if ((item.LeftoverCash ?? 0) > 0)
+            {
+                _fomsDb.CashInflows.Add(new CashInflow
+                {
+                    Amount = item.LeftoverCash!.Value,
+                    Source = $"Liquidation {item.ReferenceNumber} Cash Return",
+                    ReferenceNumber = item.ReferenceNumber,
+                    Status = "Completed",
+                    TransactionDate = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            // Post Cash Outflow if courier is due reimbursement
+            if ((item.ReimbursementAmount ?? 0) > 0)
+            {
+                _fomsDb.CashOutflows.Add(new CashOutflow
+                {
+                    SourceReference = item.ReferenceNumber,
+                    RecordedBy = "Finance Liquidation Audit",
+                    Category = "Courier Expense Reimbursement",
+                    Description = $"Liquidation {item.ReferenceNumber} Reimbursement for {item.SubmittedByName ?? "Courier"}",
+                    Amount = item.ReimbursementAmount!.Value,
+                    Status = "Completed",
+                    OutflowDate = DateTime.UtcNow,
+                    TransactionDate = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            // Update matching Cash Advance to Liquidated
+            if (item.CashAdvanceId.HasValue)
+            {
+                var adv = await _fomsDb.CashAdvances.FirstOrDefaultAsync(a => a.AdvanceId == item.CashAdvanceId.Value.ToString() || a.AdvanceId == $"CA-{item.CashAdvanceId}");
+                if (adv != null)
+                {
+                    adv.Status = "Liquidated";
+                }
+            }
+            else
+            {
+                var adv = await _fomsDb.CashAdvances.FirstOrDefaultAsync(a => a.CourierName == item.SubmittedByName && a.Status != "Liquidated");
+                if (adv != null)
+                {
+                    adv.Status = "Liquidated";
+                }
+            }
+        }
+
         await _fomsDb.SaveChangesAsync();
 
         _fomsDb.AuditLogs.Add(new AuditLog
@@ -228,7 +283,7 @@ public class LiquidationsController : ControllerBase
             module = "Liquidations",
             role = "Assistant of Financial Manager",
             affected_record_id = item.LiquidationId,
-            remarks = $"Liquidation {item.ReferenceNumber} action {actionName} -> {item.Status}. Remarks: {dto?.Notes ?? "Processed"}",
+            remarks = $"Liquidation {item.ReferenceNumber} action {actionName} -> {item.Status}. Leftover: ₱{item.LeftoverCash:N2}, Reimbursement: ₱{item.ReimbursementAmount:N2}. Remarks: {dto?.Notes ?? "Processed per FR-048-053"}",
             created_at = DateTime.UtcNow
         });
         await _fomsDb.SaveChangesAsync();

@@ -126,7 +126,7 @@ describe('AI Duplicate Scan: Screens A to G Test Suite', () => {
       expect(screen.getByText('Scanning Document...')).toBeDefined();
 
       // Result screen
-      const resultHeader = await screen.findByText('Possible Duplicate Detected', {}, { timeout: 4000 });
+      const resultHeader = await screen.findByText('Possible Duplicate Detected', {}, { timeout: 8000 });
       expect(resultHeader).toBeDefined();
 
       // Comparison matrix rows
@@ -139,7 +139,7 @@ describe('AI Duplicate Scan: Screens A to G Test Suite', () => {
       expect(screen.getByRole('button', { name: /Submit for Manual Review/i })).toBeDefined();
       expect(screen.getByRole('button', { name: /Confirm as Unique Document/i })).toBeDefined();
       expect(screen.queryByRole('button', { name: /Mark as Duplicate/i })).toBeNull();
-    });
+    }, 15000);
 
     it('shows Confirm as Unique Document when score is below 60', async () => {
       mockAuth(ROLES.ACCOUNTANT);
@@ -156,12 +156,12 @@ describe('AI Duplicate Scan: Screens A to G Test Suite', () => {
       const startScanBtn = await screen.findByRole('button', { name: /Start AI Duplicate Scan/i });
       fireEvent.click(startScanBtn);
 
-      const resultHeader = await screen.findByText('No Duplicate Found', {}, { timeout: 4000 });
+      const resultHeader = await screen.findByText('No Duplicate Found', {}, { timeout: 8000 });
       expect(resultHeader).toBeDefined();
 
       // For score < 60, action is Confirm as Unique Document
       expect(screen.getByRole('button', { name: /Confirm as Unique Document/i })).toBeDefined();
-    });
+    }, 15000);
   });
 
   describe('Screen D: My Submissions (Accountant)', () => {

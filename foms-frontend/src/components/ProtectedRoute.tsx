@@ -14,7 +14,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100vw', background: '#0f172a', color: '#f8fafc', gap: '16px' }}>
+        <div style={{ width: '42px', height: '42px', border: '3px solid rgba(255,255,255,0.15)', borderTopColor: '#38bdf8', borderRadius: '50%', animation: 'spin 0.9s linear infinite' }} />
+        <div style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.5px' }}>Loading Speedex Logistics Portal...</div>
+      </div>
+    );
+  }
   if (!user) {
     const isLoggedOut = typeof window !== 'undefined' && sessionStorage.getItem('loggedOut') === 'true';
     return <Navigate to="/login" replace state={isLoggedOut ? null : { from: location.pathname + (location.search || '') }} />;

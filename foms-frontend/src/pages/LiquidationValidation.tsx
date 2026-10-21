@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { DataTable } from '../components/DataTable';
 import { TableContainer } from '../components/TableContainer';
 import { Button } from '../components/Buttons';
@@ -11,6 +12,8 @@ import { useQuery } from '../hooks/useQuery';
 import { liquidationsService } from '../services/liquidationsService';
 import { cashFlowService } from '../services/cashFlowService';
 import { auditLogsService } from '../services/auditLogsService';
+import { invalidateForMutation } from '../services/invalidation';
+import { ROLES } from '../types/auth';
 import type { Liquidation, LiquidationExpense } from '../types/entities';
 import { formatCurrency, formatDate } from '../utils/format';
 import { KpiCard } from '../components/shared/KpiCard';
@@ -38,6 +41,39 @@ export default function LiquidationValidation() {
   const [viewLayout, setViewLayout] = useState<'cards' | 'table'>('cards');
 
   const [printVoucherRecord, setPrintVoucherRecord] = useState<Liquidation | null>(null);
+
+  // Assistant FM Record Expense Modal State
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+
+  const userRole = user?.role as string | undefined;
+  const isAssistantFm =
+    userRole === ROLES.ASSISTANT_FM ||
+    userRole === 'ASSISTANT_FM' ||
+    userRole === 'ASSISTANT_FINANCE_MANAGER' ||
+    userRole === 'Assistant Finance Manager' ||
+    userRole === 'Assistant FM';
+
+  const handleRecordExpenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await cashFlowService.create({
+        type: 'Outflow',
+        amount: Number(expenseAmount),
+        sourceReference: expenseDescription,
+        date: new Date().toISOString(),
+        recordedBy: user?.fullName || 'Assistant FM',
+      });
+      invalidateForMutation('recordCashFlow');
+      toast.success(`Expense "${expenseDescription}" recorded`);
+      setShowExpenseModal(false);
+      setExpenseDescription('');
+      setExpenseAmount('');
+    } catch {
+      toast.error('Failed to record expense');
+    }
+  };
 
   const pendingCount = liquidations.filter((l: Liquidation) => l.status === 'Pending Validation').length;
   const totalLiquidatedAmount = liquidations.reduce((sum: number, l: Liquidation) => sum + Number(l.amount || 0), 0);
@@ -1529,15 +1565,40 @@ export default function LiquidationValidation() {
         recordId={viewRecord?.id || ''}
         recordType="Liquidation"
       />
-      {/* Permanent View Switcher (fixed position - never jumps) */}
+      {/* Permanent View Switcher & Action Header */}
       <div style={{
         display: 'flex',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
         alignItems: 'center',
         padding: '0 2px',
         marginBottom: '-12px'
       }}>
-        {renderViewSwitcher()}
+        <div>
+          {isAssistantFm && (
+            <button
+              type="button"
+              onClick={() => setShowExpenseModal(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#0D9488',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <i className="ti ti-plus" /> Record Expense
+            </button>
+          )}
+        </div>
+        <div>
+          {renderViewSwitcher()}
+        </div>
       </div>
 
       <TableContainer>
@@ -1864,6 +1925,55 @@ export default function LiquidationValidation() {
           />
         )}
       </TableContainer>
+
+      {/* Record Expense Modal for Assistant FM */}
+      {showExpenseModal && createPortal(
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999, padding: '20px'
+        }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', width: '100%', maxWidth: '500px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>Record Expense</h3>
+              <button type="button" onClick={() => setShowExpenseModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: 20 }}>×</button>
+            </div>
+            <form onSubmit={handleRecordExpenseSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Description *</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Office Supplies, Fuel, Maintenance..."
+                  value={expenseDescription}
+                  onChange={e => setExpenseDescription(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Amount (₱) *</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={expenseAmount}
+                  onChange={e => setExpenseAmount(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.9rem', boxSizing: 'border-box', fontWeight: 700 }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button type="button" onClick={() => setShowExpenseModal(false)} style={{ padding: '10px 20px', borderRadius: 8, background: '#F1F5F9', color: '#475569', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ padding: '10px 24px', borderRadius: 8, background: '#0D9488', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
+                  Record Expense
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

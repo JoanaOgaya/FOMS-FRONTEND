@@ -942,7 +942,7 @@ public class FinancialManagerController : ControllerBase
         {
             records.Add(new
             {
-                id = $"OUT-{outf.OutflowId}",
+                id = !string.IsNullOrEmpty(outf.CashOutflowId) ? outf.CashOutflowId : $"OUT-{outf.OutflowId}",
                 type = "Outflow",
                 category = outf.Category ?? "Disbursement",
                 amount = outf.Amount,

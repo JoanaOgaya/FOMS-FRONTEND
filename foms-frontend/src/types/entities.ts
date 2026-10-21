@@ -352,12 +352,14 @@ export interface FinancialAdjustment {
   amount: number;
   reason: string;
   referenceNo: string;
-  status: 'Draft' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Recorded';
+  status: 'Draft' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Recorded' | 'Submitted' | 'PendingFinanceManager' | 'ReturnedForRevision' | 'Returned' | string;
   affectedRecordId: string;
   clientId: string;
   createdAt: string;
   createdBy: string;
   remarks?: string;
+  notes?: string;
+  rejectionReason?: string;
 }
 
 
@@ -415,13 +417,15 @@ export interface Settlement {
   submittedAt: string;
   amount: number;
   discrepancy?: number;
-  status: 'For validation' | 'Validated' | 'Rejected';
+  status: 'For validation' | 'Validated' | 'Rejected' | 'ReturnedForRevision' | 'Returned' | string;
   cashAdvance: number;
   totalExpenses: number;
   envelopeNo?: string;
   cashCounted?: number;
   recordedBy: string;
   recordedAt: string;
+  rejectionReason?: string;
+  remarks?: string;
 }
 
 

@@ -632,18 +632,22 @@ body.modal-open .app-layout {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.45);
   text-transform: uppercase;
-  padding: 16px 12px 6px;
-  margin-top: 8px;
+  padding: 14px 12px 6px;
+  margin-top: 6px;
   border-top: 1px dashed rgba(255, 255, 255, 0.08);
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
+  text-overflow: ellipsis;
   display: block;
-  max-height: 40px;
-  transition: opacity 0.25s, max-height 0.25s, padding 0.25s, margin-top 0.25s;
   flex-shrink: 0;
-  line-height: 1.2;
+  line-height: 1.3;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+  background: var(--sidebar-bg, #0B1437);
+  transition: opacity 0.25s, padding 0.25s, margin-top 0.25s;
 }
 
 .sidebar-nav>.nav-module-label:first-of-type {
@@ -653,22 +657,23 @@ body.modal-open .app-layout {
 }
 
 .collapsed .nav-module-label {
+  display: none !important;
   opacity: 0;
   max-height: 0;
   padding: 0;
-  margin-top: 0;
-  border-top: none;
+  margin: 0;
+  border: none;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 8px 12px;
   border-radius: var(--r-sm);
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   position: relative;
@@ -676,25 +681,31 @@ body.modal-open .app-layout {
   white-space: nowrap;
   border-left: 3px solid transparent;
   flex-shrink: 0;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
-  border-left-color: rgba(0, 169, 157, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  border-left-color: rgba(0, 169, 157, 0.45);
 }
 
 .nav-item.active {
-  background: rgba(0, 169, 157, 0.12);
-  color: #fff;
+  background: rgba(0, 169, 157, 0.15);
+  color: #FFFFFF;
+  font-weight: 600;
   border-left-color: var(--teal);
 }
 
 .nav-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.75;
   transition: opacity 0.2s;
 }
 

@@ -35,6 +35,24 @@ public interface IStarsIntegrationService
     Task<StarsInvoiceEndorsementLink?> GetEndorsementLinkAsync(string invoiceNo);
 
     /// <summary>
+    /// STARS Graph Routing Engine evaluates finance team workload/availability and routes task to optimal Coordinator.
+    /// </summary>
+    Task<(bool isSuccess, string message, StarsCollectionTaskDto? data)> CreateCollectionFollowUpTaskAsync(StarsCollectionTaskRequestDto dto);
+
+    /// <summary>
+    /// Coordinator executes collection follow-up workflow inside STARS.
+    /// </summary>
+    Task<(bool isSuccess, string message, StarsCollectionTaskDto? data)> ExecuteCollectionTaskAsync(int taskId, StarsCollectionExecutionDto dto);
+
+    /// <summary>
+    /// Retrieves collection follow-up tasks from STARS.
+    /// </summary>
+    Task<System.Collections.Generic.List<StarsCollectionTaskDto>> GetCollectionTasksAsync(string? status = null);
+
+    /// <summary>
+    /// Evaluates workload and availability graph routing metrics across all available coordinators.
+    /// </summary>
+    Task<System.Collections.Generic.List<StarsCoordinatorRoutingMetricDto>> EvaluateCoordinatorGraphRoutingAsync();
     /// Integration Check: queries STARS to check if an email or employee number already exists in STARS.
     /// </summary>
     Task<(bool exists, string message)> CheckUserExistsInStarsAsync(string? email, string? employeeId = null);

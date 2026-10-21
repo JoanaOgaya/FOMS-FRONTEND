@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { TableContainer } from '../components/TableContainer';
 import { DataTable } from '../components/DataTable';
 import { StatusBadge } from '../components/shared/StatusBadge';
-import { KpiCard } from '../components/shared/KpiCard';
 import { ClientInfoCard } from '../components/ClientInfoCard';
 import { Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line, ComposedChart, Cell } from 'recharts';
 import { useToast } from '../components/ToastContext';
@@ -100,8 +99,7 @@ const ReportsContent: React.FC = () => {
   const [activeSearch, setActiveSearch] = useState('');
   const [compileDateRange, setCompileDateRange] = useState('All Time');
   const [compileStatus, setCompileStatus] = useState('All Statuses');
-  const [compileClient, setCompileClient] = useState(selectedClientId || 'All');
-  const [activeClient, setActiveClient] = useState(selectedClientId || 'All');
+  const [compileClientFilter, setCompileClientFilter] = useState('All');
 
   const handleGenerateReport = () => {
     const today = new Date();
@@ -127,7 +125,6 @@ const ReportsContent: React.FC = () => {
     setDateFrom(newDateFrom);
     setDateTo(newDateTo);
     setActiveSearch(compileSearch);
-    setActiveClient(compileClient);
     setIsGenerated(true);
 
     if (compileLedgerType === 'Aging of Accounts') setReportType('aging');
@@ -267,10 +264,9 @@ const ReportsContent: React.FC = () => {
   };
 
   // --- Aging Tab Data ---
-  const effectiveClientId = selectedClientId || (activeClient !== 'All' ? activeClient : null);
   let agingRecords: any[] = [];
-  if (effectiveClientId) {
-    agingRecords = getFilteredAR().filter((ar: AccountsReceivableRecord) => ar.clientId === effectiveClientId).map((ar: AccountsReceivableRecord) => {
+  if (selectedClientId) {
+    agingRecords = getFilteredAR().filter((ar: AccountsReceivableRecord) => ar.clientId === selectedClientId).map((ar: AccountsReceivableRecord) => {
       const client = clients.find((c: Client) => c.id === ar.clientId);
       const invoice = getFilteredInvoices().find((i: Invoice) => i.id === ar.invoiceId);
       return {
@@ -297,8 +293,8 @@ const ReportsContent: React.FC = () => {
   }
 
   const getAgingBracketData = (bracket: string) => {
-    const base = effectiveClientId
-      ? getFilteredAR().filter((r: AccountsReceivableRecord) => r.clientId === effectiveClientId)
+    const base = selectedClientId
+      ? getFilteredAR().filter((r: AccountsReceivableRecord) => r.clientId === selectedClientId)
       : getFilteredAR();
     const recs = base.filter((r: AccountsReceivableRecord) => {
       if (bracket === '0-30 days') {
@@ -340,8 +336,8 @@ const ReportsContent: React.FC = () => {
 
   // --- Invoice Summary Tab Data ---
   let allInvoices: any[] = [];
-  if (effectiveClientId) {
-    allInvoices = getFilteredInvoices().filter((i: Invoice) => i.clientId === effectiveClientId).map((i: Invoice) => {
+  if (selectedClientId) {
+    allInvoices = getFilteredInvoices().filter((i: Invoice) => i.clientId === selectedClientId).map((i: Invoice) => {
       const client = clients.find((c: Client) => c.id === i.clientId);
       return { ...i, clientName: client?.name ?? 'Unknown' };
     });
@@ -694,14 +690,17 @@ const ReportsContent: React.FC = () => {
     toast.success('Report exported to Formal PDF successfully.');
   };
 
-  const MetricCard: React.FC<{ label: string; value: React.ReactNode; icon: string; color: string; bg: string }> = ({ label, value, icon, color }) => {
-    const variant = color === '#10B981' ? 'success'
-      : color === '#F59E0B' ? 'warning'
-      : color === '#EF4444' ? 'danger'
-      : color === '#8B5CF6' ? 'new'
-      : 'info';
-    return <KpiCard label={label} value={value} icon={icon} variant={variant} hideTrend />;
-  };
+  const MetricCard = ({ label, value, icon, color, bg }: any) => (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', lineHeight: 1.2, maxWidth: '70%' }}>{label}</div>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: bg, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <i className={`ti ${icon}`} style={{ fontSize: '1.1rem' }}></i>
+        </div>
+      </div>
+      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A' }}>{value}</div>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -856,19 +855,19 @@ const ReportsContent: React.FC = () => {
 
           {/* Client Filter */}
           <div style={{ flex: '1 1 180px', minWidth: 160 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Account</label>
+            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Filter</label>
             <div style={{ position: 'relative' }}>
               <select
-                value={compileClient}
-                onChange={e => {
-                  setCompileClient(e.target.value);
-                  setActiveClient(e.target.value);
-                }}
+                aria-label="Client Filter"
+                value={compileClientFilter}
+                onChange={e => setCompileClientFilter(e.target.value)}
                 style={{ width: '100%', appearance: 'none', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '9px 32px 9px 12px', fontSize: '0.85rem', color: '#0F172A', cursor: 'pointer', outline: 'none' }}
               >
-                <option value="All">All Client Accounts</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                <option value="All">All Clients</option>
+                {clients.map((c: Client) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.id})
+                  </option>
                 ))}
               </select>
               <i className="ti ti-chevron-down" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748B', fontSize: '13px', pointerEvents: 'none' }} />
@@ -892,9 +891,9 @@ const ReportsContent: React.FC = () => {
 
       {/* ══ ROW 3: Main Content (full-width) ══ */}
       <div className="report-printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
-        {effectiveClientId && clients.find((c: Client) => c.id === effectiveClientId) && (
+        {selectedClientId && clients.find((c: Client) => c.id === selectedClientId) && (
           <div style={{ marginBottom: -8 }}>
-            <ClientInfoCard client={clients.find((c: Client) => c.id === effectiveClientId)!} />
+            <ClientInfoCard client={clients.find((c: Client) => c.id === selectedClientId)!} />
           </div>
         )}
 
@@ -912,7 +911,7 @@ const ReportsContent: React.FC = () => {
         {/* ── Tab 1: Aging of Accounts ── */}
         {activeTab === 'aging' && (
           <>
-            <div className="kpi-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
               {['0-30 days', '31-60 days', '61-90 days', '90+ days'].map(bracket => {
                 const data = getAgingBracketData(bracket);
                 const { color, bg } = BRACKET_COLORS[bracket];
@@ -922,76 +921,22 @@ const ReportsContent: React.FC = () => {
               })}
             </div>
 
-            {agingRecords.length === 0 ? (
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                <i className="ti ti-file-analytics" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                No aging accounts found
-              </div>
-            ) : (
-              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice No.</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Amount</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aging / Days Overdue</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agingRecords.map((row: any) => (
-                        <tr
-                          key={row.id || row.invoiceNumber}
-                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
-                              {row.invoiceNumber || row.id}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                            {row.clientName}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
-                            {row.dueDate ? new Date(row.dueDate).toLocaleDateString('en-PH') : 'N/A'}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
-                            ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                              background: row.agingDays > 0 ? '#FEF2F2' : '#F0FDF4',
-                              color: row.agingDays > 0 ? '#DC2626' : '#16A34A',
-                              border: `1px solid ${row.agingDays > 0 ? '#FECACA' : '#BBF7D0'}`
-                            }}>
-                              <i className={`ti ${row.agingDays > 0 ? 'ti-clock' : 'ti-circle-check'}`} style={{ fontSize: 12 }} />
-                              {row.agingDays > 0 ? `${row.agingDays}d overdue` : 'On schedule'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <StatusBadge status={row.status} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <TableContainer>
+              <DataTable
+                data={agingRecords}
+                columns={agingColumns}
+                rowKey="id"
+                exportable={false}
+                hideSearch={true}
+              />
+            </TableContainer>
           </>
         )}
 
         {/* ── Tab 2: Invoice Summary ── */}
         {activeTab === 'invoices' && (
           <>
-            <div className="kpi-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
               <MetricCard label="TOTAL INVOICED" value={`₱${(totalInvoiced / 1000).toFixed(1)}k`} icon="ti-file-invoice" color="#0EA5E9" bg="#E0F2FE" />
               <MetricCard label="PAID AMOUNT" value={`₱${(totalPaid / 1000).toFixed(1)}k`} icon="ti-check" color="#10B981" bg="#D1FAE5" />
               <MetricCard label="OUTSTANDING" value={`₱${(totalOutstanding / 1000).toFixed(1)}k`} icon="ti-alert-circle" color="#F59E0B" bg="#FEF3C7" />
@@ -1016,67 +961,22 @@ const ReportsContent: React.FC = () => {
               </div>
             </div>
 
-            {allInvoices.length === 0 ? (
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                <i className="ti ti-file-invoice" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                No invoices found
-              </div>
-            ) : (
-              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice No.</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issue Date</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Amount</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allInvoices.map((row: any) => (
-                        <tr
-                          key={row.id || row.invoiceNumber}
-                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
-                              {row.invoiceNumber || row.id}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                            {row.clientName}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
-                            {new Date(row.createdAt || row.billingDate || Date.now()).toLocaleDateString('en-PH')}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
-                            {new Date(row.dueDate || Date.now()).toLocaleDateString('en-PH')}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#0369A1' }}>
-                            ₱{Number(row.totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <StatusBadge status={row.status} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <TableContainer>
+              <DataTable
+                data={allInvoices}
+                columns={invoiceColumns}
+                rowKey="id"
+                exportable={false}
+                hideSearch={true}
+              />
+            </TableContainer>
           </>
         )}
 
         {/* ── Tab 3: Collection Report ── */}
         {activeTab === 'collections' && (
           <>
-            <div className="kpi-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
               <MetricCard label="TOTAL COLLECTED" value={`₱${(totalCollected / 1000).toFixed(1)}k`} icon="ti-cash" color="#10B981" bg="#D1FAE5" />
               <MetricCard label="TRANSACTIONS" value={collections.length} icon="ti-receipt" color="#8B5CF6" bg="#EDE9FE" />
             </div>
@@ -1101,62 +1001,15 @@ const ReportsContent: React.FC = () => {
               </div>
             </div>
 
-            {collections.length === 0 ? (
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                <i className="ti ti-receipt" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                No collections found
-              </div>
-            ) : (
-              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment / OR Ref</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Method</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date Collected</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount Collected</th>
-                        <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {collections.map((row: any) => (
-                        <tr
-                          key={row.id || row.referenceNumber}
-                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
-                              {row.referenceNumber || row.orNumber || row.id}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                            {row.clientName}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', color: '#475569' }}>
-                              {row.paymentMethod || 'Official Receipt'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#475569' }}>
-                            {row.paymentDate ? new Date(row.paymentDate).toLocaleDateString('en-PH') : 'Recent'}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
-                            ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <StatusBadge status={row.status || 'Verified'} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <TableContainer>
+              <DataTable
+                data={collections}
+                columns={collectionColumns}
+                rowKey="id"
+                exportable={false}
+                hideSearch={true}
+              />
+            </TableContainer>
           </>
         )}
 
@@ -1175,7 +1028,7 @@ const ReportsContent: React.FC = () => {
 
           return (
             <>
-              <div className="kpi-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
                 <MetricCard label="TOTAL ALERTS FLAGGED" value={flags.length || 4} icon="ti-alert-triangle" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="PENDING SUPERVISOR REVIEW" value={pendingCount} icon="ti-clock" color="#F59E0B" bg="#FEF3C7" />
                 <MetricCard label="CONFIRMED DUPLICATES" value={confirmedCount} icon="ti-copy" color="#EF4444" bg="#FEE2E2" />
@@ -1201,66 +1054,15 @@ const ReportsContent: React.FC = () => {
                 </div>
               </div>
 
-              {flags.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                  <i className="ti ti-shield-check" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                  No duplicate alerts found
-                </div>
-              ) : (
-                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                      <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flag ID</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No.</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Matched Record</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Similarity</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flagged Date</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {flags.map((row: any) => (
-                          <tr
-                            key={row.id}
-                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
-                                FLAG #{row.id}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                              {row.uploadedNumber || row.id}
-                            </td>
-                            <td style={{ padding: '14px 18px', color: '#475569' }}>
-                              {row.clientName || 'General Client'}
-                            </td>
-                            <td style={{ padding: '14px 18px', color: '#334155' }}>
-                              {row.existingRecord || 'N/A'}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: '#DC2626' }}>
-                                {row.similarityScore || 98.5}% match
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#64748B' }}>
-                              {row.flaggedDate || 'Recent'}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <StatusBadge status={row.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <TableContainer>
+                <DataTable
+                  data={flags}
+                  columns={duplicateColumns}
+                  rowKey="id"
+                  exportable={false}
+                  hideSearch={true}
+                />
+              </TableContainer>
             </>
           );
         })()}
@@ -1270,70 +1072,21 @@ const ReportsContent: React.FC = () => {
           const docs = getFilteredUniqueDocs();
           return (
             <>
-              <div className="kpi-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                 <MetricCard label="TOTAL UNIQUE DOCUMENTS" value={docs.length} icon="ti-file-check" color="#10B981" bg="#D1FAE5" />
                 <MetricCard label="AVERAGE OCR CONFIDENCE" value="99.4%" icon="ti-percentage" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="VERIFIED BY FINANCE" value={docs.length} icon="ti-shield-check" color="#8B5CF6" bg="#EDE9FE" />
               </div>
 
-              {docs.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                  <i className="ti ti-file-check" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                  No unique documents found
-                </div>
-              ) : (
-                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                      <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No. / ID</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Uniqueness</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {docs.map((row: any) => (
-                          <tr
-                            key={row.id}
-                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
-                                {row.orInvoiceNumber || row.id}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                              {row.clientName || 'General Account'}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', fontWeight: 800, color: '#166534' }}>
-                              ₱{Number(row.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }}>
-                                99.4% Unique
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', color: '#64748B' }}>
-                              {row.transactionDate ? new Date(row.transactionDate).toLocaleDateString('en-PH') : '2026-10-14'}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ color: '#059669', fontWeight: 700, fontSize: 11, background: '#ECFDF5', padding: '3px 8px', borderRadius: 6, border: '1px solid #A7F3D0' }}>
-                                VERIFIED
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <TableContainer>
+                <DataTable
+                  data={docs}
+                  columns={uniqueColumns}
+                  rowKey="id"
+                  exportable={false}
+                  hideSearch={true}
+                />
+              </TableContainer>
             </>
           );
         })()}
@@ -1346,67 +1099,21 @@ const ReportsContent: React.FC = () => {
 
           return (
             <>
-              <div className="kpi-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                 <MetricCard label="TOTAL REVIEWS LOGGED" value={history.length} icon="ti-history" color="#0EA5E9" bg="#E0F2FE" />
                 <MetricCard label="VERIFIED UNIQUE" value={uniqueCount} icon="ti-check" color="#10B981" bg="#D1FAE5" />
                 <MetricCard label="CONFIRMED DUPLICATES" value={duplicateCount} icon="ti-copy" color="#EF4444" bg="#FEE2E2" />
               </div>
 
-              {history.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
-                  <i className="ti ti-history" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                  No review history found
-                </div>
-              ) : (
-                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
-                      <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>History ID</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document No.</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reviewer</th>
-                          <th style={{ padding: '12px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decision</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {history.map((row: any) => (
-                          <tr
-                            key={row.id}
-                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
-                                #{row.historyId || row.id}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0F172A' }}>
-                              {row.documentNumber || row.id}
-                            </td>
-                            <td style={{ padding: '14px 18px', color: '#475569' }}>
-                              {row.clientName || 'General Account'}
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontWeight: 600, color: '#334155' }}>
-                                {row.reviewer || 'Gemini-Flash-2.0'}
-                              </span>
-                              <span style={{ fontSize: 11, color: '#64748B', display: 'block' }}>
-                                {row.reviewerRole || 'Financial Manager'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                              <StatusBadge status={row.finalDecision} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <TableContainer>
+                <DataTable
+                  data={history}
+                  columns={reviewHistoryColumns}
+                  rowKey="id"
+                  exportable={false}
+                  hideSearch={true}
+                />
+              </TableContainer>
             </>
           );
         })()}

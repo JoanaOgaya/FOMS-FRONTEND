@@ -1,10 +1,17 @@
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, Date, ForeignKey, Text, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, Date, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 from app.core.config import settings
 
-engine = create_engine(settings.POSTGRES_URI, pool_pre_ping=True)
+# Compatible with both PostgreSQL (native JSONB) and SQLite (native JSON)
+SafeJSON = JSONB().with_variant(JSON, "sqlite")
+
+try:
+    engine = create_engine(settings.POSTGRES_URI, pool_pre_ping=True)
+except Exception:
+    engine = create_engine("sqlite:///foms_ai_local.db")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -25,7 +32,7 @@ class AIDuplicateAlert(Base):
     matched_record_id = Column(String(100), nullable=False)
     confidence_score = Column(Numeric(5, 2), nullable=False)
     severity = Column(String(20))
-    matched_fields = Column(JSONB)
+    matched_fields = Column(SafeJSON)
     match_reason = Column(Text, nullable=False)
     status = Column(String(30), default="Pending Review", nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -41,8 +48,8 @@ class AIDuplicateMatch(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     alert_id = Column(Integer, ForeignKey("ai_duplicate_alerts.id", ondelete="CASCADE"))
-    source_details = Column(JSONB, nullable=False)
-    match_details = Column(JSONB, nullable=False)
+    source_details = Column(SafeJSON, nullable=False)
+    match_details = Column(SafeJSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     alert = relationship("AIDuplicateAlert", back_populates="matches")
@@ -155,7 +162,7 @@ class AIAuditEvent(Base):
     result = Column(String(50), default="SUCCESS")
     ip_address = Column(String(50))
     user_agent = Column(Text)
-    details = Column(JSONB)
+    details = Column(SafeJSON)
     correlation_id = Column(String(100))
 
 # 10. AI Unique Scanned Documents

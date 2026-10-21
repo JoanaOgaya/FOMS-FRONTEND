@@ -182,7 +182,17 @@ public class ClientRate
 [Table("Invoices")]
 public class Invoice
 {
+    [Column("Id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [Column("InvoiceNo")]
+    public string? InvoiceNo { get; set; }
+
+    [Column("ClientName")]
+    public string? ClientName { get; set; }
+
     [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.None)]
     [Column("invoice_id")]
     public int InvoiceId { get; set; }
 
@@ -658,17 +668,29 @@ public class CashInflow
 public class CashOutflow
 {
     [Key]
-    [Column("outflow_id")]
-    public int OutflowId { get; set; }
+    [Column("CashOutflowId")]
+    public string CashOutflowId { get; set; } = $"CO-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
 
-    [Column("category")]
+    [Column("SourceReference")]
+    public string? SourceReference { get; set; }
+
+    [Column("LiquidationId")]
+    public string? LiquidationId { get; set; }
+
+    [Column("Category")]
     public string? Category { get; set; }
 
-    [Column("description")]
+    [Column("Description")]
     public string? Description { get; set; }
 
-    [Column("amount")]
+    [Column("Amount")]
     public decimal Amount { get; set; }
+
+    [Column("RecordedBy")]
+    public string? RecordedBy { get; set; }
+
+    [Column("OutflowDate")]
+    public DateTime? OutflowDate { get; set; } = DateTime.UtcNow;
 
     [Column("approved_by")]
     public int? ApprovedBy { get; set; }
@@ -679,34 +701,120 @@ public class CashOutflow
     [Column("transaction_date")]
     public DateTime? TransactionDate { get; set; }
 
-    [Column("created_at")]
-    public DateTime? CreatedAt { get; set; }
+    [Column("outflow_id")]
+    public int? OutflowId { get; set; }
+
+    [Column("CreatedAt")]
+    public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 [Table("CashAdvances")]
 public class CashAdvance
 {
     [Key]
-    [Column("cash_advance_id")]
-    public int CashAdvanceId { get; set; }
+    [Column("AdvanceId")]
+    public string AdvanceId { get; set; } = string.Empty;
 
-    [Column("employee_id")]
-    public int? EmployeeId { get; set; }
+    [Column("CourierName")]
+    public string? CourierName { get; set; }
 
-    [Column("amount")]
-    public decimal Amount { get; set; }
+    [Column("TripReference")]
+    public string? TripReference { get; set; }
 
-    [Column("purpose")]
-    public string? Purpose { get; set; }
+    [Column("AmountGiven")]
+    public decimal AmountGiven { get; set; }
+
+    [Column("ReleaseDate")]
+    public DateTime? ReleaseDate { get; set; }
+
+    [Column("ReleasedBy")]
+    public string? ReleasedBy { get; set; }
+
+    [Column("Status")]
+    public string Status { get; set; } = "Pending Finance Review";
+
+    [Column("Notes")]
+    public string? Notes { get; set; }
+
+    [Column("ApprovedBy")]
+    public string? ApprovedBy { get; set; }
+
+    [Column("ApprovedAt")]
+    public DateTime? ApprovedAt { get; set; }
+
+    [Column("DisbursedBy")]
+    public string? DisbursedBy { get; set; }
+
+    [Column("DisbursedAt")]
+    public DateTime? DisbursedAt { get; set; }
+
+    [Column("CreatedAt")]
+    public DateTime? CreatedAt { get; set; }
+}
+
+[Table("StarsCollectionTasks")]
+public class StarsCollectionTask
+{
+    [Key]
+    [Column("task_id")]
+    public int TaskId { get; set; }
+
+    [Column("task_number")]
+    public string TaskNumber { get; set; } = string.Empty;
+
+    [Column("task_type")]
+    public string TaskType { get; set; } = "Collection Follow-up";
+
+    [Column("invoice_number")]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    [Column("client_name")]
+    public string ClientName { get; set; } = string.Empty;
+
+    [Column("amount_due")]
+    public decimal AmountDue { get; set; }
+
+    [Column("days_overdue")]
+    public int DaysOverdue { get; set; }
+
+    [Column("assigned_coordinator_id")]
+    public string? AssignedCoordinatorId { get; set; }
+
+    [Column("assigned_coordinator_name")]
+    public string AssignedCoordinatorName { get; set; } = string.Empty;
+
+    [Column("routing_score")]
+    public decimal RoutingScore { get; set; }
+
+    [Column("routing_reason")]
+    public string? RoutingReason { get; set; }
 
     [Column("status")]
-    public string? Status { get; set; }
+    public string Status { get; set; } = "Assigned";
 
-    [Column("approved_by")]
-    public int? ApprovedBy { get; set; }
+    [Column("action_taken")]
+    public string? ActionTaken { get; set; }
+
+    [Column("outcome")]
+    public string? Outcome { get; set; }
+
+    [Column("promised_payment_date")]
+    public DateTime? PromisedPaymentDate { get; set; }
+
+    [Column("execution_notes")]
+    public string? ExecutionNotes { get; set; }
+
+    [Column("executed_at")]
+    public DateTime? ExecutedAt { get; set; }
+
+    [Column("executed_by")]
+    public string? ExecutedBy { get; set; }
 
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at")]
+    public DateTime? UpdatedAt { get; set; }
 }
 
 [Table("Liquidations")]

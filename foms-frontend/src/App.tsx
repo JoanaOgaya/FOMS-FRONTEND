@@ -9,6 +9,7 @@ import ToastBar from './components/ToastBar';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute, RoleGuard } from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useCancelButtonFeedback } from './hooks/useCancelButtonFeedback';
 import { LANDING_PATH, MODULES, type ModuleKey } from './utils/roleAccess';
 
@@ -44,9 +45,19 @@ import Reports from './pages/Reports';
 import { AuditLogs } from './pages/AuditLogs';
 import DocumentExtraction from './pages/DocumentExtraction';
 import AIOutputHistory from './pages/AIOutputHistory';
+import StarsCollectionWorkflow from './pages/StarsCollectionWorkflow';
+import DmsBillingIntake from './pages/DmsBillingIntake';
+import CashAdvanceLiquidationPortal from './pages/CashAdvanceLiquidationPortal';
+import ApprovalsQueue from './pages/ApprovalsQueue';
+import MyCashAdvances from './pages/MyCashAdvances';
+
+const EscalatedApprovalsPage: React.FC = () => <ApprovalsQueue mode="escalated" />;
 
 const PAGES: Record<ModuleKey, React.ComponentType> = {
   dashboard: Dashboard,
+  approvals: ApprovalsQueue,
+  escalatedApprovals: EscalatedApprovalsPage,
+  myCashAdvances: MyCashAdvances,
   clients: ClientManagement,
   rates: RateConfiguration,
   waybills: Waybills,
@@ -55,6 +66,9 @@ const PAGES: Record<ModuleKey, React.ComponentType> = {
   invoicingDesk: InvoicingDesk,
   invoiceReview: InvoiceReview,
   accountsReceivable: AccountsReceivable,
+  starsCollection: StarsCollectionWorkflow,
+  dmsIntake: DmsBillingIntake,
+  cashAdvancePortal: CashAdvanceLiquidationPortal,
   payments: Payments,
   receipts: Receipts,
   settlements: Settlements,
@@ -100,7 +114,13 @@ const AppRoutes: React.FC = () => {
       >
         {MODULES.flatMap((m) => {
           const Page = PAGES[m.key];
-          const element = <RoleGuard module={m.key}><Page /></RoleGuard>;
+          const element = (
+            <RoleGuard module={m.key}>
+              <ErrorBoundary fallbackTitle={`Error loading ${m.label}`}>
+                <Page />
+              </ErrorBoundary>
+            </RoleGuard>
+          );
           return [m.path, ...(m.detailPath ? [m.detailPath] : [])].map((path) => <Route key={path} path={path} element={element} />);
         })}
         <Route path="/ai/output-history" element={<Navigate to="/ai-history" replace />} />
