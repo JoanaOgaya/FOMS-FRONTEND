@@ -81,7 +81,13 @@ instance.interceptors.response.use(
   (res) => res,
   (err: AxiosError<{ message?: string; error?: string }>) => {
     const status = err.response?.status ?? 0;
-    if (status === 401 && !err.config?.url?.includes('/auth/login')) {
+    const url = err.config?.url ?? '';
+    const errMessage = String(err.response?.data?.message || err.response?.data?.error || '').toLowerCase();
+    const isApiKeyError = errMessage.includes('api key');
+    const isIntegrationRoute = url.includes('/api/integration');
+
+    // Only clear user session if it is an actual user auth session failure (not an integration/API key 401)
+    if (status === 401 && !url.includes('/auth/login') && !isApiKeyError && !isIntegrationRoute) {
       session.clear();
       unauthorizedListener?.();
     }

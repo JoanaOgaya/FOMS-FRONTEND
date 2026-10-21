@@ -10,6 +10,8 @@ import {
   CoordinatorRoutingMetric,
   StarsCollectionTask,
 } from '../services/integrationService';
+import { invoicesService } from '../services/invoicesService';
+import { canDispatchFollowUp } from '../utils/roleAccess';
 import { formatCurrency, formatDate } from '../utils/format';
 
 export const StarsCollectionWorkflow: React.FC = () => {
@@ -29,6 +31,23 @@ export const StarsCollectionWorkflow: React.FC = () => {
     refetch: refetchTasks,
   } = useQuery('stars:tasks', () => integrationService.getCollectionTasks());
 
+  const { data: allInvoices = [] } = useQuery('stars:invoices-lookup', async () => {
+    const res = await invoicesService.list({ pageSize: 100 });
+    return res?.items || [];
+  });
+
+  // Filter overdue invoices from API
+  const overdueInvoices = (Array.isArray(allInvoices) ? allInvoices : []).filter((inv: any) => {
+    if (!inv) return false;
+    const due = inv.dueDate ? new Date(inv.dueDate).getTime() : 0;
+    const days = due ? Math.floor((Date.now() - due) / (1000 * 60 * 60 * 24)) : 0;
+    const isStatusOverdue =
+      String(inv.status || '').toLowerCase() === 'overdue' ||
+      String(inv.paymentStatus || '').toLowerCase() === 'overdue';
+    const isOutstanding = String(inv.status || '').toLowerCase() !== 'paid';
+    return (days > 0 || isStatusOverdue) && isOutstanding;
+  });
+
   // Local state
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -44,11 +63,30 @@ export const StarsCollectionWorkflow: React.FC = () => {
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Dispatch form state
-  const [dispatchInvoiceNo, setDispatchInvoiceNo] = useState<string>('INV-202610-5F72');
-  const [dispatchClient, setDispatchClient] = useState<string>('Lazada Philippines');
-  const [dispatchAmount, setDispatchAmount] = useState<number>(45000);
-  const [dispatchDaysOverdue, setDispatchDaysOverdue] = useState<number>(25);
+  // Dispatch form state (all start empty, auto-filled from API)
+  const [dispatchInvoiceNo, setDispatchInvoiceNo] = useState<string>('');
+  const [dispatchClient, setDispatchClient] = useState<string>('');
+  const [dispatchAmount, setDispatchAmount] = useState<number | ''>('');
+  const [dispatchDaysOverdue, setDispatchDaysOverdue] = useState<number | ''>('');
+
+  const handleSelectInvoice = (invoiceNo: string) => {
+    setDispatchInvoiceNo(invoiceNo);
+    const found = overdueInvoices.find(
+      (inv: any) => (inv.invoiceNumber || inv.invoiceNo || String(inv.id)) === invoiceNo
+    );
+    if (found) {
+      setDispatchClient(found.clientName || 'Client');
+      const bal = found.balance ?? found.totalAmount ?? found.amount ?? 0;
+      setDispatchAmount(bal);
+      const due = found.dueDate ? new Date(found.dueDate).getTime() : 0;
+      const days = due ? Math.max(1, Math.floor((Date.now() - due) / (1000 * 60 * 60 * 24))) : 1;
+      setDispatchDaysOverdue(days);
+    } else {
+      setDispatchClient('');
+      setDispatchAmount('');
+      setDispatchDaysOverdue('');
+    }
+  };
 
   // Filtered tasks
   const filteredTasks = tasks.filter((task) => {
@@ -115,17 +153,25 @@ export const StarsCollectionWorkflow: React.FC = () => {
 
   const handleDispatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dispatchInvoiceNo) {
+      toast.error('Please select an overdue invoice.');
+      return;
+    }
     try {
       setIsSubmitting(true);
       const res = await integrationService.createCollectionTask({
         invoiceNumber: dispatchInvoiceNo,
-        clientName: dispatchClient,
-        amountDue: dispatchAmount,
-        daysOverdue: dispatchDaysOverdue,
+        clientName: dispatchClient || 'Client',
+        amountDue: Number(dispatchAmount) || 0,
+        daysOverdue: Number(dispatchDaysOverdue) || 0,
       });
 
       if (res.isSuccess) {
         toast.success(res.message);
+        setDispatchInvoiceNo('');
+        setDispatchClient('');
+        setDispatchAmount('');
+        setDispatchDaysOverdue('');
         setShowDispatchModal(false);
         refetchTasks();
         refetchMetrics();
@@ -168,10 +214,22 @@ export const StarsCollectionWorkflow: React.FC = () => {
           <i className="ti ti-refresh" style={{ marginRight: '6px' }} />
           Refresh Engine
         </Button>
-        <Button title="Dispatch New Follow-Up" variant="primary" onClick={() => setShowDispatchModal(true)}>
-          <i className="ti ti-plus" style={{ marginRight: '6px' }} />
-          Dispatch New Follow-Up
-        </Button>
+        {canDispatchFollowUp(user?.role) && (
+          <Button
+            title="Dispatch New Follow-Up"
+            variant="primary"
+            onClick={() => {
+              setDispatchInvoiceNo('');
+              setDispatchClient('');
+              setDispatchAmount('');
+              setDispatchDaysOverdue('');
+              setShowDispatchModal(true);
+            }}
+          >
+            <i className="ti ti-plus" style={{ marginRight: '6px' }} />
+            Dispatch New Follow-Up
+          </Button>
+        )}
       </div>
 
       {/* ─── KPI Cards Banner ────────────────────────────────────────────── */}
@@ -858,7 +916,7 @@ export const StarsCollectionWorkflow: React.FC = () => {
       )}
 
       {/* ─── Dispatch New Follow-up Modal ────────────────────────────────── */}
-      {showDispatchModal && (
+      {showDispatchModal && canDispatchFollowUp(user?.role) && (
         <div
           style={{
             position: 'fixed',
@@ -901,54 +959,69 @@ export const StarsCollectionWorkflow: React.FC = () => {
             <form onSubmit={handleDispatchSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                  Invoice Number *
+                  Select Overdue Invoice *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   value={dispatchInvoiceNo}
-                  onChange={(e) => setDispatchInvoiceNo(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                />
+                  onChange={(e) => handleSelectInvoice(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                >
+                  <option value="">-- Choose an overdue invoice --</option>
+                  {overdueInvoices.length === 0 ? (
+                    <option value="" disabled>No overdue invoices found in system</option>
+                  ) : (
+                    overdueInvoices.map((inv: any) => {
+                      const no = inv.invoiceNumber || inv.invoiceNo || String(inv.id);
+                      const client = inv.clientName || 'Client';
+                      const amt = inv.balance ?? inv.totalAmount ?? inv.amount ?? 0;
+                      return (
+                        <option key={no} value={no}>
+                          {no} — {client} (₱{Number(amt).toLocaleString()})
+                        </option>
+                      );
+                    })
+                  )}
+                </select>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                  Client Account *
+                  Client Account
                 </label>
                 <input
                   type="text"
-                  required
+                  readOnly
+                  placeholder="Auto-filled from selected invoice"
                   value={dispatchClient}
-                  onChange={(e) => setDispatchClient(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc', color: '#475569' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                    Amount Due (₱) *
+                    Amount Due (₱)
                   </label>
                   <input
-                    type="number"
-                    required
-                    value={dispatchAmount}
-                    onChange={(e) => setDispatchAmount(Number(e.target.value))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    type="text"
+                    readOnly
+                    placeholder="Auto-filled"
+                    value={dispatchAmount !== '' ? `₱${Number(dispatchAmount).toLocaleString()}` : ''}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc', color: '#475569' }}
                   />
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                    Days Overdue *
+                    Days Overdue
                   </label>
                   <input
-                    type="number"
-                    required
-                    value={dispatchDaysOverdue}
-                    onChange={(e) => setDispatchDaysOverdue(Number(e.target.value))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    type="text"
+                    readOnly
+                    placeholder="Auto-filled"
+                    value={dispatchDaysOverdue !== '' ? `${dispatchDaysOverdue} days` : ''}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc', color: '#475569' }}
                   />
                 </div>
               </div>
@@ -957,7 +1030,7 @@ export const StarsCollectionWorkflow: React.FC = () => {
                 <Button title="Cancel" variant="secondary" onClick={() => setShowDispatchModal(false)} type="button">
                   Cancel
                 </Button>
-                <Button title="Route Task via Graph Engine" variant="primary" type="submit" disabled={isSubmitting}>
+                <Button title="Route Task via Graph Engine" variant="primary" type="submit" disabled={isSubmitting || !dispatchInvoiceNo}>
                   {isSubmitting ? 'Routing...' : 'Route Task via Graph Engine'}
                 </Button>
               </div>

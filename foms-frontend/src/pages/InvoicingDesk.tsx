@@ -67,7 +67,7 @@ export const InvoicingDesk: React.FC = () => {
   let viewClient: Client | undefined = undefined;
 
   if (id) {
-    viewInvoice = invoices.find(i => i.id === id || i.invoiceNumber === id);
+    viewInvoice = invoices.find(i => i.id === id);
     if (!viewInvoice) {
       viewClient = clients.find(c => c.id === id);
     }
@@ -328,20 +328,6 @@ export const InvoicingDesk: React.FC = () => {
             <div style={{ display: 'flex', gap: 8 }}>
               {(viewInvoice.status === 'Draft' || viewInvoice.status === 'Needs Revision') && (
                 <Button title="Edit Invoice" variant="secondary" icon="ti-pencil" onClick={() => navigate(`/invoice-create?edit=${viewInvoice?.id}`)} />
-                <>
-                  <Button
-                    title="Edit Draft"
-                    variant="secondary"
-                    icon="ti-edit"
-                    onClick={() => navigate(`/invoice-create?edit=${viewInvoice!.id}`)}
-                  />
-                  <Button
-                    title="Submit for Approval"
-                    variant="primary"
-                    icon="ti-send"
-                    onClick={() => handleTransition(viewInvoice!.id, 'Pending Approval', `Invoice ${viewInvoice!.invoiceNumber} submitted for approval`)}
-                  />
-                </>
               )}
               {viewInvoice.status === 'Approved' && (
                 <>
@@ -821,173 +807,6 @@ export const InvoicingDesk: React.FC = () => {
                           </button>
                         </>
                       )}
-                      {/* Top Row: Status (left) & Invoice Number (right) */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span
-                          style={{
-                            background: badge.bg,
-                            color: badge.text,
-                            border: `1px solid ${badge.border}`,
-                            padding: '4px 12px',
-                            borderRadius: '9999px',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6
-                          }}
-                        >
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: badge.dot }} />
-                          {badge.label}
-                        </span>
-
-                        <span
-                          style={{
-                            fontWeight: 800,
-                            fontSize: '14px',
-                            color: '#0D9488',
-                            letterSpacing: '0.02em'
-                          }}
-                        >
-                          {inv.invoiceNumber || inv.id}
-                        </span>
-                      </div>
-
-                      {/* Title & Subtitle: Client Name & Billing Period */}
-                      <div>
-                        <div
-                          onClick={() => navigate(`/invoicing-desk/${inv.id}`)}
-                          style={{ fontWeight: 800, fontSize: 18, color: '#111827', lineHeight: 1.3, cursor: 'pointer' }}
-                          title="View Invoice"
-                        >
-                          {inv.clientName || 'Unknown Client'}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
-                          {inv.billingPeriod || 'Standard Billing Period'}
-                        </div>
-                      </div>
-
-                      {/* Details Row: 2 columns (matching OUTSTANDING BALANCE / DUE DATE in 2nd Picture) */}
-                      <div style={{ display: 'flex', gap: 40, marginTop: 4 }}>
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.05em' }}>
-                            TOTAL AMOUNT
-                          </div>
-                          <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', marginTop: 4 }}>
-                            {formatCurrency(inv.totalAmount || 0)}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.05em' }}>
-                            INVOICE DATE
-                          </div>
-                          <div style={{ fontWeight: 800, fontSize: 14, color: '#111827', marginTop: 4 }}>
-                            {inv.createdAt ? formatDate(inv.createdAt) : 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Middle Status Badge (matching Good Standing / Overdue badge in 2nd Picture) */}
-                      <div>
-                        {getMiddleBadge(inv)}
-                      </div>
-
-                      {/* Invoice Details Preview (matching phone & address row in 2nd Picture) */}
-                      <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#64748B' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <i className="ti ti-truck-delivery" style={{ fontSize: 14, color: '#0D9488' }} />
-                          <span>{inv.waybillCount} {inv.waybillCount === 1 ? 'Waybill' : 'Waybills'}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <i className="ti ti-calendar" style={{ fontSize: 14, color: '#0D9488', flexShrink: 0 }} />
-                          <span>Due: {inv.dueDate ? formatDate(inv.dueDate) : 'Net 30 Days'}</span>
-                        </div>
-                      </div>
-
-                      {/* Bottom Button (solid teal VIEW button matching 2nd Picture) */}
-                      <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', gap: 8 }}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/invoicing-desk/${inv.id}`)}
-                          style={{
-                            flex: 1,
-                            padding: '12px 0',
-                            background: '#0D9488',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 8,
-                            fontWeight: 700,
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            transition: 'background 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#0F766E'}
-                          onMouseLeave={e => e.currentTarget.style.background = '#0D9488'}
-                        >
-                          VIEW
-                        </button>
-
-                        {(inv.status === 'Draft' || inv.status === 'Needs Revision') && (
-                          <>
-                            <button
-                              type="button"
-                              title="Edit Draft"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/invoice-create?edit=${inv.id}`);
-                              }}
-                              style={{
-                                padding: '12px 14px',
-                                background: '#F8FAFC',
-                                color: '#0F766E',
-                                border: '1px solid #CCFBF1',
-                                borderRadius: 8,
-                                fontWeight: 700,
-                                fontSize: 13,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6,
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#E6FFFA'}
-                              onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
-                            >
-                              <i className="ti ti-edit" />
-                              <span>EDIT</span>
-                            </button>
-                            <button
-                              type="button"
-                              title="Submit for Approval"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTransition(inv.id, 'Pending Approval', `Invoice ${inv.invoiceNumber} submitted for approval`);
-                              }}
-                              style={{
-                                padding: '12px 16px',
-                                background: '#F0FDF4',
-                                color: '#16A34A',
-                                border: '1px solid #BBF7D0',
-                                borderRadius: 8,
-                                fontWeight: 700,
-                                fontSize: 13,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#DCFCE7'}
-                              onMouseLeave={e => e.currentTarget.style.background = '#F0FDF4'}
-                            >
-                              <i className="ti ti-send" />
-                            </button>
-                          </>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>

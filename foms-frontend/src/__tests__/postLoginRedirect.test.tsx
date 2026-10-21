@@ -175,7 +175,7 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
     });
   });
 
-  it('Login after requesting /for-review while logged out shows 403 Forbidden for Accountant', async () => {
+  it('Login after requesting /for-review while logged out silently redirects to /dashboard for Accountant', async () => {
     currentApiUser = {
       id: 'STAFF-ACC',
       fullName: 'Alex Accountant',
@@ -199,18 +199,12 @@ describe('Post-Login Redirect — All Roles Land on Dashboard', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Sign In to FOMS/i }));
 
-    // Accountant returns to /for-review which is forbidden -> RoleGuard renders 403 ForbiddenPage
-    await waitFor(() => {
-      expect(screen.getByText(/403 — Access denied/i)).toBeDefined();
-      expect(screen.getByText(/Your role does not have permission to view this page/i)).toBeDefined();
-    });
-    expect(screen.queryByText('For Review Content')).toBeNull();
-
-    // Clicking "Go to my dashboard" on ForbiddenPage navigates to /dashboard
-    fireEvent.click(screen.getByRole('button', { name: /Go to my dashboard/i }));
+    // Accountant returns to /for-review which is forbidden -> RoleGuard silently redirects to /dashboard (no 403 screen)
     await waitFor(() => {
       expect(screen.getByText('Dashboard Content')).toBeDefined();
     });
+    expect(screen.queryByText(/403 — Access denied/i)).toBeNull();
+    expect(screen.queryByText('For Review Content')).toBeNull();
   });
 
   it('Logging out from /for-review and logging in as another role lands on /dashboard (not previous user page)', async () => {

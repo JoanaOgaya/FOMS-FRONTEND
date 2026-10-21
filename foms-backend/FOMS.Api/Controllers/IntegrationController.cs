@@ -208,6 +208,9 @@ public class IntegrationController : ControllerBase
 
         var metrics = await _starsService.EvaluateCoordinatorGraphRoutingAsync();
         return Ok(metrics);
+    }
+
+    /// <summary>
     /// Integration 2 (STARS → FOMS): Provision staff user/account from STARS to FOMS.
     /// Secured via X-Api-Key. Supports upsert if employee already exists.
     /// </summary>

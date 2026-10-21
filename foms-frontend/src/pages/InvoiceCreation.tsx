@@ -17,6 +17,9 @@ import { TableContainer } from '../components/TableContainer';
 import { computeFreightCost } from '../utils/billing';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate } from '../utils/format';
+import { useDuplicatePreCheck } from '../hooks/useDuplicatePreCheck';
+import { DuplicatePreCheckModal } from '../components/ai/DuplicatePreCheckModal';
+import { canCheckDuplicateInForm } from '../utils/roleAccess';
 
 
 type Step = 1 | 2 | 3;
@@ -45,6 +48,15 @@ export const InvoiceCreation: React.FC = () => {
   const [billingPeriod, setBillingPeriod] = useState('');
   const [waybillViewMode, setWaybillViewMode] = useState<'cards' | 'table'>('cards');
   const [showRatesModal, setShowRatesModal] = useState<boolean>(false);
+  
+  const {
+    modalState: dupModalState,
+    runPreCheck,
+    handleModalCancel,
+    handleModalRetry,
+    handleProceedWithRemarks,
+    handleProceedWithManualReview,
+  } = useDuplicatePreCheck();
   
 
   // To handle the details view on click
@@ -226,16 +238,12 @@ export const InvoiceCreation: React.FC = () => {
 
   const filteredWaybills = useMemo(() => {
     if (!searchQuery) return clientWaybills;
-    const q = searchQuery.toLowerCase();
-    return clientWaybills.filter((w: any) =>
-      w.waybillNumber?.toLowerCase().includes(q) ||
-      w.area?.toLowerCase().includes(q) ||
-      (w.deliveryDate && new Date(w.deliveryDate).toLocaleDateString('en-US').toLowerCase().includes(q))
     const q = searchQuery.toLowerCase().trim();
     return clientWaybills.filter((w: any) =>
       (w.waybillNumber && w.waybillNumber.toLowerCase().includes(q)) ||
       (w.area && w.area.toLowerCase().includes(q)) ||
-      (w.receiverName && w.receiverName.toLowerCase().includes(q))
+      (w.receiverName && w.receiverName.toLowerCase().includes(q)) ||
+      (w.deliveryDate && new Date(w.deliveryDate).toLocaleDateString('en-US').toLowerCase().includes(q))
     );
   }, [clientWaybills, searchQuery]);
 
@@ -543,54 +551,11 @@ export const InvoiceCreation: React.FC = () => {
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <i className="ti ti-circle-check" style={{ fontSize: 36, color: '#10B981' }} />
         </div>
-        <h2 style={{ margin: 0, color: '#0F172A', fontSize: '1.4rem' }}>Invoice Saved Successfully</h2>
-        <p style={{ margin: 0, color: '#64748B', textAlign: 'center', maxWidth: 420 }}>
-          Your invoice has been generated and saved to the <strong>Invoice List</strong> with status <strong>Pending Approval</strong>.
-        </p>
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={() => navigate('/invoicing-desk')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 20px',
-              borderRadius: 8,
-              background: '#0D9488',
-              color: '#FFFFFF',
-              border: 'none',
-              fontWeight: 700,
-              fontSize: '0.9rem',
-              cursor: 'pointer'
-            }}
-          >
-            <i className="ti ti-file-invoice" /> Go to Invoice List
-          </button>
-          <button
-            type="button"
-            onClick={() => { setSubmitted(false); setStep(1); setSelectedWaybills([]); setBillingPeriod(''); setNotes(''); setSelectedClientId(null); }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 20px',
-              borderRadius: 8,
-              background: '#F1F5F9',
-              color: '#475569',
-              border: '1px solid #CBD5E1',
-              fontWeight: 700,
-              fontSize: '0.9rem',
-              cursor: 'pointer'
-            }}
-          >
-            <i className="ti ti-plus" /> Create Another Invoice
-          </button>
         <h2 style={{ margin: 0, color: '#0F172A', fontSize: '1.4rem' }}>
-          {editInvoice ? 'Draft Invoice Submitted for Approval' : 'Invoice Submitted for Review'}
+          {editInvoice ? 'Draft Invoice Submitted for Approval' : 'Invoice Saved Successfully'}
         </h2>
-        <p style={{ margin: 0, color: '#64748B', textAlign: 'center', maxWidth: 400 }}>
-          Your invoice has been updated and is now <strong>Pending Approval</strong> by the Head Accountant.
+        <p style={{ margin: 0, color: '#64748B', textAlign: 'center', maxWidth: 420 }}>
+          Your invoice has been generated and is now <strong>Pending Approval</strong> by the Head Accountant.
         </p>
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           <Button
@@ -982,358 +947,6 @@ export const InvoiceCreation: React.FC = () => {
       {step === 2 && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
           
-          <div style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
-            {/* Custom Left Table Container */}
-            {/* Custom Left Container: Modern Waybill Selection Cards (matching Accounts Receivable design) */}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-              {/* Header Title & Subtitle */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
-                    Select Waybills for {invoiceClient?.name || ''}
-                  </h3>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748B' }}>
-                    Only Validated waybills can be billed. Click a waybill number to see its computation.
-                  </p>
-                </div>
-
-                {/* View toggle & Billing rates */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      height: 38,
-                      padding: '0 12px',
-                      background: '#fff',
-                      color: '#475569',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: 6,
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#F8FAFC';
-                      e.currentTarget.style.borderColor = '#94A3B8';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#fff';
-                      e.currentTarget.style.borderColor = '#CBD5E1';
-                    }}
-                  >
-                    <i className="ti ti-arrow-left" style={{ fontSize: '0.95rem' }} />
-                    <span>Change Client</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowBillingRatesModal(true)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      height: 38,
-                      padding: '0 14px',
-                      background: '#fff',
-                      color: '#0F172A',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: 6,
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#F8FAFC';
-                      e.currentTarget.style.borderColor = '#94A3B8';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#fff';
-                      e.currentTarget.style.borderColor = '#CBD5E1';
-                    }}
-                    title="View agreed billing rates"
-                  >
-                    <i className="ti ti-receipt-tax" style={{ fontSize: '1.05rem', color: '#4F46E5' }} />
-                    <span>Billing Rates</span>
-                    <span style={{ fontSize: '0.65rem', border: '1px solid #E2E8F0', color: '#64748B', padding: '1px 6px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <i className="ti ti-lock" style={{ fontSize: '0.65rem' }} /> READ-ONLY
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Controls Bar: Search + Select All + Count */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-                  <i className="ti ti-search" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: '1rem' }} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search waybill no, area, date..."
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px 9px 36px',
-                      borderRadius: 8,
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.85rem',
-                      outline: 'none',
-                      color: '#0F172A',
-                      transition: 'border-color 0.15s ease',
-                    }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = '#0D9488'; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; }}
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 2 }}
-                    >
-                      <i className="ti ti-x" style={{ fontSize: '0.85rem' }} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Select All Checkbox */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      cursor: validatedWaybills.length === 0 ? 'not-allowed' : 'pointer',
-                      userSelect: 'none',
-                      background: '#F8FAFC',
-                      border: '1px solid #E2E8F0',
-                      padding: '7px 12px',
-                      borderRadius: 8,
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#0F172A',
-                    }}
-                  >
-                    <input
-                      ref={selectAllRef}
-                      type="checkbox"
-                      checked={allValidatedSelected}
-                      disabled={validatedWaybills.length === 0}
-                      onChange={toggleSelectAll}
-                      style={{ width: 16, height: 16, accentColor: '#059669', cursor: 'pointer' }}
-                    />
-                    <span>Select All Validated ({validatedWaybills.length})</span>
-                  </label>
-
-                  <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>
-                    {selectedWaybills.length} of {clientWaybills.length} selected
-                  </span>
-                </div>
-              </div>
-
-              {/* CARD VIEW MODE */}
-              <div>
-                  {filteredWaybills.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '48px 16px', background: '#F8FAFC', borderRadius: 12, border: '1px dashed #CBD5E1' }}>
-                      <i className="ti ti-search" style={{ fontSize: 36, color: '#94A3B8', display: 'block', marginBottom: 12 }} />
-                      <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#64748B' }}>
-                        No waybills found matching your search.
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
-                      {filteredWaybills.map((row: any) => {
-                        const isSelected = selectedWaybills.includes(row.id);
-                        const isSelectable = row.status === 'Validated';
-
-                        return (
-                          <div
-                            key={row.id}
-                            style={{
-                              background: isSelected ? '#F0FDF4' : '#FFFFFF',
-                              border: isSelected ? '2px solid #059669' : '1px solid #E2E8F0',
-                              borderRadius: 12,
-                              padding: '18px 20px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 12,
-                              boxShadow: isSelected ? '0 2px 8px rgba(5, 150, 105, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
-                              transition: 'all 0.15s ease',
-                              cursor: isSelectable ? 'pointer' : 'default',
-                              position: 'relative',
-                            }}
-                            onClick={() => {
-                              if (isSelectable) {
-                                setSelectedWaybills(prev =>
-                                  prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]
-                                );
-                              }
-                            }}
-                          >
-                            {/* Card Top Row: Checkbox + Area & Status badges */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <label
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: isSelectable ? 'pointer' : 'default', margin: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  disabled={!isSelectable}
-                                  onChange={() => {
-                                    setSelectedWaybills(prev =>
-                                      prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]
-                                    );
-                                  }}
-                                  style={{
-                                    width: 18,
-                                    height: 18,
-                                    accentColor: '#059669',
-                                    cursor: isSelectable ? 'pointer' : 'not-allowed',
-                                  }}
-                                />
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isSelected ? '#047857' : '#64748B' }}>
-                                  {isSelected ? 'Selected' : 'Select'}
-                                </span>
-                              </label>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  padding: '2px 8px',
-                                  borderRadius: 4,
-                                  background: '#F1F5F9',
-                                  color: '#475569',
-                                  letterSpacing: '0.04em',
-                                }}>
-                                  {row.area}
-                                </span>
-                                <StatusBadge status={row.status} />
-                              </div>
-                            </div>
-
-                            {/* Card Heading: Waybill Number button + Delivery date */}
-                            <div>
-                              <button
-                                type="button"
-                                className="dt-waybill-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedWaybillForDetails(selectedWbDetail?.id === row.id ? null : row.id);
-                                }}
-                                title={`View computation for ${row.waybillNumber}`}
-                                style={{
-                                  fontSize: '1.1rem',
-                                  fontWeight: 800,
-                                  color: '#0F172A',
-                                  display: 'inline-block',
-                                }}
-                              >
-                                {row.waybillNumber}
-                              </button>
-                              <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <i className="ti ti-calendar" style={{ fontSize: '0.85rem' }} />
-                                Delivered {new Date(row.deliveryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </div>
-                            </div>
-
-                            {/* Card Metrics Row: Chargeable Wt & Total Amount */}
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr 1fr',
-                              gap: 16,
-                              paddingTop: 10,
-                              borderTop: '1px solid #F1F5F9',
-                              marginTop: 2,
-                            }}>
-                              <div>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                  Chargeable Wt.
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                  <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
-                                    {row.chargeableWt?.toFixed(2) || '0.00'} kg
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: '0.62rem',
-                                      border: '1px solid #E2E8F0',
-                                      color: '#64748B',
-                                      padding: '1px 5px',
-                                      borderRadius: 4,
-                                      fontWeight: 700,
-                                      textTransform: 'uppercase',
-                                    }}
-                                  >
-                                    {row.weightBasis === 'Volume Weight' ? 'VOL' : 'ACT'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                  Amount
-                                </div>
-                                <div style={{ fontWeight: 800, fontSize: '1.15rem', color: '#059669', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
-                                  ₱{(row.baseRate || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Card Footer: Selection hint & View computation button */}
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              paddingTop: 8,
-                              borderTop: '1px dashed #E2E8F0',
-                              marginTop: 2,
-                            }}>
-                              <span style={{ fontSize: '0.72rem', color: isSelected ? '#047857' : '#94A3B8', fontWeight: 600 }}>
-                                {isSelected ? '✓ Included in invoice' : 'Click to select'}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedWaybillForDetails(selectedWbDetail?.id === row.id ? null : row.id);
-                                }}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
-                                  fontSize: '0.78rem',
-                                  fontWeight: 600,
-                                  color: '#0D9488',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                }}
-                              >
-                                <span>View Computation</span>
-                                <i className="ti ti-chevron-right" style={{ fontSize: '0.75rem' }} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-              {/* Informative Footer */}
-              <div style={{ padding: '12px 18px', background: '#F8FAFC', fontSize: '0.75rem', color: '#64748B', border: '1px solid #E2E8F0', borderRadius: 8, marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <span>Amount = freight + valuation + ODA + 12% VAT + fuel surcharge, computed per waybill.</span>
-                <span style={{ fontWeight: 600 }}>Showing {filteredWaybills.length} of {clientWaybills.length} waybill(s)</span>
           {/* Left Column: Waybills Selection Container */}
           <div style={{ flex: '1 1 580px', minWidth: 0, display: 'flex', flexDirection: 'column', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             
@@ -1379,18 +992,6 @@ export const InvoiceCreation: React.FC = () => {
               </div>
             )}
 
-            {/* Right Panel: PATAYO Billing Summary */}
-            <div style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              
-              {/* QA-004: Billing Summary Card (PATAYO - Vertically stacked itemized breakdown) */}
-              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <i className="ti ti-calculator" style={{ fontSize: 18, color: '#059669' }} />
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>Billing Summary</h4>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A', background: '#F1F5F9', padding: '3px 8px', borderRadius: 12 }}>
-                    {selectedWaybills.length} Selected
             {/* Header: Title, Rates Modal Trigger, and Cards/Table Toggle */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
               <div>
@@ -1477,35 +1078,6 @@ export const InvoiceCreation: React.FC = () => {
                     <span>Table</span>
                   </button>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: '#64748B', fontWeight: 500 }}>Base Freight Charges</span>
-                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalFreightCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: '#64748B', fontWeight: 500 }}>Valuation Fee ({rateConfig.valuationRate}%)</span>
-                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalValuation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: '#64748B', fontWeight: 500 }}>Out of Delivery Area (ODA)</span>
-                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalODA.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  {/* Subtotal row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '8px 12px', borderRadius: 6, margin: '2px 0' }}>
-                    <span style={{ color: '#0F172A', fontSize: '0.88rem', fontWeight: 700 }}>Subtotal (Net Amount)</span>
-                    <span style={{ color: '#0F172A', fontSize: '0.92rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
               </div>
             </div>
 
@@ -1574,11 +1146,6 @@ export const InvoiceCreation: React.FC = () => {
                   </div>
                 </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: '#64748B', fontWeight: 500 }}>Value-Added Tax (12% VAT)</span>
-                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalVAT.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
                 {/* Cards Grid */}
                 {filteredWaybills.length === 0 ? (
                   <div style={{ padding: '48px 24px', textAlign: 'center', background: '#F8FAFC', borderRadius: 8, border: '1px dashed #CBD5E1' }}>
@@ -1689,54 +1256,6 @@ export const InvoiceCreation: React.FC = () => {
                               </div>
                             </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: '#64748B', fontWeight: 500 }}>Fuel Surcharge ({rateConfig.fuelSurchargeRate}%)</span>
-                    <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalFuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  {/* Grand Total prominent banner */}
-                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                    <div>
-                      <span style={{ display: 'block', fontWeight: 800, fontSize: '0.8rem', color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</span>
-                      <span style={{ fontSize: '0.7rem', color: '#059669' }}>Total Amount Due</span>
-                    </div>
-                    <span style={{ fontWeight: 800, fontSize: '1.35rem', color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
-                      ₱{calc.totalGrand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedWaybills.length === 0) {
-                      toast.error('Please select at least one waybill.', 'Validation Error');
-                      return;
-                    }
-                    setStep(3);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: selectedWaybills.length === 0 ? '#94A3B8' : '#059669',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontSize: '0.92rem',
-                    fontWeight: 700,
-                    cursor: selectedWaybills.length === 0 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    boxShadow: selectedWaybills.length === 0 ? 'none' : '0 2px 4px rgba(5, 150, 105, 0.2)'
-                  }}
-                >
-                  <span>Next: Confirm & Submit</span>
-                  <i className="ti ti-arrow-right" style={{ fontSize: '1rem' }} />
-                </button>
                             <div>
                               <span style={{ display: 'block', fontSize: '0.68rem', color: '#94A3B8', fontWeight: 700, letterSpacing: '0.03em' }}>
                                 RECIPIENT
@@ -2195,122 +1714,6 @@ export const InvoiceCreation: React.FC = () => {
 
       {/* Step 3: Review & Submit */}
       {step === 3 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, alignItems: 'flex-start' }}>
-          <Card style={{ padding: 24 }}>
-            <h4 style={{ margin: '0 0 8px', fontSize: '1.05rem', fontWeight: 700, color: '#0F172A' }}>Invoice summary · {invoiceClient?.name}</h4>
-            <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#64748B' }}>Review each waybill line before submitting. Taxes and surcharges are computed per line.</p>
-
-            {calc.validIds.length < selectedWaybills.length && (
-              <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: '#EF4444' }}>
-                <i className="ti ti-alert-circle" /> {selectedWaybills.length - calc.validIds.length} out-of-period record(s) excluded from calculation.
-              </p>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
-              {calc.validIds.map((id, index) => {
-                const detail = clientWaybills.find((w: any) => w.id === id);
-                if (!detail || !detail.breakdown) return null;
-                const bd = detail.breakdown;
-                return (
-                  <div
-                    key={id}
-                    style={{
-                      border: '1px solid #E2E8F0',
-                      borderRadius: 12,
-                      padding: 20,
-                      background: '#FFFFFF',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                      <span
-                        style={{
-                          background: '#E0F2FE',
-                          color: '#0284C7',
-                          padding: '3px 10px',
-                          borderRadius: 6,
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                        }}
-                      >
-                        Waybill {index + 1}
-                      </span>
-                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A' }}>
-                        {detail.waybillNumber}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', rowGap: 16, columnGap: 20 }}>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>Area</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>{bd.area}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>Chargeable</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>{detail.chargeableWt.toFixed(2)} kg</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>Freight</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>₱{bd.freightCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>Valuation</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>₱{bd.valuation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>ODA</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>₱{bd.odaCharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>VAT</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>₱{bd.vat.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', fontWeight: 500, marginBottom: 4 }}>Fuel</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>₱{bd.fuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 14px' }}>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#059669', fontWeight: 600, marginBottom: 2 }}>Total</span>
-                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#059669' }}>₱{bd.grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', display: 'block' }}>Remarks (optional)</label>
-              <textarea 
-                value={notes} 
-                onChange={e => setNotes(e.target.value)} 
-                placeholder="Notes, references, or special instructions for this invoice..."
-                style={{ width: '100%', padding: '14px', borderRadius: 8, border: '1px solid #E2E8F0', minHeight: '140px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', fontSize: '0.9rem', color: '#1E293B' }}
-              />
-            </div>
-          </Card>
-
-          {/* Billing Summary Panel on the right */}
-          <Card style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-              <div>
-                <h4 style={{ margin: '0 0 2px', fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <i className="ti ti-calculator" style={{ fontSize: 18, color: '#059669' }} />
-                  Billing Summary
-                </h4>
-                <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Traceable computation breakdown</span>
-              </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A', background: '#E2E8F0', padding: '3px 10px', borderRadius: 12 }}>
-                {calc.validIds.length} Waybill(s)
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748B', fontWeight: 500 }}>Base Freight Charges</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalFreightCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           
           {editInvoice && (
@@ -2522,47 +1925,6 @@ export const InvoiceCreation: React.FC = () => {
               </div>
             </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748B', fontWeight: 500 }}>Valuation Fee ({rateConfig.valuationRate}%)</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalValuation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748B', fontWeight: 500 }}>Out of Delivery Area (ODA)</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalODA.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {/* Subtotal row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F1F5F9', border: '1px solid #E2E8F0', padding: '10px 14px', borderRadius: 6, margin: '2px 0' }}>
-                <span style={{ color: '#0F172A', fontSize: '0.9rem', fontWeight: 700 }}>Subtotal (Net Amount)</span>
-                <span style={{ color: '#0F172A', fontSize: '0.95rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748B', fontWeight: 500 }}>Value-Added Tax (12% VAT)</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalVAT.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748B', fontWeight: 500 }}>Fuel Surcharge ({rateConfig.fuelSurchargeRate}%)</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalFuelSurcharge.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {/* Grand total prominent banner */}
-              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                <div>
-                  <span style={{ display: 'block', fontWeight: 800, fontSize: '0.85rem', color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</span>
-                  <span style={{ fontSize: '0.75rem', color: '#059669' }}>Total Amount Due</span>
             {/* Right Column: Final Invoice Summary & Submission Card */}
             <div
               style={{
@@ -2627,283 +1989,7 @@ export const InvoiceCreation: React.FC = () => {
                     ₱{(calc.totalFreightCost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <span style={{ fontWeight: 800, fontSize: '1.45rem', color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
-                  ₱{calc.totalGrand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-              {/* Primary: Submit for Approval */}
-              <button
-                type="button"
-                disabled={isSubmitting || isBillingPeriodInvalid || isDateInvalid}
-                onClick={async () => {
-                  if (isSubmitting) return;
-                  if (isBillingPeriodInvalid) {
-                    toast.error('Billing period is required.', 'Validation Error');
-                    return;
-                  }
-                  if (isDateInvalid) {
-                    toast.error('Due date cannot be earlier than issue date.', 'Validation Error');
-                    return;
-                  }
-
-                  setIsSubmitting(true);
-                  try {
-                    if (editInvoiceId) {
-                      const existing = invoices.find((i: Invoice) => i.id === editInvoiceId || i.invoiceNumber === editInvoiceId);
-                      if (existing) {
-                        await invoicesService.update(existing.id, {
-                          waybillIds: calc.validIds,
-                          amount: calc.base,
-                          freightCharges: calc.base,
-                          subtotal: calc.totalSubtotal,
-                          vatAmount: calc.vat,
-                          surchargeAmount: calc.surcharge,
-                          totalAmount: calc.total,
-                          billingSchedule: derivedBillingSchedule,
-                          billingPeriod,
-                          status: 'Pending Approval',
-                          createdAt: new Date(issueDate).toISOString(),
-                          billingDate: new Date(issueDate).toISOString().split('T')[0],
-                          dueDate: new Date(dueDate).toISOString().split('T')[0],
-                          notes,
-                          appliedRates: clientRates,
-                        });
-                        await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed', isBilled: true })));
-                        refetchInvoices();
-                        refetchWaybills();
-                        setSubmitted(true);
-                        toast.success('Invoice updated successfully.', 'Success');
-                        return;
-                      }
-                    }
-
-                    const year = new Date().getFullYear();
-                    const matchingNums = invoices
-                      .map(inv => {
-                        const num = inv.invoiceNumber || inv.id || '';
-                        const match = num.match(new RegExp(`^INV-${year}-(\\d+)$`));
-                        return match ? parseInt(match[1], 10) : 0;
-                      })
-                      .filter(n => !isNaN(n));
-                    const nextSeq = Math.max(0, ...matchingNums) + 1;
-                    const invNum = `INV-${year}-${String(nextSeq).padStart(3, '0')}`;
-
-                    await invoicesService.create({
-                      invoiceNumber: invNum,
-                      clientId: invoiceClient?.clientCode || invoiceClient?.id || selectedClientId || '',
-                      clientName: invoiceClient?.name || '',
-                      waybillIds: calc.validIds,
-                      amount: calc.base,
-                      freightCharges: calc.base,
-                      subtotal: calc.totalSubtotal,
-                      vatAmount: calc.vat,
-                      surchargeAmount: calc.surcharge,
-                      totalAmount: calc.total,
-                      billingSchedule: derivedBillingSchedule,
-                      billingPeriod,
-                      status: 'Pending Approval',
-                      createdBy: user?.fullName || 'User',
-                      createdAt: new Date(issueDate).toISOString(),
-                      billingDate: new Date(issueDate).toISOString().split('T')[0],
-                      dueDate: new Date(dueDate).toISOString().split('T')[0],
-                      notes,
-                      appliedRates: clientRates,
-                    });
-                    await Promise.all(calc.validIds.map(id => waybillsService.update(id, { status: 'Billed', isBilled: true, invoiceNo: invNum })));
-                    refetchInvoices();
-                    refetchWaybills();
-                    setSubmitted(true);
-                    toast.success(`Invoice ${invNum} submitted for approval.`, 'Success');
-                  } catch (err: any) {
-                    console.error('Invoice creation error:', err);
-                    const msg = err?.response?.data?.message || err?.message || 'Failed to submit invoice. Please try again.';
-                    toast.error(msg, 'Submission Error');
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  background: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? '#94A3B8' : '#059669',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '13px 20px',
-                  borderRadius: 8,
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  boxShadow: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'none' : '0 2px 6px rgba(5, 150, 105, 0.28)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  if (!isSubmitting && !isSavingDraft && !isBillingPeriodInvalid && !isDateInvalid) {
-                    e.currentTarget.style.background = '#047857';
-                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(5, 150, 105, 0.35)';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isSubmitting && !isSavingDraft && !isBillingPeriodInvalid && !isDateInvalid) {
-                    e.currentTarget.style.background = '#059669';
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(5, 150, 105, 0.28)';
-                  }
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <i className="ti ti-loader-2 ti-spin" style={{ fontSize: '1.1rem' }} />
-                    <span>Submitting Invoice...</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="ti ti-send" style={{ fontSize: '1.05rem' }} />
-                    <span>Submit Invoice</span>
-                  </>
-                )}
-              </button>
-
-              {/* Secondary Actions: Back & Save as Draft */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1.5px solid #CBD5E1',
-                    background: '#FFFFFF',
-                    color: '#475569',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = '#F1F5F9';
-                    e.currentTarget.style.borderColor = '#94A3B8';
-                    e.currentTarget.style.color = '#1E293B';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = '#FFFFFF';
-                    e.currentTarget.style.borderColor = '#CBD5E1';
-                    e.currentTarget.style.color = '#475569';
-                  }}
-                >
-                  <i className="ti ti-arrow-left" style={{ fontSize: '0.95rem' }} />
-                  <span>Back</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid}
-                  onClick={async () => {
-                    if (isSubmitting || isSavingDraft) return;
-                    if (isBillingPeriodInvalid) {
-                      toast.error('Billing period is required.', 'Validation Error');
-                      return;
-                    }
-                    if (isDateInvalid) {
-                      toast.error('Due date cannot be earlier than issue date.', 'Validation Error');
-                      return;
-                    }
-
-                    setIsSavingDraft(true);
-                    try {
-                      const year = new Date().getFullYear();
-                      const matchingNums = invoices
-                        .map(inv => {
-                          const num = inv.invoiceNumber || inv.id || '';
-                          const match = num.match(new RegExp(`^INV-${year}-(\\d+)$`));
-                          return match ? parseInt(match[1], 10) : 0;
-                        })
-                        .filter(n => !isNaN(n));
-                      const nextSeq = Math.max(0, ...matchingNums) + 1;
-                      const invNum = `INV-${year}-${String(nextSeq).padStart(3, '0')}`;
-
-                      await invoicesService.create({
-                        invoiceNumber: invNum,
-                        clientId: invoiceClient?.clientCode || invoiceClient?.id || selectedClientId || '',
-                        clientName: invoiceClient?.name || '',
-                        waybillIds: calc.validIds,
-                        amount: calc.base,
-                        freightCharges: calc.base,
-                        subtotal: calc.totalSubtotal,
-                        vatAmount: calc.vat,
-                        surchargeAmount: calc.surcharge,
-                        totalAmount: calc.total,
-                        billingSchedule: derivedBillingSchedule,
-                        billingPeriod,
-                        status: 'Draft',
-                        createdBy: user?.fullName || 'User',
-                        createdAt: new Date(issueDate).toISOString(),
-                        billingDate: new Date(issueDate).toISOString().split('T')[0],
-                        dueDate: new Date(dueDate).toISOString().split('T')[0],
-                        notes,
-                        appliedRates: clientRates,
-                      });
-                      refetchInvoices();
-                      refetchWaybills();
-                      setSubmitted(true);
-                      toast.success(`Invoice ${invNum} saved as Draft.`, 'Success');
-                    } catch (err: any) {
-                      console.error('Invoice creation error:', err);
-                      const msg = err?.response?.data?.message || err?.message || 'Failed to save invoice draft.';
-                      toast.error(msg, 'Submission Error');
-                    } finally {
-                      setIsSavingDraft(false);
-                    }
-                  }}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1.5px solid #CBD5E1',
-                    background: '#F8FAFC',
-                    color: '#0F766E',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    cursor: (isSubmitting || isSavingDraft || isBillingPeriodInvalid || isDateInvalid) ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={e => {
-                    if (!isSubmitting && !isSavingDraft) {
-                      e.currentTarget.style.background = '#F0FDFA';
-                      e.currentTarget.style.borderColor = '#0D9488';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isSubmitting && !isSavingDraft) {
-                      e.currentTarget.style.background = '#F8FAFC';
-                      e.currentTarget.style.borderColor = '#CBD5E1';
-                    }
-                  }}
-                >
-                  {isSavingDraft ? (
-                    <>
-                      <i className="ti ti-loader-2 ti-spin" style={{ fontSize: '0.95rem' }} />
-                      <span>Saving Draft...</span>
-                    </>
-                  ) : (
-                    <>
-                      <i className="ti ti-device-floppy" style={{ fontSize: '0.95rem' }} />
-                      <span>Save as Draft</span>
-                    </>
-                  )}
-                </button>
                 {calc.totalValuation > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: '#64748B' }}>Valuation</span>
@@ -3307,6 +2393,13 @@ export const InvoiceCreation: React.FC = () => {
         </div>
       )}
 
+      <DuplicatePreCheckModal
+        state={dupModalState}
+        onCancel={handleModalCancel}
+        onRetry={handleModalRetry}
+        onProceedWithRemarks={handleProceedWithRemarks}
+        onProceedWithManualReview={handleProceedWithManualReview}
+      />
 
     </div>
   );

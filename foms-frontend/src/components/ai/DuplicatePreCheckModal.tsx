@@ -181,7 +181,7 @@ export const DuplicatePreCheckModal: React.FC<DuplicatePreCheckModalProps> = (pr
               </div>
 
               <p style={{ fontSize: '0.85rem', color: '#475569', margin: '0 0 12px' }}>
-                Per audit requirements (FR-006), saving cannot silently skip duplicate verification. You may retry the automated check or proceed with <strong>manual review justification</strong>. The skip will be logged in the audit trail.
+                Per audit requirements, saving cannot silently skip duplicate verification. You may retry the automated check or proceed with <strong>manual review justification</strong>. The skip will be logged in the audit trail.
               </p>
 
               <div>

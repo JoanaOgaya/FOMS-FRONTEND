@@ -126,6 +126,15 @@ export interface DmsLiquidationDto {
   remarks?: string;
 }
 
+// Pre-shared 256-bit API key for DMS integration calls
+const dmsConfig = {
+  headers: {
+    'X-Api-Key':
+      import.meta.env.VITE_DMS_TO_FOMS_KEY ||
+      'b84a1182dcd51ea1ee102585f61b0ed0dd779121b44fe42723fa789438e5e613',
+  },
+};
+
 export const integrationService = {
   // ─── STARS Collection Workflow ──────────────────────────────────────────
   getRoutingMetrics: async (): Promise<CoordinatorRoutingMetric[]> => {
@@ -194,10 +203,16 @@ export const integrationService = {
   },
 
   // ─── DMS ↔ FOMS #1 & #2 (Deliveries, Rates, Invoices & Holds) ───────────
+
   submitDeliveryCompleted: async (dto: DmsDeliveryCompletedDto) => {
+    const payload = {
+      ...dto,
+      podImageUrl: dto.podUrl,
+    };
     const res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
       '/api/integration/dms/delivery-completed',
-      dto
+      payload,
+      dmsConfig
     );
     invalidateQueries('waybills');
     invalidateQueries('billing:waybills');
@@ -211,7 +226,8 @@ export const integrationService = {
   submitDeliveryFailed: async (dto: DmsDeliveryFailedDto) => {
     const res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
       '/api/integration/dms/delivery-failed',
-      dto
+      dto,
+      dmsConfig
     );
     invalidateQueries('waybills');
     invalidateQueries('billing:waybills');
@@ -220,10 +236,25 @@ export const integrationService = {
   },
 
   submitRedeliveryCompleted: async (dto: DmsRedeliveryCompletedDto) => {
-    const res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
-      '/api/integration/dms/redelivery-completed',
-      dto
-    );
+    const payload = {
+      ...dto,
+      newPodImageUrl: dto.podUrl,
+      updatedStatus: 'Completed',
+    };
+    let res: any;
+    try {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
+        '/api/integration/dms/delivery-redelivered',
+        payload,
+        dmsConfig
+      );
+    } catch {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
+        '/api/integration/dms/redelivery-completed',
+        dto,
+        dmsConfig
+      );
+    }
     invalidateQueries('waybills');
     invalidateQueries('billing:waybills');
     invalidateQueries('invoices');
@@ -241,10 +272,28 @@ export const integrationService = {
   },
 
   submitCashAdvance: async (dto: Partial<CashAdvanceItem>) => {
-    const res = await http.post<{ isSuccess: boolean; message: string; data?: CashAdvanceItem }>(
-      '/api/integration/dms/cash-advance',
-      dto
-    );
+    const payload = {
+      ...dto,
+      requestId: dto.advanceId || `ADV-${Date.now()}`,
+      deliveryReference: dto.tripReference,
+      requesterName: dto.courierName,
+      purpose: dto.tripReference || 'Delivery Trip Cash Advance',
+      requestedAmount: dto.amountGiven,
+    };
+    let res: any;
+    try {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: CashAdvanceItem }>(
+        '/api/integration/dms/cash-advance-request',
+        payload,
+        dmsConfig
+      );
+    } catch {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: CashAdvanceItem }>(
+        '/api/integration/dms/cash-advance',
+        dto,
+        dmsConfig
+      );
+    }
     invalidateQueries('cashAdvances');
     invalidateQueries('cashflow');
     return res;
@@ -286,10 +335,20 @@ export const integrationService = {
   },
 
   submitDmsLiquidation: async (dto: DmsLiquidationDto) => {
-    const res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
-      '/api/integration/dms/liquidation',
-      dto
-    );
+    let res: any;
+    try {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
+        '/api/integration/dms/liquidation-submission',
+        dto,
+        dmsConfig
+      );
+    } catch {
+      res = await http.post<{ isSuccess: boolean; message: string; data?: any }>(
+        '/api/integration/dms/liquidation',
+        dto,
+        dmsConfig
+      );
+    }
     invalidateQueries('liquidations');
     invalidateQueries('cashAdvances');
     invalidateQueries('cashflow');

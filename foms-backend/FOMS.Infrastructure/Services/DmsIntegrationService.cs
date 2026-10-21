@@ -455,27 +455,34 @@ public class DmsIntegrationService : IDmsIntegrationService
 
         // Check idempotency for this DMS request
         var existingAdvance = await _fomsDb.CashAdvances
-            .FirstOrDefaultAsync(c => c.Purpose != null && c.Purpose.Contains($"[DMS {dto.RequestId}]"));
+            .FirstOrDefaultAsync(c => c.Notes != null && c.Notes.Contains($"[DMS {dto.RequestId}]"));
 
         if (existingAdvance != null)
         {
             return new DmsIntegrationResponseDto
             {
                 IsSuccess = true,
-                CashAdvanceId = existingAdvance.CashAdvanceId,
-                ComputedAmount = existingAdvance.Amount,
+                CashAdvanceId = int.TryParse(existingAdvance.AdvanceId.Replace("CA-", ""), out var parsedId) ? parsedId : null,
+                ComputedAmount = existingAdvance.AmountGiven,
                 Status = existingAdvance.Status,
                 Message = $"Cash advance for DMS request '{dto.RequestId}' already exists with status '{existingAdvance.Status}' (idempotent response)."
             };
         }
 
         // Create CashAdvance in FOMS (FR-050)
+        var advanceId = $"CA-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..4].ToUpper()}";
         var advance = new CashAdvance
         {
-            Amount = dto.RequestedAmount,
-            Purpose = $"[DMS {dto.RequestId}] {dto.Purpose} (Requester: {dto.RequesterName})",
+            AdvanceId = advanceId,
+            CourierName = dto.RequesterName,
+            TripReference = dto.DeliveryReference,
+            AmountGiven = dto.RequestedAmount,
+            ReleaseDate = DateTime.UtcNow,
+            ReleasedBy = "DMS Operations Dispatch",
             Status = "Approved",
-            ApprovedBy = 1,
+            Notes = $"[DMS {dto.RequestId}] {dto.Purpose} (Requester: {dto.RequesterName})",
+            ApprovedBy = "Finance Manager",
+            ApprovedAt = now,
             CreatedAt = ToUtc(dto.RequestDate)
         };
         _fomsDb.CashAdvances.Add(advance);
@@ -484,6 +491,8 @@ public class DmsIntegrationService : IDmsIntegrationService
         // Record Cash Outflow (FR-043, FR-044)
         var outflow = new CashOutflow
         {
+            SourceReference = advance.AdvanceId,
+            RecordedBy = "Finance Manager",
             Category = "Delivery Operations",
             Description = $"Cash advance disbursed for DMS request {dto.RequestId} (Waybill: {dto.DeliveryReference ?? "N/A"}): {dto.Purpose}",
             Amount = dto.RequestedAmount,
@@ -502,23 +511,23 @@ public class DmsIntegrationService : IDmsIntegrationService
             action = "CASH_ADVANCE_APPROVED",
             module = "CashManagement",
             affected_record_type = "CashAdvance",
-            affected_record_id = advance.CashAdvanceId,
-            remarks = $"Delivery cash advance #{advance.CashAdvanceId} (₱{dto.RequestedAmount:N2}) approved for DMS request {dto.RequestId}.",
+            affected_record_id = null,
+            remarks = $"Delivery cash advance #{advance.AdvanceId} (₱{dto.RequestedAmount:N2}) approved for DMS request {dto.RequestId}.",
             created_at = now
         });
 
         await _fomsDb.SaveChangesAsync();
 
         _logger.LogInformation("Created and approved cash advance #{AdvanceId} for DMS request {RequestId}: ₱{Amount}",
-            advance.CashAdvanceId, dto.RequestId, dto.RequestedAmount);
+            advance.AdvanceId, dto.RequestId, dto.RequestedAmount);
 
         return new DmsIntegrationResponseDto
         {
             IsSuccess = true,
-            CashAdvanceId = advance.CashAdvanceId,
+            CashAdvanceId = null,
             ComputedAmount = dto.RequestedAmount,
             Status = "Approved",
-            Message = $"Cash advance #{advance.CashAdvanceId} for ₱{dto.RequestedAmount:N2} approved and cash outflow recorded per FR-043/050."
+            Message = $"Cash advance #{advance.AdvanceId} for ₱{dto.RequestedAmount:N2} approved and cash outflow recorded per FR-043/050."
         };
     }
 
@@ -549,20 +558,27 @@ public class DmsIntegrationService : IDmsIntegrationService
             };
         }
 
-        // Match cash advance if ID supplied or search by purpose
-        int? advanceId = dto.FomsCashAdvanceId;
-        if (!advanceId.HasValue)
+        // Match cash advance if ID supplied or search by notes
+        CashAdvance? matchAdv = null;
+        if (dto.FomsCashAdvanceId.HasValue)
         {
-            var matchAdv = await _fomsDb.CashAdvances
-                .FirstOrDefaultAsync(c => c.Purpose != null && c.Purpose.Contains($"[DMS {dto.RequestId}]"));
-            advanceId = matchAdv?.CashAdvanceId;
+            var caIdStr = dto.FomsCashAdvanceId.Value.ToString();
+            var caRefStr = $"CA-{dto.FomsCashAdvanceId.Value}";
+            matchAdv = await _fomsDb.CashAdvances
+                .FirstOrDefaultAsync(c => c.AdvanceId == caIdStr || c.AdvanceId == caRefStr);
+        }
+
+        if (matchAdv == null)
+        {
+            matchAdv = await _fomsDb.CashAdvances
+                .FirstOrDefaultAsync(c => c.Notes != null && c.Notes.Contains($"[DMS {dto.RequestId}]"));
         }
 
         // Create Liquidation record (FR-048–053)
         var liquidation = new Liquidation
         {
             ReferenceNumber = refNumber,
-            CashAdvanceId = advanceId,
+            CashAdvanceId = dto.FomsCashAdvanceId,
             SubmittedByName = dto.SubmittedByName,
             TotalAmount = dto.TotalAmount,
             LeftoverCash = dto.LeftoverCash,
@@ -630,13 +646,9 @@ public class DmsIntegrationService : IDmsIntegrationService
         }
 
         // Mark CashAdvance as Liquidated
-        if (advanceId.HasValue)
+        if (matchAdv != null)
         {
-            var adv = await _fomsDb.CashAdvances.FindAsync(advanceId.Value);
-            if (adv != null)
-            {
-                adv.Status = "Liquidated";
-            }
+            matchAdv.Status = "Liquidated";
         }
 
         // Audit log

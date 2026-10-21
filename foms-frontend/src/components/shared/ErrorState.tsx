@@ -1,16 +1,21 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import Button from '../Buttons';
 import { ApiError } from '../../services/apiClient';
-import { ForbiddenPage } from './ForbiddenPage';
+import { useAuth } from '../../context/AuthContext';
+import { DEFAULT_LANDING_ROUTE, LANDING_PATH } from '../../utils/roleAccess';
 
 export interface ErrorStateProps {
   error: Error;
   onRetry?: () => void;
 }
 
-/** Error with retry; a 403 from the API renders the forbidden page instead. */
+/** Error with retry; API 403 responses redirect quietly to role home */
 export const ErrorState: React.FC<ErrorStateProps> = ({ error, onRetry }) => {
-  if (error instanceof ApiError && error.isForbidden) return <ForbiddenPage />;
+  const { user } = useAuth();
+  if (error instanceof ApiError && error.isForbidden) {
+    return <Navigate to={user ? LANDING_PATH[user.role] || DEFAULT_LANDING_ROUTE : '/login'} replace />;
+  }
   const message = typeof error === 'string' ? error : (error as Error)?.message || 'An error occurred';
   return (
     <div style={{ padding: '40px 16px', textAlign: 'center', color: '#B91C1C' }} role="alert">

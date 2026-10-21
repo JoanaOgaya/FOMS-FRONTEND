@@ -13,6 +13,7 @@ import {
 } from '../services/integrationService';
 import { http } from '../services/apiClient';
 import { formatCurrency, formatDate } from '../utils/format';
+import { canIntakeDelivery } from '../utils/roleAccess';
 
 interface CombinedWaybillDoc {
   waybillId: number;
@@ -74,38 +75,38 @@ export const DmsBillingIntake: React.FC = () => {
   const [previewPodUrl, setPreviewPodUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Completed Delivery Form
+  // New Completed Delivery Form (all fields empty)
   const [completedForm, setCompletedForm] = useState<DmsDeliveryCompletedDto>({
-    waybillNumber: `WB-DMS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-    clientName: 'Lazada Philippines',
-    deliveryArea: 'NCR',
-    actualWeight: 4.5,
-    lengthCm: 30,
-    widthCm: 25,
-    heightCm: 20,
-    declaredValue: 5000,
-    podUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop',
-    recipientName: 'Carlos Mendoza',
-    driverName: 'Rodel Cruz',
+    waybillNumber: '',
+    clientName: '',
+    deliveryArea: '',
+    actualWeight: '' as unknown as number,
+    lengthCm: undefined,
+    widthCm: undefined,
+    heightCm: undefined,
+    declaredValue: undefined,
+    podUrl: '',
+    recipientName: '',
+    driverName: '',
     autoGenerateInvoice: true,
   });
 
-  // Failed Delivery Form
-  const [failedForm, setFailedForm] = useState<DmsDeliveryFailedDto>({
+  // Failed Delivery Form (all fields empty)
+  const [failedForm, setFailedForm] = useState<Omit<DmsDeliveryFailedDto, 'attemptCount'> & { attemptCount: number | string }>({
     waybillNumber: '',
     failureReason: 'Consignee Not Available',
     attemptCount: 1,
-    driverName: 'Danilo Reyes',
-    remarks: 'Consignee unreachable by phone after 3 attempts.',
+    driverName: '',
+    remarks: '',
   });
 
-  // Redelivery Form
+  // Redelivery Form (all fields empty)
   const [redeliveryForm, setRedeliveryForm] = useState<DmsRedeliveryCompletedDto>({
     waybillNumber: '',
-    podUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop',
-    recipientName: 'Mrs. Maria Santos (Authorized Sister)',
-    driverName: 'Danilo Reyes',
-    remarks: 'Received on 2nd attempt with valid government ID.',
+    podUrl: '',
+    recipientName: '',
+    driverName: '',
+    remarks: '',
   });
 
   // Normalize waybills list
@@ -114,14 +115,14 @@ export const DmsBillingIntake: React.FC = () => {
 
   const waybills: CombinedWaybillDoc[] = safeWaybillsData.map((w: any) => ({
     waybillId: w?.waybillId || w?.id || 0,
-    waybillNumber: String(w?.waybillNumber || w?.trackingNumber || `WB-${w?.waybillId || Math.random().toString().slice(2, 6)}`),
+    waybillNumber: String(w?.waybillNumber || w?.trackingNumber || `WB-${w?.waybillId || ''}`),
     clientId: w?.clientId || 1,
-    clientName: w?.clientName || (w?.clientId === 1 ? 'Lazada Philippines' : w?.clientId === 2 ? 'Shopee Express' : 'Zalora Philippines'),
+    clientName: w?.clientName || 'Client',
     deliveryArea: String(w?.deliveryArea || 'NCR'),
-    actualWeight: Number(w?.actualWeight) || 2.5,
+    actualWeight: Number(w?.actualWeight) || 0,
     deliveryStatus: String(w?.deliveryStatus || (w?.podStatus?.includes('Hold') ? 'Failed Delivery' : 'Delivered')),
     podStatus: String(w?.podStatus || 'Validated'),
-    podUrl: w?.podUrl || 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop',
+    podUrl: w?.podUrl || '',
     isBilled: !!w?.isBilled,
     invoiceId: w?.invoiceId,
     invoiceNo: w?.invoiceNo,
@@ -156,6 +157,20 @@ export const DmsBillingIntake: React.FC = () => {
       const res = await integrationService.submitDeliveryCompleted(completedForm);
       if (res.isSuccess) {
         toast.success(res.message);
+        setCompletedForm({
+          waybillNumber: '',
+          clientName: '',
+          deliveryArea: '',
+          actualWeight: '' as unknown as number,
+          lengthCm: undefined,
+          widthCm: undefined,
+          heightCm: undefined,
+          declaredValue: undefined,
+          podUrl: '',
+          recipientName: '',
+          driverName: '',
+          autoGenerateInvoice: true,
+        });
         setShowCompletedModal(false);
         refetchWaybills();
         refetchInvoices();
@@ -172,14 +187,29 @@ export const DmsBillingIntake: React.FC = () => {
   // Failed Delivery Submission (Billing Hold)
   const handleFailedSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const count = Number(failedForm.attemptCount);
+    if (!count || count < 1) {
+      toast.error('Attempt count must be at least 1.');
+      return;
+    }
     try {
       setIsSubmitting(true);
-      const res = await integrationService.submitDeliveryFailed(failedForm);
+      const res = await integrationService.submitDeliveryFailed({
+        ...failedForm,
+        attemptCount: count,
+      });
       if (res.isSuccess) {
         toast.warning(res.message);
         setShowFailedModal(false);
         setActiveTab('holds');
         refetchWaybills();
+        setFailedForm({
+          waybillNumber: '',
+          failureReason: 'Consignee Not Available',
+          attemptCount: 1,
+          driverName: '',
+          remarks: '',
+        });
       } else {
         toast.error(res.message || 'Failed to place billing hold.');
       }
@@ -237,19 +267,23 @@ export const DmsBillingIntake: React.FC = () => {
           <i className="ti ti-refresh" style={{ marginRight: '6px' }} />
           Refresh
         </Button>
-        <Button
-          title="Record Failed Delivery (Hold)"
-          variant="secondary"
-          style={{ borderColor: '#ef4444', color: '#dc2626' }}
-          onClick={() => setShowFailedModal(true)}
-        >
-          <i className="ti ti-alert-triangle" style={{ marginRight: '6px' }} />
-          Record Failed Delivery (Hold)
-        </Button>
-        <Button title="Intake Completed Delivery" variant="primary" onClick={() => setShowCompletedModal(true)}>
-          <i className="ti ti-plus" style={{ marginRight: '6px' }} />
-          Intake Completed Delivery
-        </Button>
+        {canIntakeDelivery(user?.role) && (
+          <Button
+            title="Record Failed Delivery (Hold)"
+            variant="secondary"
+            style={{ borderColor: '#ef4444', color: '#dc2626' }}
+            onClick={() => setShowFailedModal(true)}
+          >
+            <i className="ti ti-alert-triangle" style={{ marginRight: '6px' }} />
+            Record Failed Delivery (Hold)
+          </Button>
+        )}
+        {canIntakeDelivery(user?.role) && (
+          <Button title="Intake Completed Delivery" variant="primary" onClick={() => setShowCompletedModal(true)}>
+            <i className="ti ti-plus" style={{ marginRight: '6px' }} />
+            Intake Completed Delivery
+          </Button>
+        )}
       </div>
 
       {/* ─── Summary Metrics Banner ──────────────────────────────────────── */}
@@ -288,7 +322,7 @@ export const DmsBillingIntake: React.FC = () => {
           <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Billing Rate Compliance</div>
           <div style={{ fontSize: '28px', fontWeight: 700, color: '#059669', marginTop: '6px' }}>100%</div>
           <div style={{ fontSize: '12px', color: '#059669', marginTop: '4px', fontWeight: 500 }}>
-            <i className="ti ti-check" style={{ marginRight: '4px' }} /> FR-010 matrix applied dynamically
+            <i className="ti ti-check" style={{ marginRight: '4px' }} /> Matrix applied dynamically
           </div>
         </div>
       </div>
@@ -483,7 +517,7 @@ export const DmsBillingIntake: React.FC = () => {
                       <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '10px 12px', fontSize: '12px' }}>
                         <div style={{ color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <i className="ti ti-lock" />
-                          Billing Blocked (FR-013)
+                          Billing Blocked
                         </div>
                         <div style={{ color: '#991b1b', marginTop: '4px', fontSize: '11px' }}>
                           {w.failureReason || 'Consignee Not Available on 1st Attempt'}
@@ -515,7 +549,7 @@ export const DmsBillingIntake: React.FC = () => {
 
                 {/* Card Action Footer */}
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  {activeTab === 'holds' ? (
+                  {activeTab === 'holds' && canIntakeDelivery(user?.role) ? (
                     <Button
                       title="Resolve Re-Delivery"
                       variant="primary"
@@ -525,7 +559,7 @@ export const DmsBillingIntake: React.FC = () => {
                       <i className="ti ti-check" style={{ marginRight: '6px' }} />
                       Resolve Re-Delivery
                     </Button>
-                  ) : (
+                  ) : activeTab === 'holds' ? null : (
                     <>
                       {w.podUrl && (
                         <button
@@ -585,7 +619,7 @@ export const DmsBillingIntake: React.FC = () => {
             <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
               {activeTab === 'completed'
                 ? 'Deliveries processed from DMS with validated PODs, rate computation, and AR linkage.'
-                : 'Deliveries flagged with delivery failure (FR-013). Billing is halted until successful re-delivery with new POD.'}
+                : 'Deliveries flagged with delivery failure. Billing is halted until successful re-delivery with new POD.'}
             </p>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -669,7 +703,7 @@ export const DmsBillingIntake: React.FC = () => {
                         <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                           <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '12px' }}>
                             <i className="ti ti-alert-circle" style={{ marginRight: '4px' }} />
-                            {w.failureReason || 'Consignee Not Available (FR-013)'}
+                            {w.failureReason || 'Consignee Not Available'}
                           </span>
                         </td>
                       )}
@@ -689,16 +723,18 @@ export const DmsBillingIntake: React.FC = () => {
                       </td>
                       <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', textAlign: 'right' }}>
                         {activeTab === 'holds' ? (
-                          <Button
-                            title="Resolve Re-Delivery"
-                            variant="primary"
-                            size="sm"
-                            onClick={() => openRedeliveryModal(w.waybillNumber)}
-                            style={{ background: '#16a34a', borderColor: '#16a34a' }}
-                          >
-                            <i className="ti ti-check" style={{ marginRight: '4px' }} />
-                            Resolve Re-Delivery
-                          </Button>
+                          canIntakeDelivery(user?.role) ? (
+                            <Button
+                              title="Resolve Re-Delivery"
+                              variant="primary"
+                              size="sm"
+                              onClick={() => openRedeliveryModal(w.waybillNumber)}
+                              style={{ background: '#16a34a', borderColor: '#16a34a' }}
+                            >
+                              <i className="ti ti-check" style={{ marginRight: '4px' }} />
+                              Resolve Re-Delivery
+                            </Button>
+                          ) : null
                         ) : (
                           <button
                             onClick={() => setPreviewPodUrl(w.podUrl || 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop')}
@@ -781,7 +817,7 @@ export const DmsBillingIntake: React.FC = () => {
       )}
 
       {/* ─── Completed Delivery Intake Modal ─────────────────────────────── */}
-      {showCompletedModal && (
+      {showCompletedModal && canIntakeDelivery(user?.role) && (
         <div
           style={{
             position: 'fixed',
@@ -807,7 +843,7 @@ export const DmsBillingIntake: React.FC = () => {
             <div style={{ padding: '18px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  DMS Completed Delivery Intake (FR-010–023)
+                  DMS Completed Delivery Intake
                 </h3>
                 <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
                   Ingests waybill, applies client rate matrix dynamically, and generates invoice + AR record.
@@ -972,7 +1008,7 @@ export const DmsBillingIntake: React.FC = () => {
                   onChange={(e) => setCompletedForm({ ...completedForm, autoGenerateInvoice: e.target.checked })}
                 />
                 <label htmlFor="autoInvoice" style={{ fontSize: '13px', color: '#334155', fontWeight: 500 }}>
-                  Automatically bundle into approved Invoice and record Accounts Receivable (FR-015–023)
+                  Auto-bundle into draft Invoice for validation review
                 </label>
               </div>
 
@@ -980,8 +1016,8 @@ export const DmsBillingIntake: React.FC = () => {
                 <Button title="Cancel" variant="secondary" onClick={() => setShowCompletedModal(false)} type="button">
                   Cancel
                 </Button>
-                <Button title="Ingest Delivery & Generate AR" variant="primary" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Computing Rates...' : 'Ingest Delivery & Generate AR'}
+                <Button title="Ingest Delivery & Generate Draft Invoice" variant="primary" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Computing Rates...' : 'Ingest Delivery & Generate Draft Invoice'}
                 </Button>
               </div>
             </form>
@@ -990,7 +1026,7 @@ export const DmsBillingIntake: React.FC = () => {
       )}
 
       {/* ─── Record Failed Delivery Modal (Billing Hold) ─────────────────── */}
-      {showFailedModal && (
+      {showFailedModal && canIntakeDelivery(user?.role) && (
         <div
           style={{
             position: 'fixed',
@@ -1019,7 +1055,7 @@ export const DmsBillingIntake: React.FC = () => {
                   Record Failed Delivery → Place Billing Hold
                 </h3>
                 <div style={{ fontSize: '13px', color: '#b91c1c', marginTop: '2px' }}>
-                  Per FR-012, 013, 021: Places billing hold and halts invoice computation.
+                  Places billing hold and halts invoice computation.
                 </div>
               </div>
               <button
@@ -1047,7 +1083,7 @@ export const DmsBillingIntake: React.FC = () => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                  Failure Reason (FR-013) *
+                  Failure Reason *
                 </label>
                 <select
                   value={failedForm.failureReason}
@@ -1064,12 +1100,27 @@ export const DmsBillingIntake: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                    Attempt Count
+                    Attempt Count *
                   </label>
                   <input
                     type="number"
-                    value={failedForm.attemptCount}
-                    onChange={(e) => setFailedForm({ ...failedForm, attemptCount: Number(e.target.value) })}
+                    min={1}
+                    step={1}
+                    required
+                    placeholder="1"
+                    value={failedForm.attemptCount === '' || failedForm.attemptCount === 0 ? '' : failedForm.attemptCount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setFailedForm({ ...failedForm, attemptCount: '' });
+                      } else {
+                        const parsed = parseInt(val, 10);
+                        setFailedForm({
+                          ...failedForm,
+                          attemptCount: isNaN(parsed) || parsed < 1 ? 1 : parsed,
+                        });
+                      }
+                    }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                   />
                 </div>
@@ -1113,7 +1164,7 @@ export const DmsBillingIntake: React.FC = () => {
       )}
 
       {/* ─── Resolve Re-delivery Modal (Lift Hold) ───────────────────────── */}
-      {showRedeliveryModal && (
+      {showRedeliveryModal && canIntakeDelivery(user?.role) && (
         <div
           style={{
             position: 'fixed',
@@ -1142,7 +1193,7 @@ export const DmsBillingIntake: React.FC = () => {
                   Lift Billing Hold: {selectedWaybillForRedelivery}
                 </h3>
                 <div style={{ fontSize: '13px', color: '#15803d', marginTop: '2px' }}>
-                  Per FR-022: Updates status to Completed + validates new POD to resume invoicing.
+                  Updates status to Completed + validates new POD to resume invoicing.
                 </div>
               </div>
               <button

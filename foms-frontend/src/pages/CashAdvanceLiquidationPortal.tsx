@@ -12,6 +12,7 @@ import {
 } from '../services/integrationService';
 import { liquidationsService } from '../services/liquidationsService';
 import { formatCurrency, formatDate } from '../utils/format';
+import { canRequestCashAdvance } from '../utils/roleAccess';
 import type { Liquidation } from '../types/entities';
 
 export const CashAdvanceLiquidationPortal: React.FC = () => {
@@ -52,13 +53,13 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
   const [voucherNumber, setVoucherNumber] = useState(`PCV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
   const [disbursedBy, setDisbursedBy] = useState(user?.fullName || 'Finance Cashier');
 
-  // New Advance Request Form (simulation of Ops DMS creation)
+  // New Advance Request Form (all fields start empty)
   const [advanceForm, setAdvanceForm] = useState({
-    courierName: 'Danilo Reyes',
-    tripReference: `TRIP-NORTH-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-    amountGiven: 3500,
-    purpose: 'Fuel & RFID Expressway Tolls for Northern Luzon Hubs',
-    notes: 'Route: Manila Central Hub -> Bulacan -> Tarlac -> Baguio City',
+    courierName: '',
+    tripReference: '',
+    amountGiven: '' as unknown as number,
+    purpose: '',
+    notes: '',
   });
 
   // Action / Audit Form for Liquidation
@@ -102,7 +103,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
       const res = await integrationService.approveCashAdvance(
         advance.advanceId,
         user?.fullName || 'Financial Manager',
-        'Finance review passed per FR-050. Ready for disbursement.'
+        'Finance review passed. Ready for disbursement.'
       );
       if (res.isSuccess) {
         toast.success(res.message);
@@ -148,14 +149,36 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
     }
   };
 
-  // Handle Create Advance Request (DMS simulation)
+  // Handle Create Advance Request
   const handleCreateAdvanceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!advanceForm.courierName.trim()) {
+      toast.error('Courier full name is required.');
+      return;
+    }
+    if (!advanceForm.tripReference.trim()) {
+      toast.error('Trip reference is required.');
+      return;
+    }
+    if (!advanceForm.amountGiven || Number(advanceForm.amountGiven) <= 0) {
+      toast.error('Amount requested must be greater than 0.');
+      return;
+    }
     try {
       setIsSubmitting(true);
-      const res = await integrationService.submitCashAdvance(advanceForm);
+      const res = await integrationService.submitCashAdvance({
+        ...advanceForm,
+        amountGiven: Number(advanceForm.amountGiven),
+      });
       if (res.isSuccess) {
         toast.success(res.message);
+        setAdvanceForm({
+          courierName: '',
+          tripReference: '',
+          amountGiven: '' as unknown as number,
+          purpose: '',
+          notes: '',
+        });
         setShowAdvanceModal(false);
         refetchAdvances();
       } else {
@@ -214,10 +237,25 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
           <i className="ti ti-refresh" style={{ marginRight: '6px' }} />
           Refresh
         </Button>
-        <Button title="New DMS Cash Advance Request" variant="primary" onClick={() => setShowAdvanceModal(true)}>
-          <i className="ti ti-plus" style={{ marginRight: '6px' }} />
-          New DMS Cash Advance Request
-        </Button>
+        {canRequestCashAdvance(user?.role) && (
+          <Button
+            title="New Cash Advance Request"
+            variant="primary"
+            onClick={() => {
+              setAdvanceForm({
+                courierName: '',
+                tripReference: '',
+                amountGiven: '' as unknown as number,
+                purpose: '',
+                notes: '',
+              });
+              setShowAdvanceModal(true);
+            }}
+          >
+            <i className="ti ti-plus" style={{ marginRight: '6px' }} />
+            New Cash Advance Request
+          </Button>
+        )}
       </div>
 
       {/* ─── KPI Cards ───────────────────────────────────────────────────── */}
@@ -228,7 +266,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
             {pendingAdvancesCount}
           </div>
           <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px', fontWeight: 500 }}>
-            <i className="ti ti-clock" style={{ marginRight: '4px' }} /> Awaiting review prior to departure (FR-050)
+            <i className="ti ti-clock" style={{ marginRight: '4px' }} /> Awaiting review prior to departure
           </div>
         </div>
 
@@ -247,7 +285,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
           <div style={{ fontSize: '28px', fontWeight: 700, color: '#7c3aed', marginTop: '6px' }}>
             {formatCurrency(disbursedAdvancesTotal)}
           </div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Recorded Outflow to couriers (FR-043)</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Recorded Outflow to couriers</div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: '12px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -504,23 +542,23 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                   <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
                     {adv.status === 'Pending Finance Review' ? (
                       <Button
-                        title="Approve (FR-050)"
+                        title="Approve"
                         variant="primary"
                         onClick={() => handleApproveAdvance(adv)}
                         style={{ width: '100%', background: '#059669', borderColor: '#059669' }}
                       >
                         <i className="ti ti-check" style={{ marginRight: '6px' }} />
-                        Approve (FR-050)
+                        Approve
                       </Button>
                     ) : adv.status === 'Approved' ? (
                       <Button
-                        title="Disburse Funds (FR-043)"
+                        title="Disburse Funds"
                         variant="primary"
                         onClick={() => handleOpenDisburseModal(adv)}
                         style={{ width: '100%', background: '#7c3aed', borderColor: '#7c3aed' }}
                       >
                         <i className="ti ti-cash" style={{ marginRight: '6px' }} />
-                        Disburse Funds (FR-043)
+                        Disburse Funds
                       </Button>
                     ) : (
                       <div style={{ width: '100%', textAlign: 'center', padding: '8px', background: '#ecfdf5', borderRadius: '6px', color: '#059669', fontWeight: 600, fontSize: '13px' }}>
@@ -540,7 +578,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                 Cash Advance Approval &amp; Payout Registry
               </h3>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                Pre-trip cash advances submitted by Operations Dispatch. Finance reviews (FR-050) and disburses (FR-043) before departure.
+                Pre-trip cash advances submitted by Operations Dispatch. Finance reviews and disburses before departure.
               </p>
             </div>
             <div style={{ overflowX: 'auto' }}>
@@ -628,7 +666,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                         <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', textAlign: 'right' }}>
                           {adv.status === 'Pending Finance Review' ? (
                             <Button
-                              title="Approve (FR-050)"
+                              title="Approve"
                               variant="primary"
                               size="sm"
                               onClick={() => handleApproveAdvance(adv)}
@@ -639,7 +677,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                             </Button>
                           ) : adv.status === 'Approved' ? (
                             <Button
-                              title="Disburse Funds (FR-043)"
+                              title="Disburse Funds"
                               variant="primary"
                               size="sm"
                               onClick={() => handleOpenDisburseModal(adv)}
@@ -775,13 +813,13 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                     {/* Actions Row */}
                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
                       <Button
-                        title="Audit & Validate (FR-051)"
+                        title="Audit & Validate"
                         variant="primary"
                         onClick={() => handleOpenAuditModal(liq)}
                         style={{ width: '100%', background: '#059669', borderColor: '#059669' }}
                       >
                         <i className="ti ti-file-check" style={{ marginRight: '6px' }} />
-                        Audit &amp; Validate (FR-051)
+                        Audit &amp; Validate
                       </Button>
                     </div>
                   </div>
@@ -878,7 +916,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                           </td>
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap', textAlign: 'right' }}>
                             <Button
-                              title="Audit & Validate (FR-051)"
+                              title="Audit & Validate"
                               variant="primary"
                               size="sm"
                               onClick={() => handleOpenAuditModal(liq)}
@@ -899,7 +937,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
         )
       )}
 
-      {/* ─── Disburse Funds Modal (FR-043, 044) ─────────────────────────── */}
+      {/* ─── Disburse Funds Modal ─────────────────────────────────────────── */}
       {showDisburseModal && selectedAdvance && (
         <div
           style={{
@@ -926,7 +964,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
             <div style={{ padding: '18px 24px', background: '#f5f3ff', borderBottom: '1px solid #ede9fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#5b21b6' }}>
-                  Disburse Cash Advance (FR-043, 044)
+                  Disburse Cash Advance
                 </h3>
                 <div style={{ fontSize: '13px', color: '#6d28d9', marginTop: '2px' }}>
                   Cash Outflow voucher release for {selectedAdvance.courierName}
@@ -1122,8 +1160,8 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
         </div>
       )}
 
-      {/* ─── Create Advance Request Modal (Ops DMS Simulation) ───────────── */}
-      {showAdvanceModal && (
+      {/* ─── Create Advance Request Modal ───────────────────────────────── */}
+      {showAdvanceModal && canRequestCashAdvance(user?.role) && (
         <div
           style={{
             position: 'fixed',
@@ -1149,10 +1187,10 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
             <div style={{ padding: '18px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-                  New DMS Cash Advance Request (FR-043, 050)
+                  New Cash Advance Request
                 </h3>
                 <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                  Transmitted from DMS Operations to FOMS for finance review.
+                  Fill in the details. This will be sent to the Assistant Finance Manager for review.
                 </div>
               </div>
               <button
@@ -1171,6 +1209,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                 <input
                   type="text"
                   required
+                  placeholder="Enter courier name"
                   value={advanceForm.courierName}
                   onChange={(e) => setAdvanceForm({ ...advanceForm, courierName: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -1185,6 +1224,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                   <input
                     type="text"
                     required
+                    placeholder="Enter trip reference"
                     value={advanceForm.tripReference}
                     onChange={(e) => setAdvanceForm({ ...advanceForm, tripReference: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -1198,8 +1238,10 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={advanceForm.amountGiven}
-                    onChange={(e) => setAdvanceForm({ ...advanceForm, amountGiven: Number(e.target.value) })}
+                    min="1"
+                    placeholder="Enter amount"
+                    value={advanceForm.amountGiven || ''}
+                    onChange={(e) => setAdvanceForm({ ...advanceForm, amountGiven: e.target.value ? Number(e.target.value) : ('' as any) })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                   />
                 </div>
@@ -1211,6 +1253,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Enter purpose (e.g. Fuel, Tolls)"
                   value={advanceForm.purpose}
                   onChange={(e) => setAdvanceForm({ ...advanceForm, purpose: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -1223,6 +1266,7 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                 </label>
                 <textarea
                   rows={2}
+                  placeholder="Enter route or destination notes"
                   value={advanceForm.notes}
                   onChange={(e) => setAdvanceForm({ ...advanceForm, notes: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
@@ -1233,8 +1277,8 @@ export const CashAdvanceLiquidationPortal: React.FC = () => {
                 <Button title="Cancel" variant="secondary" onClick={() => setShowAdvanceModal(false)} type="button">
                   Cancel
                 </Button>
-                <Button title="Submit to Finance Review" variant="primary" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Transmitting...' : 'Submit to Finance Review'}
+                <Button title="Submit for Approval" variant="primary" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
                 </Button>
               </div>
             </form>

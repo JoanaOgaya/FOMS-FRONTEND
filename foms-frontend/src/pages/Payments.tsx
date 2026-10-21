@@ -1121,83 +1121,6 @@ const PaymentsContent: React.FC = () => {
       proofOfPaymentUrl: s.proofFileUrl,
     };
   });
-  // --- List View — Cash Flow Table ---
-  // Status helper functions
-  const isValidatedStatus = (st?: string) => {
-    if (!st) return false;
-    const s = st.toLowerCase().trim();
-    return s === 'validated' || s === 'approved';
-  };
-
-  const isPendingStatus = (st?: string) => {
-    if (!st) return false;
-    const s = st.toLowerCase().trim();
-    return s.includes('pending') || s.includes('review') || s === 'for review';
-  };
-
-  const isRejectedStatus = (st?: string) => {
-    if (!st) return false;
-    const s = st.toLowerCase().trim();
-    return s === 'rejected' || s.includes('returned');
-  };
-
-  // Map ALL database payments (Inflows and Outflows, Validated and Pending)
-  const cashFlowRows = payments.map((p: Payment) => {
-    const cli = clients.find((c: Client) => c.id === p.clientId || (c as any).clientCode === p.clientId);
-    const invoice = invoices.find((i: Invoice) => i.id === p.invoiceId || (i as any).invoiceNumber === p.invoiceId || (i as any).invoiceNo === p.invoiceId);
-    const isOutflow = (p as any).flow === 'outflow' || (p as any).type === 'Outflow';
-    const isSpeedPay = (p.paymentMethod && ['maya', 'gcash', 'card', 'paymongo'].includes(p.paymentMethod.toLowerCase())) ||
-      !!(p as any).speedPayReference ||
-      (p.referenceNumber && (p.referenceNumber.startsWith('SP-') || p.referenceNumber.startsWith('GCASH-') || p.referenceNumber.startsWith('MAYA-') || p.referenceNumber.startsWith('BDO-')));
-
-    return {
-      ...p,
-      clientName: (p as any).clientName || cli?.name || (p.clientId ? (p.clientId === '1' ? 'SpeedPay Client' : p.clientId) : 'Client Account'),
-      invoiceNumber: (p as any).invoiceNumber || invoice?.invoiceNumber || (p as any).invoiceNo || p.invoiceId || '—',
-      recordedAt: p.recordedAt || (p as any).paymentDate || (p as any).dateRecorded || (p as any).submittedAt || (p as any).createdAt || new Date().toISOString(),
-      type: isOutflow ? ('Outflow' as const) : ('Inflow' as const),
-      classification: isOutflow ? 'Operating Disbursement' : isSpeedPay ? 'SpeedPay Collection' : 'Client Collection',
-      status: p.status || (p as any).paymentStatus || 'Pending Validation',
-    };
-  });
-
-  // Track existing reference numbers / IDs to avoid duplicating SpeedPay submissions
-  const existingRefs = new Set(
-    payments.flatMap(p => [
-      (p.referenceNumber || '').toLowerCase().trim(),
-      (p.id || '').toLowerCase().trim(),
-      ((p as any).speedPayReference || '').toLowerCase().trim()
-    ]).filter(Boolean)
-  );
-
-  // SpeedPay submissions not already tracked in payments
-  const speedPayRows = speedPay
-    .filter((s: SpeedPaySubmission) => {
-      const ref = (s.referenceNumber || '').toLowerCase().trim();
-      const id = (s.id || '').toLowerCase().trim();
-      return !existingRefs.has(ref) && !existingRefs.has(id);
-    })
-    .map((s: SpeedPaySubmission) => {
-      const invoice = invoices.find((i: Invoice) => i.id === s.invoiceId);
-      const targetClientId = (s as any).clientId || invoice?.clientId || '';
-      const cli = clients.find((c: Client) => c.id === targetClientId);
-      const cleanId = s.id.startsWith('SP-') ? s.id : `SP-${s.id}`;
-      return {
-        id: cleanId,
-        clientId: targetClientId || (cli ? cli.id : ''),
-        clientName: cli?.name ?? s.clientName ?? 'SpeedPay Client',
-        invoiceId: s.invoiceId,
-        invoiceNumber: s.invoiceNumber ?? invoice?.invoiceNumber ?? s.invoiceId ?? '—',
-        amount: s.amountPaid ?? 0,
-        paymentMethod: s.paymentMethod,
-        referenceNumber: s.referenceNumber,
-        recordedAt: s.submittedAt || new Date().toISOString(),
-        status: s.status || 'Pending Validation',
-        type: 'Inflow' as const,
-        classification: 'SpeedPay Collection',
-        proofOfPaymentUrl: s.proofFileUrl,
-      };
-    });
 
   const allPaymentRows = [...paymentRows, ...speedPayRows]
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
@@ -1224,28 +1147,6 @@ const PaymentsContent: React.FC = () => {
     }
     if (filterMethod !== 'All' && r.paymentMethod !== filterMethod) return false;
     if (filterStatus !== 'All' && r.status !== filterStatus) return false;
-  // KPIs: Inflows and Outflows computed only on confirmed/validated records
-  const totalInflow = allCashFlowRows
-    .filter(r => r.type === 'Inflow' && isValidatedStatus(r.status))
-    .reduce((sum: number, r) => sum + (r.amount || 0), 0);
-
-  const totalOutflow = allCashFlowRows
-    .filter(r => r.type === 'Outflow' && isValidatedStatus(r.status))
-    .reduce((sum: number, e) => sum + (e.amount || 0), 0);
-  const netCashFlow = totalInflow - totalOutflow;
-
-  const pendingPaymentsList = allCashFlowRows.filter(r => r.type === 'Inflow' && isPendingStatus(r.status));
-  const pendingInflowAmt = pendingPaymentsList.reduce((s: number, p) => s + (p.amount || 0), 0);
-  const pendingCount = pendingPaymentsList.length;
-
-  const filteredCashFlow = allCashFlowRows.filter(r => {
-    if (filterType !== 'All' && r.type !== filterType) return false;
-    if (filterStatus !== 'All') {
-      if (filterStatus === 'Validated' && !isValidatedStatus(r.status)) return false;
-      if (filterStatus === 'Pending Validation' && !isPendingStatus(r.status)) return false;
-      if (filterStatus === 'Approved' && r.status !== 'Approved') return false;
-      if (filterStatus === 'Rejected' && !isRejectedStatus(r.status)) return false;
-    }
     if (filterDateFrom) {
       const from = new Date(filterDateFrom);
       if (new Date(r.recordedAt) < from) return false;
@@ -1620,10 +1521,6 @@ const PaymentsContent: React.FC = () => {
           { label: 'Pending Validation', value: `₱${Number(pendingAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', icon: 'ti-clock', sub: `${pendingRows.length} payment(s) awaiting` },
           { label: 'SpeedPay Online', value: `₱${Number(speedPayTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, color: '#6366F1', bgColor: '#EEF2FF', textColor: '#4338CA', icon: 'ti-device-mobile-message', sub: `${speedPayRows.length} online transaction(s)` },
           { label: 'Official Receipts', value: `${receipts.length}`, color: '#0D9488', bgColor: '#F0FDFA', textColor: '#0F766E', icon: 'ti-receipt', sub: 'Issued tax receipts' },
-          { label: 'Total Cash Inflow', value: `₱${Number(totalInflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, variant: 'success' as const, icon: 'ti-trending-up', sub: 'Validated payments only' },
-          { label: 'Total Cash Outflow', value: `₱${Number(totalOutflow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, variant: 'danger' as const, icon: 'ti-trending-down', sub: 'Approved outgoing transactions' },
-          { label: 'Net Cash Flow', value: `₱${Number(netCashFlow || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, variant: netCashFlow >= 0 ? 'info' as const : 'danger' as const, icon: 'ti-currency-peso', sub: 'Total Inflow minus Outflow' },
-          { label: 'Pending Validation', value: `₱${Number(pendingInflowAmt || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, variant: 'warning' as const, icon: 'ti-clock', sub: `${pendingCount} payment(s) awaiting` },
         ].map(kpi => (
           <PaymentsKpiCard key={kpi.label} {...kpi} />
         ))}

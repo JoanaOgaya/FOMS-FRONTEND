@@ -695,6 +695,8 @@ public class StarsIntegrationService : IStarsIntegrationService
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         }).ToList();
+    }
+
     public async Task<(bool exists, string message)> CheckUserExistsInStarsAsync(string? email, string? employeeId = null)
     {
         if (!IsConfigured)
