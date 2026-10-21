@@ -11,7 +11,7 @@ import { onUnauthorized, session } from '../services/apiClient';
 import { clearQueryCache } from '../hooks/useQuery';
 import { riskService } from '../services/ai/risk.service';
 import { LANDING_PATH } from '../utils/roleAccess';
-import { bootstrapIncomingAuth, getCentralLoginUrl } from '../services/centralAuth';
+import { bootstrapIncomingAuth, clearStoredSession, getCentralLoginUrl, getInitialProfile } from '../services/centralAuth';
 
 // Bootstrap any SSO auth params returned when entering FOMS from Speedex Central Portal
 bootstrapIncomingAuth();
@@ -24,23 +24,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(() => !!session.get());
+  const [user, setUser] = useState<User | null>(getInitialProfile);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !getInitialProfile() && !!session.get());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const endSession = useCallback((reason: string = 'logged_out') => {
-    session.clear();
+    clearStoredSession();
     clearQueryCache();
     riskService.clearCache();
     setUser(null);
-    try {
-      sessionStorage.removeItem('lastVisited');
-      sessionStorage.removeItem('redirectAfterLogin');
-      localStorage.removeItem('lastVisited');
-      localStorage.removeItem('redirectAfterLogin');
-    } catch {
-      // storage access safeguard
-    }
     window.location.href = `${getCentralLoginUrl()}?action=logout&reason=${encodeURIComponent(reason)}&system=foms`;
   }, []);
 
@@ -57,12 +49,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authService.logout().catch(() => undefined).finally(() => endSession(reason));
   }, [endSession]);
 
-  // Restore session from the server (role is never read from storage).
+  // Restore session from the server (updates cached profile with fresh backend data)
   useEffect(() => {
-    if (!session.get()) return;
+    if (!session.get()) {
+      setIsLoading(false);
+      return;
+    }
     authService.me()
-      .then(setUser)
-      .catch(() => { session.clear(); })
+      .then((me) => {
+        setUser(me);
+        try {
+          localStorage.setItem('foms_user_profile', JSON.stringify(me));
+        } catch {
+          // storage safeguard
+        }
+      })
+      .catch((err) => {
+        if (err?.status === 401) {
+          clearStoredSession();
+          setUser(null);
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -99,6 +106,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session.set({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
       const me = await authService.me();
       setUser(me);
+      try {
+        localStorage.setItem('foms_user_profile', JSON.stringify(me));
+      } catch {
+        // storage safeguard
+      }
 
       let requestedFrom: string | undefined;
       const wasLoggedOut = typeof window !== 'undefined' && sessionStorage.getItem('loggedOut') === 'true';
@@ -117,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       navigate(target, { replace: true });
       return { success: true };
     } catch (e) {
-      session.clear();
+      clearStoredSession();
       return { success: false, error: e instanceof Error ? e.message : 'Unable to sign in.' };
     } finally {
       setIsLoading(false);

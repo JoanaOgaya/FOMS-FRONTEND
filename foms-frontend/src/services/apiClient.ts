@@ -30,14 +30,29 @@ interface StoredSession { accessToken: string; refreshToken?: string }
 export const session = {
   get(): StoredSession | null {
     try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
+      const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
       return raw ? (JSON.parse(raw) as StoredSession) : null;
     } catch {
       return null;
     }
   },
-  set(value: StoredSession) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(value)); },
-  clear() { sessionStorage.removeItem(SESSION_KEY); },
+  set(value: StoredSession) {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+      localStorage.setItem(SESSION_KEY, JSON.stringify(value));
+    } catch {
+      // storage safeguard
+    }
+  },
+  clear() {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('foms_user_profile');
+    } catch {
+      // storage safeguard
+    }
+  },
 };
 
 let unauthorizedListener: (() => void) | null = null;
