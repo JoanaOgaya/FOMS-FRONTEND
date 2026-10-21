@@ -11,7 +11,7 @@ import { onUnauthorized, session } from '../services/apiClient';
 import { clearQueryCache } from '../hooks/useQuery';
 import { riskService } from '../services/ai/risk.service';
 import { LANDING_PATH } from '../utils/roleAccess';
-import { bootstrapIncomingAuth, clearStoredSession, getCentralLoginUrl, getInitialProfile } from '../services/centralAuth';
+import { bootstrapIncomingAuth, clearStoredSession, getCentralLoginUrl, getInitialProfile, getSystemPortalUrl } from '../services/centralAuth';
 
 // Bootstrap any SSO auth params returned when entering FOMS from Speedex Central Portal
 bootstrapIncomingAuth();
@@ -29,11 +29,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const endSession = useCallback((reason: string = 'logged_out') => {
+    let authDataToHandoff: any = null;
+    try {
+      const sessionRaw = localStorage.getItem('foms_session') || sessionStorage.getItem('foms_session');
+      const profileRaw = localStorage.getItem('foms_user_profile');
+      if (sessionRaw) {
+        const parsedSession = JSON.parse(sessionRaw);
+        const parsedProfile = profileRaw ? JSON.parse(profileRaw) : null;
+        authDataToHandoff = {
+          ...parsedSession,
+          ...parsedProfile,
+        };
+      }
+    } catch {
+      // storage safeguard
+    }
+
     clearStoredSession();
     clearQueryCache();
     riskService.clearCache();
     setUser(null);
-    window.location.href = `${getCentralLoginUrl()}?action=logout&reason=${encodeURIComponent(reason)}&system=foms`;
+
+    if (reason === 'inactivity' || reason === 'session_expired') {
+      window.location.href = `${getCentralLoginUrl()}?action=logout&reason=${encodeURIComponent(reason)}&system=foms`;
+    } else {
+      // Voluntary logout returns to the Central Portal Landing Page (/portal)
+      const portalUrl = getSystemPortalUrl();
+      if (typeof window !== 'undefined') {
+        if (authDataToHandoff?.accessToken) {
+          const hashFragment = `token=${encodeURIComponent(authDataToHandoff.accessToken)}&refreshToken=${encodeURIComponent(authDataToHandoff.refreshToken || '')}&role=${encodeURIComponent(authDataToHandoff.role || '')}&employeeId=${encodeURIComponent(authDataToHandoff.employeeId || '')}&employeeName=${encodeURIComponent(authDataToHandoff.fullName || authDataToHandoff.name || '')}`;
+          window.location.replace(`${portalUrl}#${hashFragment}`);
+        } else {
+          window.location.replace(portalUrl);
+        }
+      }
+    }
   }, []);
 
   const logout = useCallback((options?: { reason?: string } | unknown) => {

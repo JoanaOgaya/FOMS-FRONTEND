@@ -17,6 +17,16 @@ export function getCentralLoginUrl(): string {
 }
 
 /**
+ * Resolves the Speedex Central Portal Landing URL.
+ */
+export function getSystemPortalUrl(): string {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:5173/portal';
+  }
+  return `${CENTRAL_PORTAL_FALLBACK}/portal`;
+}
+
+/**
  * Resolves the Central Password Recovery URL.
  */
 export function getCentralForgotPasswordUrl(): string {
