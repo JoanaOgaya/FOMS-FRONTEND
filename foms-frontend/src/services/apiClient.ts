@@ -13,7 +13,12 @@ const defaultBaseUrl = isProduction
   ? 'https://fomsintegration-amfve2fdccbdgbgy.eastasia-01.azurewebsites.net'
   : 'http://localhost:5007';
 
-const activeUrl = envUrl && !envUrl.includes('foms-backend.onrender.com') ? envUrl : defaultBaseUrl;
+// In production, ignore any localhost or invalid URL so deployed builds always use the live backend
+const isValidCustomUrl = envUrl &&
+  !envUrl.includes('foms-backend.onrender.com') &&
+  (!isProduction || !envUrl.includes('localhost'));
+
+const activeUrl = isValidCustomUrl ? envUrl : defaultBaseUrl;
 
 const baseURL: string = activeUrl.replace(/\/+$/, '');
 

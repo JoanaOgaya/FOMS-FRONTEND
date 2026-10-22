@@ -2,7 +2,9 @@ import { http } from './apiClient';
 import { createResource } from './resource';
 import type { SpeedPaySubmission } from '../types/entities';
 
-const speedpayApiUrl = (import.meta as any).env?.VITE_SPEEDPAY_API_URL?.replace(/\/$/, '') || '';
+const isProd = import.meta.env.PROD;
+const rawSpeedpayUrl = ((import.meta as any).env?.VITE_SPEEDPAY_API_URL || '').trim().replace(/\/$/, '');
+const speedpayApiUrl = isProd && rawSpeedpayUrl.includes('localhost') ? '' : rawSpeedpayUrl;
 
 export const speedpayService = {
   ...createResource<SpeedPaySubmission>(speedpayApiUrl ? `${speedpayApiUrl}/speedpay/submissions` : '/speedpay/submissions'),
